@@ -1,0 +1,241 @@
+/**
+ * Fixture integrity check. Run with `npm run validate:fixtures`.
+ *
+ * TypeScript catches shape errors at compile time (every fixture is written
+ * `as const satisfies readonly T[]`). What it cannot catch is REFERENTIAL
+ * integrity — a collection pointing at an item id that does not exist, a room
+ * placing an item in a slot the theme does not have, a scan fixture whose
+ * confidence values disagree with the routing thresholds.
+ *
+ * Those are exactly the bugs that surface at 2am on the 6th, so they get a
+ * script. Run it before every merge to main.
+ */
+
+import { assertRoomValid } from '../src/domain/room';
+import { assertScanConsistent, countScan } from '../src/domain/scan';
+import { RARITY_LABELS } from '../src/domain/rarity';
+import { ALL_ITEMS, ALL_SETS, ITEMS_BY_ID } from '../src/fixtures/catalogue';
+import { COLLECTIONS, ROOMS, POSTS } from '../src/fixtures/collections';
+import { OWNED_ITEMS } from '../src/fixtures/owned-items';
+import { ROOM_THEMES } from '../src/fixtures/room-themes';
+import { SCAN_RESULTS } from '../src/fixtures/scan-results';
+import { ARTICLES } from '../src/fixtures/articles';
+import { COMMENTS, COMMUNITIES, FLAGS, FOLLOWS, NOTIFICATIONS, SAVED_ARTICLES } from '../src/fixtures/social';
+import { USERS, USERS_BY_ID, GAME_ACCOUNTS } from '../src/fixtures/users';
+
+const errors: string[] = [];
+const warnings: string[] = [];
+
+function check(condition: boolean, message: string): void {
+  if (!condition) errors.push(message);
+}
+
+function warn(condition: boolean, message: string): void {
+  if (!condition) warnings.push(message);
+}
+
+// ── Items ──────────────────────────────────────────────────────────────
+const itemIds = new Set<string>(ALL_ITEMS.map((i) => i.id));
+check(itemIds.size === ALL_ITEMS.length, 'Duplicate item id in the catalogue');
+
+for (const item of ALL_ITEMS) {
+  check(
+    item.popularityScore > 0 && item.popularityScore <= 1,
+    `Item ${item.id}: popularityScore must be in (0, 1]`,
+  );
+  // §12.2 — the native label must match the rarity table for that title.
+  const expected = RARITY_LABELS[item.rarityTier][item.title];
+  check(
+    expected === null || item.rarityLabel === expected || item.rarityLabel === 'Exclusive',
+    `Item ${item.id}: rarityLabel "${item.rarityLabel}" does not match the §12.2 table (expected "${expected}")`,
+  );
+  check(
+    item.setId === null || ALL_SETS.some((s) => s.id === item.setId),
+    `Item ${item.id}: setId "${item.setId}" does not exist`,
+  );
+}
+
+// ── Sets ───────────────────────────────────────────────────────────────
+for (const set of ALL_SETS) {
+  for (const id of set.itemIds) {
+    check(itemIds.has(id), `Set ${set.id}: unknown item "${id}"`);
+  }
+  check(
+    set.totalCount >= set.itemIds.length,
+    `Set ${set.id}: totalCount (${set.totalCount}) is less than the ids it lists (${set.itemIds.length})`,
+  );
+}
+
+// ── Users and ownership ────────────────────────────────────────────────
+const userIds = new Set<string>(USERS.map((u) => u.id));
+const ownedIds = new Set<string>();
+for (const owned of OWNED_ITEMS) {
+  check(userIds.has(owned.userId), `OwnedItem ${owned.id}: unknown user "${owned.userId}"`);
+  check(itemIds.has(owned.itemId), `OwnedItem ${owned.id}: unknown item "${owned.itemId}"`);
+  check(!ownedIds.has(owned.id), `Duplicate OwnedItem id "${owned.id}"`);
+  ownedIds.add(owned.id);
+  // §11 F1 step 6 — scanned items land unverified. Verified requires a linked account.
+  check(
+    !(owned.source === 'scan' && owned.trustLevel === 'verified'),
+    `OwnedItem ${owned.id}: a scanned item cannot be verified (§9.2)`,
+  );
+}
+
+for (const account of GAME_ACCOUNTS) {
+  check(userIds.has(account.userId), `GameAccount: unknown user "${account.userId}"`);
+}
+
+// §9.3 — seeded data must contain a realistic mix of trust levels.
+const verifiedCount = OWNED_ITEMS.filter((o) => o.trustLevel === 'verified').length;
+warn(
+  verifiedCount > 0 && verifiedCount < OWNED_ITEMS.length,
+  '§9.3: seeded data should mix verified and unverified items',
+);
+
+// ── Collections, rooms, posts ──────────────────────────────────────────
+const collectionIds = new Set<string>(COLLECTIONS.map((c) => c.id));
+for (const collection of COLLECTIONS) {
+  check(userIds.has(collection.userId), `Collection ${collection.id}: unknown user`);
+  for (const id of collection.itemIds) {
+    check(itemIds.has(id), `Collection ${collection.id}: unknown item "${id}"`);
+  }
+}
+
+const themeIds = new Set<string>(ROOM_THEMES.map((t) => t.id));
+for (const theme of ROOM_THEMES) {
+  const slotIds = new Set(theme.slots.map((s) => s.id));
+  check(slotIds.size === theme.slots.length, `Theme ${theme.id}: duplicate slot id`);
+  for (const slot of theme.slots) {
+    check(
+      [slot.x, slot.y, slot.w, slot.h].every((n) => n >= 0 && n <= 1),
+      `Theme ${theme.id}, slot ${slot.id}: coordinates must be fractional 0–1`,
+    );
+  }
+}
+
+for (const room of ROOMS) {
+  check(collectionIds.has(room.collectionId), `Room ${room.id}: unknown collection`);
+  check(themeIds.has(room.themeId), `Room ${room.id}: unknown theme "${room.themeId}"`);
+  for (const placement of room.placements) {
+    check(
+      ownedIds.has(placement.ownedItemId),
+      `Room ${room.id}: placement references unknown OwnedItem "${placement.ownedItemId}"`,
+    );
+  }
+  try {
+    assertRoomValid({ ...room, slots: [...room.slots], placements: [...room.placements] });
+  } catch (error) {
+    errors.push((error as Error).message);
+  }
+}
+
+for (const post of POSTS) {
+  check(userIds.has(post.userId), `Post ${post.id}: unknown user`);
+  const exists =
+    post.type === 'collection'
+      ? collectionIds.has(post.targetId)
+      : ROOMS.some((r) => r.id === post.targetId);
+  check(exists, `Post ${post.id}: target "${post.targetId}" does not exist`);
+}
+
+// ── Scans — the reconciliation the PRD demands ─────────────────────────
+for (const scan of SCAN_RESULTS) {
+  try {
+    assertScanConsistent({ ...scan, detections: [...scan.detections] });
+  } catch (error) {
+    errors.push((error as Error).message);
+  }
+  for (const detection of scan.detections) {
+    if (detection.itemId !== null) {
+      check(
+        itemIds.has(detection.itemId),
+        `Scan ${scan.id}, detection ${detection.id}: unknown item "${detection.itemId}"`,
+      );
+    }
+    for (const candidate of detection.candidateItemIds) {
+      check(
+        itemIds.has(candidate),
+        `Scan ${scan.id}, detection ${detection.id}: unknown candidate "${candidate}"`,
+      );
+    }
+  }
+  const counts = countScan([...scan.detections]);
+  check(
+    counts.needsReview > 0,
+    `Scan ${scan.id}: must demonstrate the Needs Review branch (§11 F1)`,
+  );
+}
+
+// ── News and social ────────────────────────────────────────────────────
+const articleIds = new Set<string>(ARTICLES.map((a) => a.id));
+for (const article of ARTICLES) {
+  for (const id of article.relatedItemIds) {
+    check(itemIds.has(id), `Article ${article.id}: unknown related item "${id}"`);
+  }
+  check(article.url.startsWith('http'), `Article ${article.id}: must link out to the source (§11 F6)`);
+}
+
+for (const saved of SAVED_ARTICLES) {
+  check(userIds.has(saved.userId), 'SavedArticle: unknown user');
+  check(articleIds.has(saved.articleId), `SavedArticle: unknown article "${saved.articleId}"`);
+}
+
+for (const follow of FOLLOWS) {
+  check(userIds.has(follow.followerId), `Follow: unknown follower "${follow.followerId}"`);
+  check(userIds.has(follow.followeeId), `Follow: unknown followee "${follow.followeeId}"`);
+  check(follow.followerId !== follow.followeeId, 'Follow: a user cannot follow themselves');
+}
+
+for (const community of COMMUNITIES) {
+  for (const id of community.memberIds) {
+    check(userIds.has(id), `Community ${community.id}: unknown member "${id}"`);
+  }
+  check(
+    community.memberCount >= community.memberIds.length,
+    `Community ${community.id}: memberCount is below the seeded member list`,
+  );
+}
+
+for (const comment of COMMENTS) {
+  check(userIds.has(comment.userId), `Comment ${comment.id}: unknown user`);
+  if (comment.parentId !== null) {
+    check(
+      COMMENTS.some((c) => c.id === comment.parentId),
+      `Comment ${comment.id}: unknown parent "${comment.parentId}"`,
+    );
+  }
+}
+
+for (const flag of FLAGS) {
+  check(userIds.has(flag.reporterId), `Flag ${flag.id}: unknown reporter`);
+  if (flag.targetType === 'item') {
+    check(ownedIds.has(flag.targetId), `Flag ${flag.id}: unknown OwnedItem "${flag.targetId}"`);
+  }
+}
+
+for (const notification of NOTIFICATIONS) {
+  check(userIds.has(notification.userId), `Notification ${notification.id}: unknown user`);
+}
+
+// §15 — implausible seeded numbers read as fake to anyone who plays these games.
+for (const user of USERS) {
+  const count = OWNED_ITEMS.filter((o) => o.userId === user.id).length;
+  warn(count < 1000, `§15: ${user.displayName} owns ${count} items — keep counts plausible`);
+}
+check(USERS_BY_ID.size === USERS.length, 'Duplicate user id');
+check(ITEMS_BY_ID.size === ALL_ITEMS.length, 'Duplicate item id in ITEMS_BY_ID');
+
+// ── Report ─────────────────────────────────────────────────────────────
+for (const warning of warnings) console.warn(`warn  ${warning}`);
+
+if (errors.length > 0) {
+  for (const error of errors) console.error(`error ${error}`);
+  console.error(`\n${errors.length} fixture error(s).`);
+  process.exit(1);
+}
+
+console.log(
+  `Fixtures OK — ${ALL_ITEMS.length} items, ${ALL_SETS.length} sets, ${USERS.length} users, ` +
+    `${OWNED_ITEMS.length} owned, ${COLLECTIONS.length} collections, ${ROOMS.length} rooms, ` +
+    `${ROOM_THEMES.length} themes, ${ARTICLES.length} articles, ${SCAN_RESULTS.length} scans.`,
+);

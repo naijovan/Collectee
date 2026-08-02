@@ -1,0 +1,52 @@
+# Collectee — notes for Claude Code
+
+Read `docs/PRD.md` before non-trivial work. §11–§13 are written as a build brief; §16 lists what is
+still undecided. Section references in code comments (§9.2, §11 F4, §12.3) point at that file.
+
+## Architecture in one paragraph
+
+Expo Router app. `src/types/` is the entity schema and the team's merge contract. `src/domain/` is
+pure logic with no I/O — rarity normalisation, scanner confidence routing and count reconciliation,
+collector match scoring, trust/flag thresholds, room placement and camera maths, news ranking.
+`src/fixtures/` is seeded data, written `as const satisfies readonly T[]` so the schema is enforced
+at compile time. `src/services/` wraps fixtures in async, Promise-returning methods. `src/state/`
+holds app-wide React context.
+
+## Hard rules
+
+- **Screens import from `@/services`, never `@/fixtures`.** The whole point of the service layer is
+  that phase 2 swaps a fixture for a `fetch` inside one file.
+- **Every service method returns a Promise**, even for local data. A synchronous fixture import in
+  a screen is a rewrite later.
+- **No raw hex outside `src/theme/theme.ts`.**
+- **No rarity strings outside `src/domain/rarity.ts`.** Sort/filter on `rarityTier`, print
+  `rarityLabel` (§12.2).
+- **Counts are derived, never stored.** `domain/scan.ts` computes every Import-flow number from
+  `detections`. The Figma shipped a reconciliation bug; do not reintroduce it by hand-writing a
+  total.
+- **Scanned items land `unverified`.** The scanner never produces a verified item — verification
+  needs a linked game account and that is partnership-gated (§9.3).
+- **Room themes must be original styles, never named franchises** (§11 F4). "Ancient Dojo" yes,
+  "Naruto dojo" no — the latter generates derivative third-party IP.
+- **Match results always carry a human-readable `reason`.** A percentage without its reason is a
+  broken feature, not a styling choice (§11 F5).
+
+## Before opening a PR
+
+```bash
+npm run typecheck
+npm run validate:fixtures
+```
+
+`validate-fixtures.ts` catches referential integrity that TypeScript cannot: dangling item ids,
+placements in slots that do not exist, scan fixtures whose confidences disagree with the routing
+thresholds, rarity labels that drift from the §12.2 table.
+
+## Scope guards worth repeating
+
+- All AI is mocked (§12.1). No backend, no API key, no network during the demo.
+- Rooms are a 2.5D parallax scene, not navigable 3D and not a turntable. Build to the §11 F4 spec,
+  **not** to the richer Figma frames.
+- The descope ladder (§14) is encoded as booleans in `src/config/features.ts`. Cutting scope is
+  flipping a flag, not deleting code.
+- Never cut: import → review → collection → room → share.
