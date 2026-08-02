@@ -1,16 +1,15 @@
 /**
- * Foundation diagnostics.
+ * Foundation diagnostics — reachable from Profile → Developer, at /diagnostics.
  *
- * This is NOT the Home screen. §13.4 specifies Home in full (header, filter
- * chips, hero banner, gaming updates rail, explore grid, recently added,
- * collectors you may like, tab bar) and it gets built when UI work starts.
+ * This was `app/index.tsx` before the `(tabs)` group landed; Home now lives at
+ * `app/(tabs)/index.tsx` per §13.4. It was kept rather than deleted because it
+ * earns its place: it calls every service the way a real screen would — through
+ * @/services, never through @/fixtures — and prints what came back. If a number
+ * here is wrong, the foundation is wrong, and you find out before merge day
+ * rather than on stage.
  *
- * This screen exists so the data layer is verifiable before any UI exists: it
- * calls every service the way a real screen would — through @/services, never
- * through @/fixtures — and shows what came back. If a number here is wrong, the
- * foundation is wrong, and you find out now rather than on merge day.
- *
- * Delete this file when the real (tabs) group lands.
+ * Add a check here when you add a service method. It is the cheapest regression
+ * test this codebase has.
  */
 
 import { useEffect, useState } from 'react';

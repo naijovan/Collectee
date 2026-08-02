@@ -28,12 +28,39 @@ What exists:
 | App state | `src/state/AppContext.tsx` | Viewer, inventory, onboarding gate, notifications. |
 | Feature flags (§14) | `src/config/features.ts` | The descope ladder, as booleans. |
 | Design tokens (§13.2) | `src/theme/theme.ts` | No raw hex anywhere else. |
+| Shared components (§13.3) | `src/components/` | All 14, plus `RoomScene`. **Jovan owns these — change via PR announced in chat.** |
+| Navigation + screens | `src/app/` | Tab group, Home in full (§13.4), and a walkable screen for every journey. |
 
-What does not exist yet: the tab bar, the Home screen (§13.4), the 14 shared components (§13.3),
-and every flow screen. Those are next.
+### Routes
 
-`src/app/index.tsx` is a **diagnostics screen**, not Home. It calls every service the way a real
-screen would and shows what came back. Delete it when the real `(tabs)` group lands.
+`src/app/(tabs)/` is the app; everything else is a stack screen pushed over it, one route group per
+journey in §10. Each flow screen is **working, on-spec and deliberately thin** — enough to walk the
+whole product end to end. The flow owner expands theirs; the shell underneath does not move.
+
+| Route | Flow | Owner |
+|---|---|---|
+| `(tabs)/index` | Home — all eight sections of §13.4 | Jovan |
+| `(tabs)/explore` · `collector/[id]` | J4 Discover collectors & communities | Marcus |
+| `(tabs)/collections` · `(tabs)/profile` | Behind the §13.4 onboarding gate | — |
+| `create` | The `+` action sheet (§13.5) | — |
+| `import` | J1 Upload → Scan → Review → Needs Review → Done | Bernard |
+| `collection/new` · `collection/[id]` | J2 Create & publish | Bernard |
+| `room/new` · `room/[id]` | J3 Collection Room — 2.5D parallax, look-at focus | Jovan |
+| `news` · `article/[id]` | J5 News & updates (behind `FEATURES.news`) | Marcus |
+| `diagnostics` | Every service called the way a screen calls it | Jovan |
+
+Three things in here are the PRD's explicit fixes to Figma bugs — do not undo them by hand:
+
+- **Import counts are derived**, never written. `24 detected = 18 matched + 4 needs review + 2
+  duplicates`, the CTA count rises live as Needs Review items are resolved, and the completion
+  screen reconciles against the same numbers (§11 F1).
+- **Steppers read `COLLECTION_STEPS` / `ROOM_STEPS`** from `domain/collections.ts`, so the count on
+  screen cannot drift from the count in code (§11 F3). Preview stays outside the numbered bar.
+- **The onboarding gate lives only in `TabBar`**, from `hasImported` (§13.4). Do not re-derive it.
+
+The §9.3 trust UI ships behind `FEATURES.trustUi`: an item-trust badge on `ItemCard` and a Flag
+entry in the item `⋮` menu with a confirmation state, on the collection page. That was the open
+4 Aug decision — the logic and the UI both exist now, so the call is a flag flip either way.
 
 ---
 
@@ -42,6 +69,7 @@ screen would and shows what came back. Delete it when the real `(tabs)` group la
 ```bash
 npm ci          # use ci, not install — the lockfile is the contract
 npm start       # then scan the QR with Expo Go
+npm run web     # or http://localhost:8081 in a browser
 ```
 
 Built and verified on **Node 26.4.0**. The PRD says Node 20 LTS; nobody on this machine has a

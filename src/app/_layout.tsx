@@ -1,11 +1,19 @@
 /**
- * Root layout. Deliberately minimal — UI is deferred until the data and feature
- * layer is settled (team decision, 2 Aug).
+ * Root layout.
  *
- * When the tab bar lands (§13.4), it goes in a `(tabs)` group here:
- *   Home · Explore · + (raised blue circle) · Collections · Profile
- * with the onboarding gate reading `hasImported` from AppProvider — Collections
- * and Profile stay greyed and non-interactive until the first import completes.
+ * The `(tabs)` group is the app (§13.4: Home · Explore · + · Collections ·
+ * Profile). Everything else is a stack screen pushed over it, which maps
+ * directly to the flow map in §10 — each journey is a route group, not a
+ * modal-within-a-tab:
+ *
+ *   J1 Import inventory       → /import
+ *   J2 Create & publish       → /collection/new  → /collection/[id]
+ *   J3 Collection Room        → /room/new        → /room/[id]
+ *   J4 Discover collectors    → /collector/[id]
+ *   J5 News & gaming updates  → /news            → /article/[id]
+ *
+ * `/create` is the §13.5 action sheet (Scan inventory / Create collection /
+ * Create room), presented as a modal because it appears in every flow.
  */
 
 import { Stack } from 'expo-router';
@@ -22,10 +30,26 @@ export default function RootLayout() {
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.textPrimary,
+          headerShadowVisible: false,
           contentStyle: { backgroundColor: colors.background },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'Collectee — Foundation' }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="create"
+          options={{ presentation: 'modal', title: 'Create', headerShown: false }}
+        />
+        <Stack.Screen name="import" options={{ title: 'Import inventory' }} />
+        <Stack.Screen name="news" options={{ title: 'Gaming updates' }} />
+        <Stack.Screen name="diagnostics" options={{ title: 'Foundation checks' }} />
+
+        {/* Dynamic routes need an explicit title or the header prints "room/[id]". */}
+        <Stack.Screen name="collection/new" options={{ title: 'New collection' }} />
+        <Stack.Screen name="collection/[id]" options={{ title: 'Collection' }} />
+        <Stack.Screen name="room/new" options={{ title: 'New room' }} />
+        <Stack.Screen name="room/[id]" options={{ title: 'Room' }} />
+        <Stack.Screen name="collector/[id]" options={{ title: 'Collector' }} />
+        <Stack.Screen name="article/[id]" options={{ title: 'Article' }} />
       </Stack>
     </AppProvider>
   );
