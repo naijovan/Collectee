@@ -9,9 +9,10 @@
  * rather than an icon font or an image library.
  */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
+import { artFor } from '@/config/artRegistry';
 import { rarityLabelFor } from '@/domain/rarity';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { GameTitle, RarityTier } from '@/types';
@@ -25,11 +26,17 @@ function hash(seed: string): number {
 }
 
 /**
- * Placeholder item art.
+ * Item art — the real render when the art pack has one, a deterministic colour
+ * block when it does not.
  *
- * Real renders are not in the repo yet — fixtures reference
- * `item-art/<title>/<id>.png`. This keeps layout honest in the meantime and
- * never shows a broken image. Swap for <Image source={...}> when art lands.
+ * `seed` is the catalogue `Item.id` at every item call site, which is what
+ * `artRegistry` is keyed on. Other call sites pass a collection id, a theme id
+ * or a game title; those simply miss the registry and get the colour block, so
+ * no caller has to know whether art exists.
+ *
+ * The fallback stays. It is what lets the app run with a partly-populated art
+ * pack instead of showing broken images, and 73 catalogue items will not all
+ * have renders for a while.
  */
 export function ItemArt({
   seed,
@@ -40,6 +47,28 @@ export function ItemArt({
   tier: RarityTier;
   style?: StyleProp<ViewStyle>;
 }) {
+  const art = artFor(seed);
+  if (art !== null) {
+    // The image sits inside the same container the colour block uses, so the
+    // caller's ViewStyle (size, radius) still applies and `overflow: hidden`
+    // does the clipping. Styling the Image directly does not typecheck —
+    // callers pass ViewStyle, and ImageStyle has no `overflow: 'scroll'`.
+    //
+    // Objects get inset rather than bleeding to the edge: they are rendered on
+    // empty space, so a little breathing room reads as a display case instead
+    // of a cropped photo.
+    return (
+      <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
+        <Image
+          source={art.source}
+          style={art.fit === 'contain' ? styles.artInset : StyleSheet.absoluteFill}
+          resizeMode={art.fit}
+          accessibilityIgnoresInvertColors
+        />
+      </View>
+    );
+  }
+
   const tint = rarityColors[tier];
   const angle = hash(seed) % 3;
   return (
@@ -233,6 +262,8 @@ export function LoadingState({ height = 120 }: { height?: number }) {
 
 const styles = StyleSheet.create({
   art: { overflow: 'hidden', borderRadius: radius.card },
+  /** Small inset for `contain` renders; the PNGs already carry ~10% margin. */
+  artInset: { position: 'absolute', top: '4%', left: '4%', right: '4%', bottom: '4%' },
   artStripe: { position: 'absolute', width: '160%', height: 26, left: '-30%', top: '42%' },
   artGlow: {
     position: 'absolute',

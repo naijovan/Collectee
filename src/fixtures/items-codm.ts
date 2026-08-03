@@ -266,4 +266,29 @@ export const CODM_ITEMS = [
     renderUrl: 'item-art/codm/charm-brass-shell.png',
     popularityScore: 0.669,
   },
+
+  // ══ Art-pack charms ══════════════════════════════════════════════════════
+  // The pack's two non-blade square renders are hanging trinkets, which maps
+  // cleanly onto the charms already in this catalogue. Real art lives in
+  // `assets/collectee/items/`, resolved via `config/artRegistry.ts`.
+  {
+    id: 'codm-charm-chronoseal',
+    title: 'codm',
+    name: 'Charm — Chronoseal',
+    rarityTier: 'mythic',
+    rarityLabel: 'Mythic',
+    setId: null,
+    renderUrl: 'item-art/codm/charm-chronoseal.png',
+    popularityScore: 0.041,
+  },
+  {
+    id: 'codm-charm-sweetheart-prism',
+    title: 'codm',
+    name: 'Charm — Sweetheart Prism',
+    rarityTier: 'epic',
+    rarityLabel: 'Epic',
+    setId: null,
+    renderUrl: 'item-art/codm/charm-sweetheart-prism.png',
+    popularityScore: 0.187,
+  },
 ] as const satisfies readonly Item[];

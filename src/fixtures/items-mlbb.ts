@@ -244,4 +244,185 @@ export const MLBB_ITEMS = [
     renderUrl: 'item-art/mlbb/nana-cat-fairy.png',
     popularityScore: 0.701,
   },
+
+  // ══ Art-pack cosmetics ═══════════════════════════════════════════════════
+  // Original prototype concept characters shipped with real renders in
+  // `assets/collectee/subjects/` and wired through `config/artRegistry.ts`.
+  //
+  // These are invented heroes, NOT real MLBB ones, and that is deliberate:
+  // the pack's art is original, so hanging it on a real hero (Gusion, Kagura)
+  // would show a face no MLBB player recognises under a name they do. §8.1
+  // warns judges spot that instantly. Inventing the hero keeps art and name
+  // honest with each other.
+  //
+  // The pack tagged 11 of these Overwatch 2 / Dota 2 / League. Those titles are
+  // not in `GameTitle` (§8.1) and adding them is a schema change nobody owns
+  // alone, so they are re-mapped here. `renderUrl` keeps the catalogue-wide
+  // convention; the registry is what actually resolves the bitmap.
+
+  // ── Mythic (native: Collector) ─────────────────────────────────────────
+  {
+    id: 'mlbb-manifold-rift',
+    title: 'mlbb',
+    name: 'Aeon Null — Manifold Rift',
+    rarityTier: 'mythic',
+    rarityLabel: 'Collector',
+    setId: null,
+    renderUrl: 'item-art/mlbb/manifold-rift.png',
+    popularityScore: 0.015,
+  },
+  {
+    id: 'mlbb-emberfall-warlord',
+    title: 'mlbb',
+    name: 'Kaelgor — Emberfall',
+    rarityTier: 'mythic',
+    rarityLabel: 'Collector',
+    setId: null,
+    renderUrl: 'item-art/mlbb/emberfall-warlord.png',
+    popularityScore: 0.017,
+  },
+  {
+    id: 'mlbb-void-empress',
+    title: 'mlbb',
+    name: 'Vaelith — Void Empress',
+    rarityTier: 'mythic',
+    rarityLabel: 'Collector',
+    setId: null,
+    renderUrl: 'item-art/mlbb/void-empress.png',
+    popularityScore: 0.021,
+  },
+  {
+    id: 'mlbb-frost-sentinel',
+    title: 'mlbb',
+    name: 'Nivara — Winter Vault',
+    rarityTier: 'mythic',
+    rarityLabel: 'Collector',
+    setId: null,
+    renderUrl: 'item-art/mlbb/frost-sentinel.png',
+    popularityScore: 0.022,
+  },
+  {
+    id: 'mlbb-radiant-huntress',
+    title: 'mlbb',
+    name: 'Elyra — Radiant Huntress',
+    rarityTier: 'mythic',
+    rarityLabel: 'Collector',
+    setId: null,
+    renderUrl: 'item-art/mlbb/radiant-huntress.png',
+    popularityScore: 0.026,
+  },
+
+  // ── Legendary (native: Legend) ─────────────────────────────────────────
+  {
+    id: 'mlbb-cyber-breacher',
+    title: 'mlbb',
+    name: 'Kairo — Cyber Breacher',
+    rarityTier: 'legendary',
+    rarityLabel: 'Legend',
+    setId: 'mlbb-set-cyber-ops',
+    renderUrl: 'item-art/mlbb/cyber-breacher.png',
+    popularityScore: 0.058,
+  },
+  {
+    id: 'mlbb-lightborn-defender',
+    title: 'mlbb',
+    name: 'Aurelian Guard — Lightborn Defender',
+    rarityTier: 'legendary',
+    rarityLabel: 'Legend',
+    setId: null,
+    renderUrl: 'item-art/mlbb/lightborn-defender.png',
+    popularityScore: 0.061,
+  },
+  {
+    id: 'mlbb-shadow-protocol',
+    title: 'mlbb',
+    name: 'Kade Zero — Shadow Protocol',
+    rarityTier: 'legendary',
+    rarityLabel: 'Legend',
+    setId: 'mlbb-set-cyber-ops',
+    renderUrl: 'item-art/mlbb/shadow-protocol.png',
+    popularityScore: 0.074,
+  },
+  {
+    id: 'mlbb-slipstream-pilot',
+    title: 'mlbb',
+    name: 'Aria Flux — Slipstream Pilot',
+    rarityTier: 'legendary',
+    rarityLabel: 'Legend',
+    setId: null,
+    renderUrl: 'item-art/mlbb/slipstream-pilot.png',
+    popularityScore: 0.077,
+  },
+  {
+    id: 'mlbb-solar-paladin',
+    title: 'mlbb',
+    name: 'Solenne — Helios Guard',
+    rarityTier: 'legendary',
+    rarityLabel: 'Legend',
+    setId: null,
+    renderUrl: 'item-art/mlbb/solar-paladin.png',
+    popularityScore: 0.083,
+  },
+  {
+    id: 'mlbb-voidstorm-spirit',
+    title: 'mlbb',
+    name: 'Zethra — Voidstorm Spirit',
+    rarityTier: 'legendary',
+    rarityLabel: 'Legend',
+    setId: null,
+    renderUrl: 'item-art/mlbb/voidstorm-spirit.png',
+    popularityScore: 0.088,
+  },
+  {
+    id: 'mlbb-arcane-revenant',
+    title: 'mlbb',
+    name: 'Orivane — Arcane Revenant',
+    rarityTier: 'legendary',
+    rarityLabel: 'Legend',
+    setId: null,
+    renderUrl: 'item-art/mlbb/arcane-revenant.png',
+    popularityScore: 0.091,
+  },
+
+  // ── Epic ───────────────────────────────────────────────────────────────
+  {
+    id: 'mlbb-neon-ronin',
+    title: 'mlbb',
+    name: 'Ren Kage — Neon Ronin',
+    rarityTier: 'epic',
+    rarityLabel: 'Epic',
+    setId: 'mlbb-set-cyber-ops',
+    renderUrl: 'item-art/mlbb/neon-ronin.png',
+    popularityScore: 0.166,
+  },
+  {
+    id: 'mlbb-valentine-sweetheart',
+    title: 'mlbb',
+    name: 'Roselle — Valentine Sweetheart',
+    rarityTier: 'epic',
+    rarityLabel: 'Epic',
+    setId: null,
+    renderUrl: 'item-art/mlbb/valentine-sweetheart.png',
+    popularityScore: 0.203,
+  },
+  {
+    id: 'mlbb-zodiac-aquarius',
+    title: 'mlbb',
+    name: 'Nerissa — Zodiac Aquarius',
+    rarityTier: 'epic',
+    rarityLabel: 'Epic',
+    setId: null,
+    renderUrl: 'item-art/mlbb/zodiac-aquarius.png',
+    popularityScore: 0.221,
+  },
+  {
+    id: 'mlbb-neon-encore',
+    title: 'mlbb',
+    name: 'Lyric Nova — Neon Encore',
+    rarityTier: 'epic',
+    rarityLabel: 'Epic',
+    setId: null,
+    renderUrl: 'item-art/mlbb/neon-encore.png',
+    popularityScore: 0.238,
+  },
 ] as const satisfies readonly Item[];

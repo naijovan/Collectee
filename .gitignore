@@ -38,6 +38,11 @@ yarn-error.*
 
 example
 
+# raw art-pack source dump (47MB, generic export filenames) — the processed,
+# identified, correctly-named renders actually used by the app live in
+# assets/collectee/ and are tracked. This folder is just working material.
+assets/Heroes\ &\ Items/
+
 # generated native folders
 /ios
 /android

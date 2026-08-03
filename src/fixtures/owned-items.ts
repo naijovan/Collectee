@@ -71,6 +71,31 @@ const JOVAN = ownAll('user-jovan', [
   { itemId: 'mlbb-gusion-cyber-ops', confidence: 0.93, acquiredAt: '2026-06-11T15:28:00.000Z' },
   { itemId: 'mlbb-hayabusa-shadow-vanguard', confidence: 0.91, acquiredAt: '2026-06-11T15:28:00.000Z' },
   { itemId: 'mlbb-layla-malefic-gunner', source: 'manual', acquiredAt: '2026-06-11T15:28:00.000Z' },
+
+  // Art-pack cosmetics — the items that have real renders. The viewer owns all
+  // of them so every screen in the demo path shows art rather than the colour
+  // block. Trust is still a mix (§9.3): a demo where everything is verified
+  // makes the trust model invisible.
+  { itemId: 'mlbb-manifold-rift', trust: 'verified', source: 'linked-account', acquiredAt: '2026-07-02T09:10:00.000Z' },
+  { itemId: 'mlbb-void-empress', trust: 'verified', source: 'linked-account', acquiredAt: '2026-07-02T09:10:00.000Z' },
+  { itemId: 'mlbb-emberfall-warlord', confidence: 0.97, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-frost-sentinel', confidence: 0.95, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-radiant-huntress', confidence: 0.93, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-lightborn-defender', trust: 'verified', source: 'linked-account', acquiredAt: '2026-07-02T09:10:00.000Z' },
+  { itemId: 'mlbb-cyber-breacher', confidence: 0.96, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-shadow-protocol', confidence: 0.94, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-slipstream-pilot', confidence: 0.92, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-solar-paladin', confidence: 0.9, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-voidstorm-spirit', confidence: 0.95, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-arcane-revenant', confidence: 0.91, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-neon-ronin', confidence: 0.98, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-valentine-sweetheart', source: 'manual', acquiredAt: '2026-07-20T11:32:00.000Z' },
+  { itemId: 'mlbb-zodiac-aquarius', confidence: 0.93, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'mlbb-neon-encore', confidence: 0.9, acquiredAt: '2026-07-14T19:05:00.000Z' },
+  { itemId: 'valorant-voidglass-blade', trust: 'verified', source: 'linked-account', acquiredAt: '2026-07-05T16:44:00.000Z' },
+  { itemId: 'valorant-riftblade-katana', confidence: 0.94, acquiredAt: '2026-07-18T14:20:00.000Z' },
+  { itemId: 'codm-charm-chronoseal', trust: 'verified', source: 'linked-account', acquiredAt: '2026-07-05T16:44:00.000Z' },
+  { itemId: 'codm-charm-sweetheart-prism', confidence: 0.92, acquiredAt: '2026-07-18T14:20:00.000Z' },
 ]);
 
 /** Heavy overlap with the viewer on rare CODM + MLBB — the top recommendation. */

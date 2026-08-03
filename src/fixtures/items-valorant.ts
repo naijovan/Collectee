@@ -293,4 +293,29 @@ export const VALORANT_ITEMS = [
     renderUrl: 'item-art/valorant/infantry-bulldog.png',
     popularityScore: 0.523,
   },
+
+  // ══ Art-pack melee ═══════════════════════════════════════════════════════
+  // Two of the four square renders in the pack are blades, and melee is the one
+  // Valorant slot they fit — the rest of this catalogue is gun skins. Real art
+  // lives in `assets/collectee/items/`, resolved via `config/artRegistry.ts`.
+  {
+    id: 'valorant-voidglass-blade',
+    title: 'valorant',
+    name: 'Voidglass Blade',
+    rarityTier: 'mythic',
+    rarityLabel: 'Ultra',
+    setId: null,
+    renderUrl: 'item-art/valorant/voidglass-blade.png',
+    popularityScore: 0.038,
+  },
+  {
+    id: 'valorant-riftblade-katana',
+    title: 'valorant',
+    name: 'Riftblade Katana',
+    rarityTier: 'legendary',
+    rarityLabel: 'Premium',
+    setId: null,
+    renderUrl: 'item-art/valorant/riftblade-katana.png',
+    popularityScore: 0.094,
+  },
 ] as const satisfies readonly Item[];
