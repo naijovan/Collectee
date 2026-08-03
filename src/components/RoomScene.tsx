@@ -37,6 +37,7 @@ import { GAME_SHORT_LABELS } from '@/types';
 import type { Item, Room, RoomTheme, Slot } from '@/types';
 
 import { resolveBackdrop } from './backdrops';
+import { resolveItemArt } from './item-art';
 
 /** How far a drag can shift the front layer, in px. Deliberately small. */
 const MAX_TILT = 14;
@@ -47,6 +48,8 @@ export function RoomScene({
   itemsByOwnedId,
   selectedSlotId,
   onSlotPress,
+  onDropItem,
+  draggable = false,
   showEmptySlots = false,
   cameraEnabled = true,
   width,
@@ -57,6 +60,10 @@ export function RoomScene({
   itemsByOwnedId: ReadonlyMap<string, Item>;
   selectedSlotId?: string | null;
   onSlotPress?: (slot: Slot) => void;
+  /** Drag ended over another slot. Empty target moves, occupied target swaps. */
+  onDropItem?: (fromSlotId: string, toSlotId: string) => void;
+  /** Edit mode — placed items can be dragged between slots. */
+  draggable?: boolean;
   /** Edit mode — empty slots render as labelled drop targets. */
   showEmptySlots?: boolean;
   /** Off while arranging, so the whole scene stays visible. */
@@ -67,6 +74,19 @@ export function RoomScene({
 
   const [flipped, setFlipped] = useState(false);
   const tilt = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+
+  /**
+   * Drag state. One card at a time, so this is a single shared translate rather
+   * than one Animated value per slot. `activeDrag` is a ref because the pan
+   * responder is created once and must not be rebuilt mid-gesture.
+   */
+  const drag = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const activeDrag = useRef<string | null>(null);
+  const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
+
+  /** Pinch-zoom (§11 F4). Tracked as a manual scale on top of the camera. */
+  const [zoom, setZoom] = useState(1);
+  const pinchStart = useRef<{ distance: number; zoom: number } | null>(null);
   const camera = useRef({
     x: new Animated.Value(0),
     y: new Animated.Value(0),
@@ -134,26 +154,96 @@ export function RoomScene({
     return () => loop.stop();
   }, [animateLighting, pulse]);
 
+  /**
+   * One responder, three jobs — because they are mutually exclusive gestures on
+   * the same surface and racing separate responders for them is worse:
+   *
+   *   two fingers        → pinch-zoom (§11 F4)
+   *   one finger on card → drag it to another slot (edit mode only)
+   *   one finger on room → parallax
+   *
+   * Built once. `activeDrag` and `slotsRef` are refs so a re-render mid-gesture
+   * cannot swap the responder out from under a drag in progress.
+   */
+  const slotsRef = useRef(room.slots);
+  slotsRef.current = room.slots;
+  const dropRef = useRef(onDropItem);
+  dropRef.current = onDropItem;
+  const sizeRef = useRef({ width, height });
+  sizeRef.current = { width, height };
+
   const pan = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_event, gesture) =>
-          room.settings.parallaxEnabled && Math.hypot(gesture.dx, gesture.dy) > 4,
-        onPanResponderMove: (_event, gesture) => {
+        onMoveShouldSetPanResponder: (event, gesture) =>
+          event.nativeEvent.touches.length === 2 ||
+          activeDrag.current !== null ||
+          (room.settings.parallaxEnabled && Math.hypot(gesture.dx, gesture.dy) > 4),
+
+        onPanResponderMove: (event, gesture) => {
+          const touches = event.nativeEvent.touches;
+
+          if (touches.length === 2) {
+            const [a, b] = touches;
+            const distance = Math.hypot(a!.pageX - b!.pageX, a!.pageY - b!.pageY);
+            if (!pinchStart.current) {
+              pinchStart.current = { distance, zoom };
+              return;
+            }
+            const ratio = distance / (pinchStart.current.distance || 1);
+            setZoom(clamp(pinchStart.current.zoom * ratio, 1, 2.5));
+            return;
+          }
+
+          if (activeDrag.current) {
+            drag.setValue({ x: gesture.dx, y: gesture.dy });
+            return;
+          }
+
           tilt.setValue({
             x: clamp(gesture.dx / 12, -MAX_TILT, MAX_TILT),
             y: clamp(gesture.dy / 12, -MAX_TILT, MAX_TILT),
           });
         },
-        onPanResponderRelease: () => {
+
+        onPanResponderRelease: (event, gesture) => {
+          pinchStart.current = null;
+          const from = activeDrag.current;
+
+          if (from) {
+            // Where the finger let go, as a fraction of the scene. Camera is
+            // identity while editing, so screen space maps straight to it.
+            const { width: w, height: h } = sizeRef.current;
+            const fx = event.nativeEvent.locationX / w;
+            const fy = event.nativeEvent.locationY / h;
+            const target = slotsRef.current.find(
+              (slot) =>
+                fx >= slot.x && fx <= slot.x + slot.w && fy >= slot.y && fy <= slot.y + slot.h,
+            );
+            if (target && target.id !== from) dropRef.current?.(from, target.id);
+
+            activeDrag.current = null;
+            setDraggingSlotId(null);
+            drag.setValue({ x: 0, y: 0 });
+            return;
+          }
+
           Animated.spring(tilt, {
             toValue: { x: 0, y: 0 },
             useNativeDriver: true,
             friction: 6,
           }).start();
+          void gesture;
+        },
+
+        onPanResponderTerminate: () => {
+          pinchStart.current = null;
+          activeDrag.current = null;
+          setDraggingSlotId(null);
+          drag.setValue({ x: 0, y: 0 });
         },
       }),
-    [room.settings.parallaxEnabled, tilt],
+    [room.settings.parallaxEnabled, tilt, drag, zoom],
   );
 
   const palette = theme?.palette ?? [];
@@ -167,7 +257,12 @@ export function RoomScene({
       style={[styles.viewport, { width, height }]}
       {...(room.settings.parallaxEnabled ? pan.panHandlers : {})}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ scale: camera.scale }] }]}>
+      <Animated.View
+        style={[
+          StyleSheet.absoluteFill,
+          { transform: [{ scale: Animated.multiply(camera.scale, zoom) }] },
+        ]}
+      >
         <Animated.View
           style={[
             StyleSheet.absoluteFill,
@@ -240,10 +335,21 @@ export function RoomScene({
                     top: slot.y * height,
                     width: slot.w * width,
                     height: slot.h * height,
-                    zIndex: slot.depth + 1,
+                    // A card being dragged rides above every layer.
+                    zIndex: draggingSlotId === slot.id ? 99 : slot.depth + 1,
                     transform: [
-                      { translateX: Animated.multiply(tilt.x, offset.dx) },
-                      { translateY: Animated.multiply(tilt.y, offset.dy) },
+                      {
+                        translateX:
+                          draggingSlotId === slot.id
+                            ? drag.x
+                            : Animated.multiply(tilt.x, offset.dx),
+                      },
+                      {
+                        translateY:
+                          draggingSlotId === slot.id
+                            ? drag.y
+                            : Animated.multiply(tilt.y, offset.dy),
+                      },
                     ],
                   },
                 ]}
@@ -251,6 +357,23 @@ export function RoomScene({
                 <Pressable
                   onPress={() => onSlotPress?.(slot)}
                   onLongPress={() => focused && setFlipped((prev) => !prev)}
+                  // Claims the drag before the responder sees movement, so the
+                  // gesture knows which card it is carrying.
+                  onTouchStart={() => {
+                    if (!draggable || !placement) return;
+                    activeDrag.current = slot.id;
+                    setDraggingSlotId(slot.id);
+                  }}
+                  // A plain tap ends here and the responder never engages, so
+                  // the claim has to be released or the next gesture inherits
+                  // it. When the responder DOES take over, this fires as a
+                  // cancel instead and the release handler does the cleanup.
+                  onTouchEnd={() => {
+                    if (activeDrag.current !== slot.id) return;
+                    activeDrag.current = null;
+                    setDraggingSlotId(null);
+                    drag.setValue({ x: 0, y: 0 });
+                  }}
                   style={[
                     styles.card,
                     slot.kind === 'wall' && styles.cardWall,
@@ -283,12 +406,30 @@ export function RoomScene({
                       </View>
                     ) : (
                       <View style={styles.face}>
-                        <View
-                          style={[styles.faceGlow, { backgroundColor: rarityColors[item.rarityTier] }]}
-                        />
-                        <Text style={styles.faceName} numberOfLines={2}>
-                          {item.name}
-                        </Text>
+                        {/*
+                          Same seam as ItemArt: bundled render if it exists,
+                          rarity glow plus the name if it does not. A room half
+                          covered by art still reads as a room.
+                        */}
+                        {resolveItemArt(item.renderUrl) ? (
+                          <Image
+                            source={resolveItemArt(item.renderUrl)!}
+                            style={StyleSheet.absoluteFill}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <>
+                            <View
+                              style={[
+                                styles.faceGlow,
+                                { backgroundColor: rarityColors[item.rarityTier] },
+                              ]}
+                            />
+                            <Text style={styles.faceName} numberOfLines={2}>
+                              {item.name}
+                            </Text>
+                          </>
+                        )}
                       </View>
                     )
                   ) : (

@@ -69,7 +69,12 @@ export function ItemCard({
 }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [{ width }, pressed && styles.pressed]}>
-      <ItemArt seed={item.id} tier={item.rarityTier} style={{ height: artHeight }} />
+      <ItemArt
+        seed={item.id}
+        tier={item.rarityTier}
+        renderUrl={item.renderUrl}
+        style={{ height: artHeight }}
+      />
       <View style={styles.itemBody}>
         <Text style={styles.itemName} numberOfLines={2}>
           {item.name}

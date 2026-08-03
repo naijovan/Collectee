@@ -70,6 +70,12 @@ export const ROOM_STAGES = [
 
 export type RoomStage = (typeof ROOM_STAGES)[number];
 
+/** A collection's room and whether it has gone live. Drives the card CTAs. */
+export interface RoomStatus {
+  room: Room;
+  published: boolean;
+}
+
 export const roomService = {
   async getThemes(): Promise<RoomTheme[]> {
     return delay([...ROOM_THEMES], LATENCY_INSTANT);
@@ -135,6 +141,35 @@ export const roomService = {
   async getRoomsByCollection(collectionId: string): Promise<Room[]> {
     return delay(
       this.allRooms().filter((r) => r.collectionId === collectionId),
+      LATENCY_FETCH,
+    );
+  },
+
+  /**
+   * Room state per collection — what the Collections cards key off.
+   *
+   * The frames give every collection card one of three CTAs: View room, Room in
+   * progress, Create room. Deriving that per card meant a fetch per card, so it
+   * is one pass here instead. Newest room wins when a collection has several.
+   */
+  async statusByCollection(): Promise<ReadonlyMap<string, RoomStatus>> {
+    const byCollection = new Map<string, RoomStatus>();
+    for (const room of this.allRooms()) {
+      const existing = byCollection.get(room.collectionId);
+      const newer =
+        !existing || Date.parse(room.createdAt) > Date.parse(existing.room.createdAt);
+      if (newer) byCollection.set(room.collectionId, { room, published: room.publishedAt !== null });
+    }
+    return delay(byCollection, LATENCY_FETCH);
+  },
+
+  /** Rooms to show on a profile — published, and not opted out (§12.3 showOnProfile). */
+  async getRoomsOnProfile(collectionIds: readonly string[]): Promise<Room[]> {
+    const ids = new Set(collectionIds);
+    return delay(
+      this.allRooms().filter(
+        (room) => ids.has(room.collectionId) && room.publishedAt !== null && room.showOnProfile,
+      ),
       LATENCY_FETCH,
     );
   },

@@ -28,3 +28,10 @@ export { TabBar } from './TabBar';
 
 /** J3-specific rather than one of the 14, but shared by the build flow and the live room. */
 export { RoomScene } from './RoomScene';
+
+/**
+ * Art seams. Adding artwork means adding files and a line to one of these maps
+ * — never editing a component. See the header comment in each.
+ */
+export { BACKDROPS, backdropsReady, resolveBackdrop } from './backdrops';
+export { ITEM_ART, itemArtCoverage, resolveItemArt } from './item-art';

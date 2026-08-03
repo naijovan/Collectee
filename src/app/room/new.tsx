@@ -227,6 +227,23 @@ export default function CreateRoomScreen() {
     }
   }
 
+  /**
+   * Drag ended over another slot. Occupied target swaps, empty target moves —
+   * the same rule as tap-to-place, so the two input methods cannot disagree.
+   */
+  async function onDropItem(fromSlotId: string, toSlotId: string) {
+    if (!room) return;
+    const held = roomService.placementFor(room, fromSlotId);
+    if (!held) return;
+    const target = roomService.placementFor(room, toSlotId);
+    const updated = target
+      ? await roomService.swapSlots(room.id, fromSlotId, toSlotId)
+      : await roomService.moveItem(room.id, held.ownedItemId, toSlotId);
+    setRoom(updated ?? room);
+    setSelectedSlotId(toSlotId);
+    setHeldOwnedItemId(null);
+  }
+
   async function applySettings(patch: Parameters<typeof roomService.updateSettings>[1]) {
     if (!room) return;
     setRoom(await roomService.updateSettings(room.id, patch));
@@ -486,6 +503,8 @@ export default function CreateRoomScreen() {
             itemsByOwnedId={itemsByOwnedId}
             selectedSlotId={selectedSlotId}
             onSlotPress={(slot) => void onSlotPress(slot)}
+            onDropItem={(from, to) => void onDropItem(from, to)}
+            draggable={editTab === 'Items'}
             showEmptySlots
             cameraEnabled={editTab === 'Layout'}
             width={sceneWidth}

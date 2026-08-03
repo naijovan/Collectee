@@ -18,7 +18,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { Avatar, ItemArt, ItemCard, LoadingState, PrimaryButton, SectionHeader } from '@/components';
+import {
+  Avatar,
+  ItemArt,
+  ItemCard,
+  LoadingState,
+  PrimaryButton,
+  SecondaryButton,
+  SectionHeader,
+} from '@/components';
 import { timeAgo } from '@/components';
 import { FEATURES } from '@/config/features';
 import { VISIBILITY_LABELS } from '@/domain/collections';
@@ -28,7 +36,8 @@ import {
   FLAG_THRESHOLD,
   OWNERSHIP_FLAG_REASONS,
 } from '@/domain/trust';
-import { catalogueService, collectionService, socialService } from '@/services';
+import { catalogueService, collectionService, roomService, socialService } from '@/services';
+import type { RoomStatus } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Collection, Comment, FlagReason, Item, User } from '@/types';
@@ -45,6 +54,7 @@ export default function CollectionScreen() {
   const [authors, setAuthors] = useState<ReadonlyMap<string, User>>(new Map());
   const [draft, setDraft] = useState('');
   const [flagTarget, setFlagTarget] = useState<Item | null>(null);
+  const [roomStatus, setRoomStatus] = useState<RoomStatus | undefined>(undefined);
   const [busy, setBusy] = useState(true);
 
   const load = useCallback(async () => {
@@ -59,6 +69,7 @@ export default function CollectionScreen() {
       socialService.getComments('collection', found.id, viewerId),
       socialService.getUsers(),
     ]);
+    setRoomStatus((await roomService.statusByCollection()).get(found.id));
     setCollection(found);
     setOwner(ownerUser);
     setItems(collectionItems);
@@ -141,12 +152,39 @@ export default function CollectionScreen() {
         <Text style={styles.muted}>{VISIBILITY_LABELS[collection.visibility]}</Text>
       </View>
 
-      <PrimaryButton
-        label="Create Collection Room"
-        onPress={() =>
-          router.push({ pathname: '/room/intro', params: { collectionId: collection.id } })
-        }
-      />
+      {/*
+        The 2×2 action grid from the design frames. Create Collection Room is
+        the primary action — J3 is the differentiator (§11 F4), and a collection
+        page that treats it as a footnote buries the feature the pitch leads on.
+      */}
+      <View style={styles.actionGrid}>
+        <View style={styles.actionCell}>
+          <SecondaryButton label="✎ Edit collection" />
+        </View>
+        <View style={styles.actionCell}>
+          <PrimaryButton
+            label={roomStatus?.published ? 'View room' : 'Create Collection Room'}
+            onPress={() =>
+              roomStatus?.published
+                ? router.push({ pathname: '/room/[id]', params: { id: roomStatus.room.id } })
+                : router.push({ pathname: '/room/intro', params: { collectionId: collection.id } })
+            }
+          />
+        </View>
+        <View style={styles.actionCell}>
+          <SecondaryButton label="⇪ Share" />
+        </View>
+        <View style={styles.actionCell}>
+          <SecondaryButton label="+ Add items" />
+        </View>
+      </View>
+      {roomStatus && !roomStatus.published ? (
+        <Pressable
+          onPress={() => router.push({ pathname: '/room/[id]', params: { id: roomStatus.room.id } })}
+        >
+          <Text style={styles.pending}>◷ A room for this collection is in progress</Text>
+        </Pressable>
+      ) : null}
 
       <SectionHeader title="Items" />
       <View style={styles.grid}>
@@ -237,6 +275,9 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md },
 
   cover: { height: 168 },
+  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  actionCell: { width: '47%' },
+  pending: { ...typography.meta, color: colors.warning },
   title: { ...typography.screenTitle, color: colors.textPrimary },
   body: { ...typography.body, color: colors.textSecondary },
   muted: { ...typography.meta, color: colors.textSecondary },

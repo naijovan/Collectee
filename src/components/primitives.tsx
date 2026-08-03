@@ -11,6 +11,9 @@
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
+import { Image } from 'expo-image';
+
+import { resolveItemArt } from './item-art';
 
 import { rarityLabelFor } from '@/domain/rarity';
 import { GAME_SHORT_LABELS } from '@/types';
@@ -25,22 +28,38 @@ function hash(seed: string): number {
 }
 
 /**
- * Placeholder item art.
+ * Item art, with a placeholder that never breaks.
  *
- * Real renders are not in the repo yet — fixtures reference
- * `item-art/<title>/<id>.png`. This keeps layout honest in the meantime and
- * never shows a broken image. Swap for <Image source={...}> when art lands.
+ * Pass `renderUrl` and this draws the bundled image if `./item-art.ts` has a
+ * key for it. Without one — which is every item today — it falls back to a
+ * deterministic rarity-tinted block, so the same item always looks the same and
+ * layout stays honest.
+ *
+ * Adding art is a change to `item-art.ts` and the `assets/` folder. It is
+ * deliberately not a change to this component.
  */
 export function ItemArt({
   seed,
   tier,
+  renderUrl,
   style,
 }: {
   seed: string;
   tier: RarityTier;
+  /** `Item.renderUrl`. Omit for non-item art such as collection covers. */
+  renderUrl?: string;
   style?: StyleProp<ViewStyle>;
 }) {
   const tint = rarityColors[tier];
+  const art = renderUrl ? resolveItemArt(renderUrl) : null;
+
+  if (art) {
+    return (
+      <View style={[styles.art, style]}>
+        <Image source={art} style={StyleSheet.absoluteFill} contentFit="cover" />
+      </View>
+    );
+  }
   const angle = hash(seed) % 3;
   return (
     <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>

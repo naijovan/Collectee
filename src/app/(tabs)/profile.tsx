@@ -13,12 +13,19 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Avatar, ItemCard, LoadingState, SecondaryButton, SectionHeader } from '@/components';
+import {
+  Avatar,
+  ItemArt,
+  ItemCard,
+  LoadingState,
+  SecondaryButton,
+  SectionHeader,
+} from '@/components';
 import { rarityLabelFor } from '@/domain/rarity';
-import { collectionService, inventoryService, socialService } from '@/services';
+import { collectionService, inventoryService, roomService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
-import type { Collection, Item, RarityTier, User } from '@/types';
+import type { Collection, Item, RarityTier, Room, User } from '@/types';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -27,6 +34,7 @@ export default function ProfileScreen() {
 
   const [groups, setGroups] = useState<{ tier: RarityTier; items: Item[] }[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [publishedRooms, setPublishedRooms] = useState<Room[]>([]);
   const [following, setFollowing] = useState<User[]>([]);
   const [followers, setFollowers] = useState<User[]>([]);
   const [busy, setBusy] = useState(true);
@@ -41,9 +49,12 @@ export default function ProfileScreen() {
         socialService.getFollowing(viewerId),
         socialService.getFollowers(viewerId),
       ]);
+      const rooms = await roomService.getRoomsOnProfile(mine.map((c) => c.id));
+
       if (cancelled) return;
       setGroups(grouped);
       setCollections(mine);
+      setPublishedRooms(rooms);
       setFollowing(out);
       setFollowers(back);
       setBusy(false);
@@ -78,6 +89,36 @@ export default function ProfileScreen() {
         <SecondaryButton label="Import more items" onPress={() => router.push('/import')} />
         <SecondaryButton label="Build a room" onPress={() => router.push('/room/new')} />
       </View>
+
+      {/*
+        Rooms on profile — the last screen of the §10 J3 flow map, and the point
+        of the whole feature: a room is not a one-off artifact, it is part of an
+        identity. Only published rooms with showOnProfile appear.
+      */}
+      {publishedRooms.length > 0 ? (
+        <View>
+          <SectionHeader title="Rooms" />
+          <View style={styles.roomList}>
+            {publishedRooms.map((room) => (
+              <Pressable
+                key={room.id}
+                style={styles.roomRow}
+                onPress={() => router.push({ pathname: '/room/[id]', params: { id: room.id } })}
+              >
+                <ItemArt seed={room.themeId} tier="mythic" style={styles.roomThumb} />
+                <View style={styles.roomBody}>
+                  <Text style={styles.devLabel}>{room.title}</Text>
+                  <Text style={styles.muted}>
+                    {room.placements.length} items · ♥ {room.likeCount.toLocaleString()} ·{' '}
+                    {room.visitorCount.toLocaleString()} visitors
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       {busy ? (
         <LoadingState height={200} />
@@ -166,4 +207,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   devLabel: { ...typography.cardTitle, color: colors.textPrimary },
+
+  roomList: { gap: spacing.sm },
+  roomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  roomThumb: { width: 64, height: 46 },
+  roomBody: { flex: 1, gap: 2 },
+  chevron: { fontSize: 22, color: colors.textTertiary },
 });

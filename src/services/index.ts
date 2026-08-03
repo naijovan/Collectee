@@ -23,7 +23,13 @@ export { collectionService, type CollectionService, type CreateCollectionInput }
 export { inventoryService, type InventoryService, type OwnedItemView } from './inventoryService';
 export { matchService, type MatchService, type CollectorRecommendation, type CommunityRecommendation } from './matchService';
 export { newsService, type NewsService } from './newsService';
-export { roomService, type RoomService, ROOM_STAGES, type RoomStage } from './roomService';
+export {
+  roomService,
+  type RoomService,
+  type RoomStatus,
+  ROOM_STAGES,
+  type RoomStage,
+} from './roomService';
 export { scanService, type ScanService, type ScanStage, SCAN_STAGES } from './scanService';
 export { socialService, type SocialService } from './socialService';
 export { delay, delayWithProgress, LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT } from './latency';
