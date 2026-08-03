@@ -26,7 +26,15 @@ import {
   SectionHeader,
 } from '@/components';
 import { headlineItem } from '@/domain/collections';
-import { catalogueService, collectionService, matchService, socialService } from '@/services';
+import { compareByDerivedTrust } from '@/domain/trust';
+import type { DerivedTrust } from '@/domain/trust';
+import {
+  catalogueService,
+  collectionService,
+  inventoryService,
+  matchService,
+  socialService,
+} from '@/services';
 import type { CollectorRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
@@ -40,23 +48,39 @@ export default function CollectorScreen() {
 
   const [user, setUser] = useState<User | null>(null);
   const [match, setMatch] = useState<CollectorRecommendation | null>(null);
-  const [collections, setCollections] = useState<{ collection: Collection; headline: Item | null }[]>([]);
+  const [collections, setCollections] = useState<
+    { collection: Collection; headline: Item | null; trust: DerivedTrust }[]
+  >([]);
   const [following, setFollowing] = useState(false);
   const [busy, setBusy] = useState(true);
 
   const load = useCallback(async () => {
-    const [found, pairwise, theirs] = await Promise.all([
+    const [found, pairwise, theirs, theirItems] = await Promise.all([
       socialService.getUser(id),
       matchService.getMatch(viewerId, id),
       collectionService.getCollectionsByUser(id),
+      inventoryService.getOwnedItems(id),
     ]);
+
+    // Collection.itemIds are catalogue ids; trust lives on the OWNER's claim to
+    // each one (§9.2), so it has to be resolved through their inventory.
+    const ownedByItemId = new Map(theirItems.map((owned) => [owned.itemId, owned]));
 
     const withArt = await Promise.all(
       theirs.map(async (collection) => ({
         collection,
         headline: headlineItem(await catalogueService.getItems(collection.itemIds)),
+        trust: socialService.derivedTrustFor(
+          collection.itemIds
+            .map((itemId) => ownedByItemId.get(itemId))
+            .filter((owned): owned is NonNullable<typeof owned> => owned !== undefined),
+        ),
       })),
     );
+
+    // §9.2 — a disputed claim loses discovery ranking. Demoted rather than
+    // hidden: the flag is against one item, not the whole collection.
+    withArt.sort((a, b) => compareByDerivedTrust(a.trust, b.trust));
 
     setUser(found);
     setMatch(pairwise);
@@ -136,16 +160,29 @@ export default function CollectorScreen() {
       ) : (
         <View style={styles.cardGrid}>
           {collections.map((entry) => (
-            <CollectionCard
-              key={entry.collection.id}
-              collection={entry.collection}
-              owner={user}
-              headline={entry.headline}
-              width="48%"
-              onPress={() =>
-                router.push({ pathname: '/collection/[id]', params: { id: entry.collection.id } })
-              }
-            />
+            <View key={entry.collection.id} style={styles.collectionCell}>
+              <CollectionCard
+                collection={entry.collection}
+                owner={user}
+                headline={entry.headline}
+                width="100%"
+                onPress={() =>
+                  router.push({ pathname: '/collection/[id]', params: { id: entry.collection.id } })
+                }
+              />
+              {/*
+                Derived, never stored (§12.3). Stating the count rather than
+                stamping the collection "verified" — most-of-it-verified is not
+                verified, and §9.2 exists to stop exactly that overstatement.
+              */}
+              {entry.trust.underReview ? (
+                <Text style={styles.underReview}>Contains an item under review</Text>
+              ) : (
+                <Text style={styles.footnote}>
+                  {entry.trust.verifiedCount} of {entry.trust.totalCount} items verified
+                </Text>
+              )}
+            </View>
           ))}
         </View>
       )}
@@ -178,4 +215,6 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
+  collectionCell: { width: '48%', gap: spacing.xs },
+  underReview: { ...typography.meta, color: colors.warning, paddingLeft: spacing.xs },
 });
