@@ -17,14 +17,15 @@ import {
   FOLLOWS,
   NOTIFICATIONS,
 } from '@/fixtures/social';
-import { OWNED_BY_USER } from '@/fixtures/owned-items';
 import { USERS, USERS_BY_ID } from '@/fixtures/users';
 import {
   countableFlags,
-  isEligibleFlagger,
+  deriveTrust,
+  discoveryWeight,
   isUnderReview,
+  rankByTrust,
 } from '@/domain/trust';
-import { discoveryWeight } from '@/domain/trust';
+import type { DerivedTrust } from '@/domain/trust';
 import type {
   Comment,
   Community,
@@ -33,10 +34,12 @@ import type {
   FlagReason,
   Follow,
   Notification,
+  OwnedItem,
   TargetType,
   TrustLevel,
   User,
 } from '@/types';
+import { inventoryService } from './inventoryService';
 import { LATENCY_FETCH, LATENCY_INSTANT, delay } from './latency';
 
 const follows: Follow[] = [...FOLLOWS];
@@ -59,9 +62,17 @@ function prefKey(userId: string, communityId: string): string {
   return `${userId}:${communityId}`;
 }
 
-/** §9.2 — only accounts with their own verified items can move the needle. */
+/**
+ * §9.2 — only accounts with their own verified items can move the needle.
+ *
+ * Read through `inventoryService`, not the fixture: linking an account promotes
+ * items to verified during the session, and that is exactly what should make an
+ * account an eligible flagger. Reading the seeded data would freeze eligibility
+ * at app start and quietly contradict the trust model it implements.
+ */
 function reporterIsEligible(reporterId: string): boolean {
-  return isEligibleFlagger(OWNED_BY_USER.get(reporterId) ?? []);
+  const verified = inventoryService.getVerifiedItemIdsByUser().get(reporterId) ?? [];
+  return verified.length > 0;
 }
 
 export const socialService = {
@@ -262,6 +273,30 @@ export const socialService = {
   /** Ranking multiplier for a specific owned item, trust + flags combined. */
   discoveryWeightFor(ownedItemId: string, trustLevel: TrustLevel): number {
     return discoveryWeight(trustLevel, this.isUnderReview(ownedItemId));
+  },
+
+  /**
+   * Item-level discovery ranking (§9.2): verified first, unverified after,
+   * anything past the flag threshold dropped entirely.
+   *
+   * Keyed on `OwnedItem.id` — see `FLAG_TARGET_ID_SPACE` in domain/trust.ts for
+   * why a flag can only ever target an ownership claim, and for the outstanding
+   * TODO(Bernard) on the collection screen.
+   */
+  rankOwnedItemsForDiscovery(ownedItems: readonly OwnedItem[]): OwnedItem[] {
+    return rankByTrust(ownedItems, (owned) => ({
+      trustLevel: owned.trustLevel,
+      underReview: this.isUnderReview(owned.id),
+    }));
+  },
+
+  /**
+   * Derived trust for a set of owned items — a collection, a room, a profile
+   * section. Nothing stores this (§12.3 gives Collection no trust field, and it
+   * should not get one); it is computed so it cannot drift from the items.
+   */
+  derivedTrustFor(ownedItems: readonly OwnedItem[]): DerivedTrust {
+    return deriveTrust(ownedItems, (ownedItemId) => this.isUnderReview(ownedItemId));
   },
 
   // ── Notifications ────────────────────────────────────────────────────

@@ -13,10 +13,22 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Avatar, CollectorCard, FilterChips, LoadingState, SectionHeader } from '@/components';
+import {
+  Avatar,
+  CollectorCard,
+  EmptyState,
+  FilterChips,
+  LoadingState,
+  SectionHeader,
+} from '@/components';
 import { FEATURES } from '@/config/features';
+import { VIEWER_UNVERIFIED_REASON } from '@/domain/matching';
 import { matchService, socialService } from '@/services';
-import type { CollectorRecommendation, CommunityRecommendation } from '@/services';
+import type {
+  CollectorRecommendation,
+  CommunityRecommendation,
+  ViewerMatchState,
+} from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Community } from '@/types';
@@ -34,15 +46,18 @@ export default function ExploreScreen() {
   const [communities, setCommunities] = useState<CommunityRecommendation[]>([]);
   const [mine, setMine] = useState<Community[]>([]);
   const [joined, setJoined] = useState<ReadonlySet<string>>(new Set());
+  const [matchState, setMatchState] = useState<ViewerMatchState>('ready');
   const [busy, setBusy] = useState(true);
 
   const load = useCallback(async () => {
-    const [people, groups, all] = await Promise.all([
+    const [people, groups, all, state] = await Promise.all([
       matchService.getRecommendedCollectors(viewerId, 12),
       matchService.getRecommendedCommunities(viewerId),
       matchService.getCommunities(),
+      matchService.getViewerMatchState(viewerId),
     ]);
     setCollectors(people);
+    setMatchState(state);
     setCommunities(groups);
     // Recommendations exclude communities the viewer is already in, so without
     // this list a community would vanish the moment it was joined and its
@@ -92,9 +107,29 @@ export default function ExploreScreen() {
 
       {busy ? <LoadingState height={200} /> : null}
 
-      {!busy && tab === 'Collectors' ? (
+      {/*
+        Two different empty lists, two different explanations. A viewer who has
+        verified nothing cannot be matched at all under the 3 Aug rule — saying
+        "no matches" there would blame the data for a rule. The other empty case
+        genuinely means nobody overlaps yet.
+      */}
+      {!busy && tab === 'Collectors' && matchState === 'unverified-only' ? (
+        <EmptyState
+          title="Nothing verified yet"
+          body={VIEWER_UNVERIFIED_REASON}
+          actionLabel="Connect a game account"
+          onAction={() => router.push('/link-account')}
+        />
+      ) : null}
+
+      {!busy && tab === 'Collectors' && matchState !== 'unverified-only' ? (
         <View style={styles.list}>
           <SectionHeader title="Collectors you may like" />
+          {collectors.length === 0 ? (
+            <Text style={styles.muted}>
+              No collectors share a verified item with you yet.
+            </Text>
+          ) : null}
           {collectors.map((entry) => (
             <Pressable
               key={entry.user.id}

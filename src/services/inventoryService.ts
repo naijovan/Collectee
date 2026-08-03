@@ -10,16 +10,43 @@
 
 import { OWNED_BY_USER, OWNED_ITEMS } from '@/fixtures/owned-items';
 import { ITEMS_BY_ID } from '@/fixtures/catalogue';
+import { GAME_ACCOUNTS } from '@/fixtures/users';
 import { byRarityDesc, groupByRarity, rarityBreakdown } from '@/domain/rarity';
-import type { Item, OwnedItem, RarityTier } from '@/types';
-import { LATENCY_FETCH, LATENCY_INSTANT, delay } from './latency';
+import type { GameAccount, GameTitle, Item, LinkStatus, OwnedItem, RarityTier } from '@/types';
+import { LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT, delay, delayWithProgress } from './latency';
 
 /** Session-scoped imports layered over the seeded inventories (§12.1 — no backend). */
 const imported: OwnedItem[] = [];
 let nextId = 1;
 
+/**
+ * Items promoted to verified by a (mocked) account link this session, keyed by
+ * OwnedItem id.
+ *
+ * An overlay rather than a mutation: the seeded fixtures are `as const` and must
+ * stay the source of truth, and keeping promotions separate means `unlinkAccount`
+ * can put the demo back exactly where it started for the next rehearsal run.
+ */
+const promoted = new Map<string, OwnedItem>();
+
+/** Session link state, layered over the seeded GAME_ACCOUNTS records. */
+const linkStatuses = new Map<string, LinkStatus>();
+
+const linkKey = (userId: string, title: GameTitle) => `${userId}:${title}`;
+
+function withPromotions(items: readonly OwnedItem[]): OwnedItem[] {
+  return items.map((owned) => promoted.get(owned.id) ?? owned);
+}
+
 function allFor(userId: string): OwnedItem[] {
-  return [...(OWNED_BY_USER.get(userId) ?? []), ...imported.filter((o) => o.userId === userId)];
+  return withPromotions([
+    ...(OWNED_BY_USER.get(userId) ?? []),
+    ...imported.filter((o) => o.userId === userId),
+  ]);
+}
+
+function everyOwnedItem(): OwnedItem[] {
+  return withPromotions([...OWNED_ITEMS, ...imported]);
 }
 
 export interface OwnedItemView {
@@ -42,8 +69,7 @@ export const inventoryService = {
   },
 
   async getOwnedItem(id: string): Promise<OwnedItem | null> {
-    const found =
-      imported.find((o) => o.id === id) ?? OWNED_ITEMS.find((o) => o.id === id) ?? null;
+    const found = everyOwnedItem().find((o) => o.id === id) ?? null;
     return delay(found, LATENCY_INSTANT);
   },
 
@@ -63,7 +89,31 @@ export const inventoryService = {
    */
   getItemIdsByUser(): ReadonlyMap<string, readonly string[]> {
     const byUser = new Map<string, string[]>();
-    for (const owned of [...OWNED_ITEMS, ...imported]) {
+    for (const owned of everyOwnedItem()) {
+      const existing = byUser.get(owned.userId);
+      if (existing) existing.push(owned.itemId);
+      else byUser.set(owned.userId, [owned.itemId]);
+    }
+    return byUser;
+  },
+
+  /**
+   * The same map, restricted to items whose ownership is VERIFIED.
+   *
+   * Team decision (3 Aug): collector and community matching counts verified
+   * items only — verification is the incentive, so an unverified item
+   * contributes nothing to a match score.
+   *
+   * Kept separate from `getItemIdsByUser` rather than folded into it, because
+   * matching needs both: the verified set to score with, and the full set to
+   * tell "owns nothing yet" apart from "owns plenty, has verified none". Those
+   * two states get different answers and conflating them prints a plausible
+   * percentage built on nothing (§11 F5).
+   */
+  getVerifiedItemIdsByUser(): ReadonlyMap<string, readonly string[]> {
+    const byUser = new Map<string, string[]>();
+    for (const owned of everyOwnedItem()) {
+      if (owned.trustLevel !== 'verified') continue;
       const existing = byUser.get(owned.userId);
       if (existing) existing.push(owned.itemId);
       else byUser.set(owned.userId, [owned.itemId]);
@@ -101,6 +151,88 @@ export const inventoryService = {
 
     imported.push(...added);
     return delay(added, LATENCY_FETCH);
+  },
+
+  // ── Account linking — the only path to verified (§9.2, §9.3) ─────────
+
+  /**
+   * Seeded link records with any session change applied.
+   *
+   * ⚠️ `linked` here means "we pretended". §9.3: real account linking is
+   * PARTNERSHIP-gated, not engineering-gated — none of the three launch titles
+   * exposes a public cosmetic-inventory API. The pitch must say so if asked.
+   */
+  getGameAccounts(userId: string): GameAccount[] {
+    return GAME_ACCOUNTS.filter((account) => account.userId === userId).map((account) => ({
+      ...account,
+      linkStatus: linkStatuses.get(linkKey(userId, account.title)) ?? account.linkStatus,
+    }));
+  },
+
+  getLinkStatus(userId: string, title: GameTitle): LinkStatus {
+    return (
+      linkStatuses.get(linkKey(userId, title)) ??
+      GAME_ACCOUNTS.find((a) => a.userId === userId && a.title === title)?.linkStatus ??
+      'unlinked'
+    );
+  },
+
+  /** Owned items for one title, so a screen can show what a link would confirm. */
+  itemsForTitle(userId: string, title: GameTitle): OwnedItem[] {
+    return allFor(userId).filter((owned) => ITEMS_BY_ID.get(owned.itemId)?.title === title);
+  },
+
+  /**
+   * Link (or re-sync) a game account, promoting that title's items to verified.
+   *
+   * This is the ONLY way an item becomes verified. A scan never produces one
+   * (§11 F1 step 6) — the scanner reads a screenshot, which says nothing about
+   * who owns the item, and §9.1 is the record of that argument being settled.
+   * Promoted items also take `source: 'linked-account'`, because that is now how
+   * the claim is established and `validate-fixtures.ts` rejects a verified scan.
+   *
+   * Re-sync exists because linking is not once-and-for-all: items acquired after
+   * the last read stay unverified until the account is read again, which is
+   * exactly the seeded state of the viewer's CODM account.
+   *
+   * Everything here is mocked (§12.1). It is a timed loading state over a local
+   * map, and the screen says so.
+   */
+  async linkAccount(
+    userId: string,
+    title: GameTitle,
+    onProgress?: (fraction: number) => void,
+  ): Promise<{ verified: OwnedItem[]; alreadyVerified: number }> {
+    const mine = this.itemsForTitle(userId, title);
+    const toPromote = mine.filter((owned) => owned.trustLevel !== 'verified');
+
+    for (const owned of toPromote) {
+      promoted.set(owned.id, {
+        ...owned,
+        trustLevel: 'verified',
+        source: 'linked-account',
+        // Scanner confidence is meaningless once an account has confirmed the
+        // item — keeping it would imply the vision model did the verifying.
+        confidence: null,
+      });
+    }
+    linkStatuses.set(linkKey(userId, title), 'linked');
+
+    return delayWithProgress(
+      { verified: toPromote, alreadyVerified: mine.length - toPromote.length },
+      LATENCY_GENERATE,
+      onProgress,
+    );
+  },
+
+  /**
+   * Undo a session link. Rehearsal affordance: it puts the demo back to the
+   * seeded state so the same beat can be run again without restarting the app.
+   */
+  async unlinkAccount(userId: string, title: GameTitle): Promise<void> {
+    for (const owned of this.itemsForTitle(userId, title)) promoted.delete(owned.id);
+    linkStatuses.set(linkKey(userId, title), 'unlinked');
+    await delay(null, LATENCY_INSTANT);
   },
 
   /** Manual add — the fallback when the scanner misses something. */
