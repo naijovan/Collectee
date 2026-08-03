@@ -41,6 +41,7 @@ export default function RootLayout() {
         />
         <Stack.Screen name="import" options={{ title: 'Import inventory' }} />
         <Stack.Screen name="news" options={{ title: 'Gaming updates' }} />
+        <Stack.Screen name="link-account" options={{ title: 'Connect account' }} />
         <Stack.Screen name="diagnostics" options={{ title: 'Foundation checks' }} />
 
         {/* Dynamic routes need an explicit title or the header prints "room/[id]". */}

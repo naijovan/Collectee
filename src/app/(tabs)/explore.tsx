@@ -117,6 +117,8 @@ export default function ExploreScreen() {
         <EmptyState
           title="Nothing verified yet"
           body={VIEWER_UNVERIFIED_REASON}
+          actionLabel="Connect a game account"
+          onAction={() => router.push('/link-account')}
         />
       ) : null}
 
