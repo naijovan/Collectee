@@ -142,9 +142,9 @@ export default function CollectionScreen() {
       </View>
 
       <PrimaryButton
-        label="Build a room from this"
+        label="Create Collection Room"
         onPress={() =>
-          router.push({ pathname: '/room/new', params: { collectionId: collection.id } })
+          router.push({ pathname: '/room/intro', params: { collectionId: collection.id } })
         }
       />
 

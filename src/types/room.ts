@@ -100,6 +100,15 @@ export interface Room {
   visibility: Visibility;
   allowComments: boolean;
   showOnProfile: boolean;
+  /**
+   * Social counts, mirroring `Collection.likeCount`.
+   *
+   * §15 keeps these plausible: likes and visitors in the thousands, never item
+   * counts in the thousands. A room card reading "12.4K items" is the exact
+   * tell a Garena panel spots.
+   */
+  likeCount: number;
+  visitorCount: number;
   publishedAt: IsoDateString | null;
   createdAt: IsoDateString;
 }

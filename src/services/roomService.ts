@@ -211,6 +211,9 @@ export const roomService = {
       visibility: 'private',
       allowComments: true,
       showOnProfile: true,
+      // A new room has no audience yet. Never seed these with flattering numbers.
+      likeCount: 0,
+      visitorCount: 0,
       publishedAt: null,
       createdAt: new Date().toISOString(),
     };
