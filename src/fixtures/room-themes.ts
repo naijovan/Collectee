@@ -22,6 +22,34 @@ import type { RoomTheme, Slot } from '@/types';
  * register behind. Themes vary the backdrop and palette, not the geometry —
  * which is exactly the point of template-conditioned generation.
  */
+/**
+ * The hero style's own geometry, read off the J3 frames: a register of large
+ * character panels along the back wall, weapon cases either side, a central
+ * pedestal for the focal item and two flanking display plinths.
+ *
+ * Only this theme gets bespoke geometry. The rest share `galleryScaffold` —
+ * which is the point of template-conditioned generation: the backdrop varies,
+ * the slot map does not, so placement stays predictable and cost stays bounded.
+ */
+function vaultScaffold(prefix: string): Slot[] {
+  return [
+    // Back wall — character art register.
+    { id: `${prefix}-wall-1`, kind: 'wall', x: 0.05, y: 0.1, w: 0.19, h: 0.24, depth: 0 },
+    { id: `${prefix}-wall-2`, kind: 'wall', x: 0.28, y: 0.08, w: 0.19, h: 0.24, depth: 0 },
+    { id: `${prefix}-wall-3`, kind: 'wall', x: 0.52, y: 0.08, w: 0.19, h: 0.24, depth: 0 },
+    { id: `${prefix}-wall-4`, kind: 'wall', x: 0.75, y: 0.1, w: 0.19, h: 0.24, depth: 0 },
+    // Weapon cases, mid-depth.
+    { id: `${prefix}-case-1`, kind: 'case', x: 0.05, y: 0.38, w: 0.17, h: 0.13, depth: 1 },
+    { id: `${prefix}-case-2`, kind: 'case', x: 0.24, y: 0.4, w: 0.15, h: 0.12, depth: 1 },
+    { id: `${prefix}-case-3`, kind: 'case', x: 0.6, y: 0.4, w: 0.15, h: 0.12, depth: 1 },
+    { id: `${prefix}-case-4`, kind: 'case', x: 0.77, y: 0.38, w: 0.17, h: 0.13, depth: 1 },
+    // Foreground plinths — the hero sits centre.
+    { id: `${prefix}-pedestal-hero`, kind: 'pedestal', x: 0.4, y: 0.42, w: 0.2, h: 0.32, depth: 2 },
+    { id: `${prefix}-pedestal-left`, kind: 'pedestal', x: 0.15, y: 0.58, w: 0.16, h: 0.26, depth: 2 },
+    { id: `${prefix}-pedestal-right`, kind: 'pedestal', x: 0.68, y: 0.58, w: 0.16, h: 0.26, depth: 2 },
+  ];
+}
+
 function galleryScaffold(prefix: string): Slot[] {
   return [
     { id: `${prefix}-pedestal-hero`, kind: 'pedestal', x: 0.38, y: 0.44, w: 0.24, h: 0.34, depth: 2 },
@@ -36,15 +64,31 @@ function galleryScaffold(prefix: string): Slot[] {
 
 export const ROOM_THEMES = [
   {
-    id: 'theme-neon-vault',
-    name: 'Neon Vault',
-    description: 'A sealed vault lit by cold neon. Reads well with weapon blueprints.',
+    id: 'theme-weapon-vault',
+    name: 'Futuristic Weapon Vault',
+    description: 'A sealed vault lit by cold neon. The hero style — reads best with blueprints.',
     stylePrompt:
-      'a sealed concrete vault interior lit by cold cyan and magenta neon strips, ' +
-      'wet reflective floor, volumetric haze, empty display pedestals, no text, no logos',
-    backdropUrl: 'room-backdrops/neon-vault.png',
-    slots: galleryScaffold('neon'),
+      'a sealed futuristic vault interior lit by cold cyan and magenta neon strips, ' +
+      'illuminated empty wall display panels, empty glass weapon cases, a raised circular ' +
+      'pedestal centre, wet reflective floor, volumetric haze, no text, no logos, no characters',
+    backdropUrl: 'room-backdrops/weapon-vault.png',
+    slots: vaultScaffold('vault'),
     palette: ['#0A0E1A', '#12E4F0', '#F022A8'],
+  },
+  {
+    id: 'theme-anime-dojo',
+    name: 'Anime Dojo',
+    description: 'A sleek dojo with high-contrast cel lighting. Good for single hero items.',
+    // "Anime" is a style, not a franchise. No character, series or studio may be
+    // named here — that is the line §11 F4 draws, and it is the line that keeps
+    // generated backdrops from being derivative of third-party IP.
+    stylePrompt:
+      'a sleek modern martial arts dojo interior in a cel-shaded illustrative style, ' +
+      'paper screens, timber beams, dramatic rim lighting, empty lacquered display stands, ' +
+      'no text, no logos, no characters, no franchise references',
+    backdropUrl: 'room-backdrops/anime-dojo.png',
+    slots: galleryScaffold('dojo'),
+    palette: ['#141018', '#F0546B', '#4CC9F0'],
   },
   {
     id: 'theme-fantasy-armoury',
@@ -67,17 +111,6 @@ export const ROOM_THEMES = [
     backdropUrl: 'room-backdrops/esports-locker.png',
     slots: galleryScaffold('locker'),
     palette: ['#101418', '#2F6BFF', '#C9D3E0'],
-  },
-  {
-    id: 'theme-ancient-dojo',
-    name: 'Ancient Dojo',
-    description: 'Timber dojo at dusk. Quiet, and very good for single hero items.',
-    stylePrompt:
-      'an old timber martial arts dojo at dusk, paper screens, low warm lantern light, ' +
-      'tatami floor, empty lacquered display stands, no text, no logos, no characters',
-    backdropUrl: 'room-backdrops/ancient-dojo.png',
-    slots: galleryScaffold('dojo'),
-    palette: ['#171009', '#D98A3C', '#5E4326'],
   },
   {
     id: 'theme-cyber-shrine',

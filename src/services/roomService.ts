@@ -24,10 +24,11 @@ import {
   overflowItemIds,
   rotatePlacement,
   slotsByProminence,
+  suggestRoomTitle,
   swapPlacements,
 } from '@/domain/room';
 import type { CameraTarget } from '@/domain/room';
-import type { OwnedItem, Placement, Room, RoomTheme, Slot, Visibility } from '@/types';
+import type { OwnedItem, Placement, Room, RoomSettings, RoomTheme, Slot, Visibility } from '@/types';
 import { LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT, delay, delayWithProgress } from './latency';
 
 /** §11 F4 acceptance criterion: generation completes in under 20s. */
@@ -39,6 +40,36 @@ let nextId = 1;
 /** Backdrop cache — reused across users on the same theme and palette (§11 F4). */
 const backdropCache = new Map<string, string>();
 
+/** Undo/redo stacks, keyed by room id. Session-scoped like everything else. */
+const history = new Map<string, { past: Room[]; future: Room[] }>();
+
+/** Depth cap so a long editing session cannot grow without bound. */
+const HISTORY_LIMIT = 30;
+
+function pushHistory(roomId: string, before: Room): void {
+  const entry = history.get(roomId) ?? { past: [], future: [] };
+  entry.past.push(before);
+  if (entry.past.length > HISTORY_LIMIT) entry.past.shift();
+  // Any new edit invalidates the redo branch.
+  entry.future = [];
+  history.set(roomId, entry);
+}
+
+/**
+ * Generation stages — PRD §11 F4 asks for a progress state, the design frames
+ * name four of them and show each one's status. The labels are the user-facing
+ * account of what the pipeline in §12.1 *would* do, so keep them honest: this
+ * is a timed mock, and every one of these steps is local.
+ */
+export const ROOM_STAGES = [
+  { label: 'Analysing collection theme', detail: 'Understanding your theme and preferences.' },
+  { label: 'Selecting featured items', detail: 'Picking the best items to showcase.' },
+  { label: 'Arranging displays', detail: 'Placing items in the perfect layout.' },
+  { label: 'Matching lighting and background', detail: 'Setting the mood and final details.' },
+] as const;
+
+export type RoomStage = (typeof ROOM_STAGES)[number];
+
 export const roomService = {
   async getThemes(): Promise<RoomTheme[]> {
     return delay([...ROOM_THEMES], LATENCY_INSTANT);
@@ -46,6 +77,43 @@ export const roomService = {
 
   async getTheme(id: string): Promise<RoomTheme | null> {
     return delay(THEMES_BY_ID.get(id) ?? null, LATENCY_INSTANT);
+  },
+
+  /**
+   * The "✦ Best match" recommendation on the Style step.
+   *
+   * Matched on the rarity mix of the collection, not a model call — the same
+   * "make the reason legible" principle as §11 F5. The reason is returned with
+   * the theme so the card can print why it was picked.
+   */
+  async recommendTheme(
+    ownedItems: readonly OwnedItem[],
+  ): Promise<{ theme: RoomTheme; reason: string }> {
+    const titles = new Set<string>();
+    let mythicish = 0;
+    for (const owned of ownedItems) {
+      const item = ITEMS_BY_ID.get(owned.itemId);
+      if (!item) continue;
+      titles.add(item.title);
+      if (item.rarityTier === 'mythic' || item.rarityTier === 'legendary') mythicish += 1;
+    }
+
+    const themes = [...ROOM_THEMES];
+    const vault = themes[0]!;
+    const study = themes.find((t) => t.id === 'theme-collectors-study') ?? vault;
+
+    const pick = titles.size > 1 ? vault : study;
+    const reason =
+      titles.size > 1
+        ? `Fits a cross-game set — ${titles.size} titles and ${mythicish} high-rarity items`
+        : `Suits a single-title collection with ${mythicish} high-rarity items`;
+
+    return delay({ theme: pick, reason }, LATENCY_FETCH);
+  },
+
+  /** Which named stage a 0–1 progress fraction is in. Drives the frame-5 checklist. */
+  stageIndexFor(fraction: number): number {
+    return Math.min(ROOM_STAGES.length - 1, Math.floor(fraction * ROOM_STAGES.length));
   },
 
   /**
@@ -106,6 +174,8 @@ export const roomService = {
    */
   async createRoom(params: {
     collectionId: string;
+    /** Used only to seed the suggested title; the user edits it at publish. */
+    collectionName?: string;
     themeId: string;
     ownedItems: readonly OwnedItem[];
     onProgress?: (fraction: number) => void;
@@ -116,16 +186,31 @@ export const roomService = {
     const backdropUrl = await this.generateBackdrop(params.themeId, params.onProgress);
     const slots: Slot[] = [...theme.slots];
     const placements = autoPlace(params.ownedItems, ITEMS_BY_ID, slots);
+    const hero = slotsByProminence(slots)[0];
 
     const room: Room = {
       id: `room-new-${nextId++}`,
       collectionId: params.collectionId,
       themeId: theme.id,
+      title: suggestRoomTitle(params.collectionName ?? 'My collection', theme.name),
+      description: '',
+      coverUrl: theme.backdropUrl,
       backdropUrl,
       slots,
       placements,
-      settings: { parallaxEnabled: true, focusedSlotId: null },
+      settings: {
+        // The room opens on its focal item, which is what makes the look-at
+        // transition visible on arrival rather than only after a tap (§11 F4).
+        parallaxEnabled: true,
+        focusedSlotId: hero?.id ?? null,
+        lightingPreset: 'cool-blue',
+        brightness: 0.68,
+        animatedLighting: true,
+        displayStyle: 'hologram',
+      },
       visibility: 'private',
+      allowComments: true,
+      showOnProfile: true,
       publishedAt: null,
       createdAt: new Date().toISOString(),
     };
@@ -164,11 +249,75 @@ export const roomService = {
     }));
   },
 
+  /** Customise step — lighting, brightness, animated lighting, display style. */
+  async updateSettings(roomId: string, patch: Partial<RoomSettings>): Promise<Room | null> {
+    return this.mutate(roomId, (room) => ({
+      ...room,
+      settings: { ...room.settings, ...patch },
+    }));
+  },
+
+  /** Publish step — the room's own identity, edited before it goes live. */
+  async updateDetails(
+    roomId: string,
+    patch: Partial<Pick<Room, 'title' | 'description' | 'coverUrl' | 'allowComments' | 'showOnProfile'>>,
+  ): Promise<Room | null> {
+    return this.mutate(roomId, (room) => ({ ...room, ...patch }));
+  },
+
   async publish(roomId: string, visibility: Visibility): Promise<Room | null> {
     return this.mutate(roomId, (room) => ({
       ...room,
       visibility,
       publishedAt: new Date().toISOString(),
+    }));
+  },
+
+  /**
+   * Undo / redo for the Edit step.
+   *
+   * Every `mutate` pushes the pre-edit room onto the past stack, so this covers
+   * placement, rotation, focus and lighting alike — one history, not one per
+   * control. Redo is cleared by any new edit, which is the behaviour anyone who
+   * has used an editor expects.
+   */
+  async undo(roomId: string): Promise<Room | null> {
+    const entry = history.get(roomId);
+    const previous = entry?.past.pop();
+    if (!entry || !previous) return delay(null, LATENCY_INSTANT);
+
+    const index = created.findIndex((r) => r.id === roomId);
+    if (index !== -1) entry.future.push(created[index]!);
+    if (index === -1) created.push(previous);
+    else created[index] = previous;
+    return delay(previous, LATENCY_INSTANT);
+  },
+
+  async redo(roomId: string): Promise<Room | null> {
+    const entry = history.get(roomId);
+    const next = entry?.future.pop();
+    if (!entry || !next) return delay(null, LATENCY_INSTANT);
+
+    const index = created.findIndex((r) => r.id === roomId);
+    if (index !== -1) entry.past.push(created[index]!);
+    if (index === -1) created.push(next);
+    else created[index] = next;
+    return delay(next, LATENCY_INSTANT);
+  },
+
+  canUndo(roomId: string): boolean {
+    return (history.get(roomId)?.past.length ?? 0) > 0;
+  },
+
+  canRedo(roomId: string): boolean {
+    return (history.get(roomId)?.future.length ?? 0) > 0;
+  },
+
+  /** Re-run the auto-placement pass. The "✦ Auto-arrange" button in the frames. */
+  async autoArrange(roomId: string, ownedItems: readonly OwnedItem[]): Promise<Room | null> {
+    return this.mutate(roomId, (room) => ({
+      ...room,
+      placements: autoPlace(ownedItems, ITEMS_BY_ID, room.slots),
     }));
   },
 
@@ -200,13 +349,21 @@ export const roomService = {
       const seeded = ROOMS_BY_ID.get(roomId);
       if (!seeded) return delay(null, LATENCY_INSTANT);
       // Copy-on-write so a demo edit to a seeded room does not mutate a fixture.
-      const copy = fn({ ...seeded, slots: [...seeded.slots], placements: [...seeded.placements] });
+      const before: Room = {
+        ...seeded,
+        slots: [...seeded.slots],
+        placements: [...seeded.placements],
+      };
+      const copy = fn(before);
       assertRoomValid(copy);
+      pushHistory(roomId, before);
       created.push(copy);
       return delay(copy, LATENCY_INSTANT);
     }
-    const updated = fn(created[index]!);
+    const before = created[index]!;
+    const updated = fn(before);
     assertRoomValid(updated);
+    pushHistory(roomId, before);
     created[index] = updated;
     return delay(updated, LATENCY_INSTANT);
   },

@@ -9,7 +9,7 @@
  * spec, not to the Figma frames.
  */
 
-import type { IsoDateString, Visibility } from './common';
+import type { DisplayStyle, IsoDateString, LightingPreset, Visibility } from './common';
 
 /**
  * A fixed placement location in a themed room.
@@ -61,29 +61,45 @@ export interface RoomTheme {
 }
 
 /**
- * §11 F4 scope guard: the Figma customise panel adds a brightness slider and an
- * animated-lighting toggle. Those are [ROADMAP]. `parallaxEnabled` and
- * `focusedSlotId` are the demo controls.
+ * Room customise settings — the Edit and Customise steps of J3.
+ *
+ * §11 F4 marks the brightness slider and animated-lighting toggle [ROADMAP] and
+ * tells us to build to the spec rather than the frames. **The team overrode
+ * that on 3 Aug** and both ship for the demo, behind
+ * `FEATURES.roomLightingControls` — so §14 can still cut them by flipping a
+ * flag rather than reverting a screen the night before.
  */
 export interface RoomSettings {
   parallaxEnabled: boolean;
   /** The current focal item — tapping another item transitions the camera to it. */
   focusedSlotId: string | null;
-  /** [ROADMAP] — not built for the demo. */
-  brightness?: number;
-  /** [ROADMAP] — not built for the demo. */
-  animatedLighting?: boolean;
+  lightingPreset: LightingPreset;
+  /** 0–1. Drives the scene wash, not a real light model. */
+  brightness: number;
+  animatedLighting: boolean;
+  displayStyle: DisplayStyle;
 }
 
 export interface Room {
   id: string;
   collectionId: string;
   themeId: string;
+  /**
+   * The room's own name, distinct from the collection's. In the frames the
+   * "Neon Legends" collection becomes the "Neon Vault" room — the room is its
+   * own published object, not a view of the collection.
+   */
+  title: string;
+  description: string;
+  /** Chosen at publish from a still of the room (§11 F4 export criterion). */
+  coverUrl: string;
   backdropUrl: string;
   slots: Slot[];
   placements: Placement[];
   settings: RoomSettings;
   visibility: Visibility;
+  allowComments: boolean;
+  showOnProfile: boolean;
   publishedAt: IsoDateString | null;
   createdAt: IsoDateString;
 }
