@@ -21,7 +21,13 @@
 export { catalogueService, type CatalogueService } from './catalogueService';
 export { collectionService, type CollectionService, type CreateCollectionInput } from './collectionService';
 export { inventoryService, type InventoryService, type OwnedItemView } from './inventoryService';
-export { matchService, type MatchService, type CollectorRecommendation, type CommunityRecommendation } from './matchService';
+export {
+  matchService,
+  type MatchService,
+  type CollectorRecommendation,
+  type CommunityRecommendation,
+  type ViewerMatchState,
+} from './matchService';
 export { newsService, type NewsService } from './newsService';
 export {
   roomService,

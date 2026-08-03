@@ -117,8 +117,8 @@ export default function CollectorScreen() {
           {match.sharedItems.length > 0 ? (
             <>
               <Text style={styles.muted}>
-                {match.sharedItems.length} items you both own — weighted by how rare they are, not
-                how many they are
+                {match.sharedItems.length} verified items you both own — weighted by how rare they
+                are, not how many they are
               </Text>
               <View style={styles.grid}>
                 {match.sharedItems.slice(0, 6).map((item) => (

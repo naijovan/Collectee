@@ -72,6 +72,30 @@ export const inventoryService = {
   },
 
   /**
+   * The same map, restricted to items whose ownership is VERIFIED.
+   *
+   * Team decision (3 Aug): collector and community matching counts verified
+   * items only — verification is the incentive, so an unverified item
+   * contributes nothing to a match score.
+   *
+   * Kept separate from `getItemIdsByUser` rather than folded into it, because
+   * matching needs both: the verified set to score with, and the full set to
+   * tell "owns nothing yet" apart from "owns plenty, has verified none". Those
+   * two states get different answers and conflating them prints a plausible
+   * percentage built on nothing (§11 F5).
+   */
+  getVerifiedItemIdsByUser(): ReadonlyMap<string, readonly string[]> {
+    const byUser = new Map<string, string[]>();
+    for (const owned of [...OWNED_ITEMS, ...imported]) {
+      if (owned.trustLevel !== 'verified') continue;
+      const existing = byUser.get(owned.userId);
+      if (existing) existing.push(owned.itemId);
+      else byUser.set(owned.userId, [owned.itemId]);
+    }
+    return byUser;
+  },
+
+  /**
    * Import scanner results.
    *
    * §11 F1 step 6: items land as `unverified`. The scanner NEVER produces a
