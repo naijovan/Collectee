@@ -51,6 +51,20 @@ export const rarityColors = {
   mythic: '#EF4444',
 } as const;
 
+/**
+ * Room lighting presets — J3 Customise step.
+ *
+ * These are scene washes, not a light model: a tint composited over the
+ * backdrop at an opacity driven by `RoomSettings.brightness`. They live here
+ * because this file is the only place raw hex is allowed.
+ */
+export const lightingPresets = {
+  'cool-blue': { label: 'Cool blue', tint: '#2F6BFF' },
+  'purple-glow': { label: 'Purple glow', tint: '#A855F7' },
+  'warm-gold': { label: 'Warm gold', tint: '#F5A524' },
+  'dark-cinematic': { label: 'Dark cinematic', tint: '#0B0D10' },
+} as const;
+
 export const spacing = {
   xs: 4,
   sm: 8,

@@ -27,12 +27,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 
+import { FEATURES } from '@/config/features';
 import { cameraTargetFor, parallaxOffset } from '@/domain/room';
 import { rarityLabelFor } from '@/domain/rarity';
-import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
+import { colors, lightingPresets, radius, rarityColors, spacing, typography } from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Item, Room, RoomTheme, Slot } from '@/types';
+
+import { resolveBackdrop } from './backdrops';
 
 /** How far a drag can shift the front layer, in px. Deliberately small. */
 const MAX_TILT = 14;
@@ -105,6 +109,31 @@ export function RoomScene({
   // A new focal item always lands face-up.
   useEffect(() => setFlipped(false), [room.settings.focusedSlotId]);
 
+  /**
+   * Animated lighting — a slow breathing wash over the scene.
+   *
+   * §11 F4 has this as [ROADMAP]; the team took it into demo scope on 3 Aug, so
+   * it stays behind `FEATURES.roomLightingControls` and reverts to a static
+   * wash when the flag is off. That is §14 rung 2 working as designed.
+   */
+  const pulse = useRef(new Animated.Value(0)).current;
+  const animateLighting = FEATURES.roomLightingControls && room.settings.animatedLighting;
+
+  useEffect(() => {
+    if (!animateLighting) {
+      pulse.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 2600, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 2600, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [animateLighting, pulse]);
+
   const pan = useMemo(
     () =>
       PanResponder.create({
@@ -128,6 +157,10 @@ export function RoomScene({
   );
 
   const palette = theme?.palette ?? [];
+  const backdrop = resolveBackdrop(room.backdropUrl);
+  const lighting = lightingPresets[room.settings.lightingPreset];
+  // Brighter setting = thinner darkening veil. Not a light model, a wash.
+  const veilOpacity = FEATURES.roomLightingControls ? (1 - room.settings.brightness) * 0.55 : 0.2;
 
   return (
     <View
@@ -142,27 +175,51 @@ export function RoomScene({
           ]}
         >
           {/*
-            Backdrop stand-in. §16 Q6 is still open and the generated art is not
-            in the repo — fixtures reference `room-backdrops/<theme>.png`. The
-            theme palette is the cache key for the real backdrop (§11 F4), so
-            painting it here keeps every theme visually distinct without
-            inventing a colour. Swap for <Image source={...}> when art lands.
+            Backdrop art is pre-generated and bundled (§16 Q6, decided 3 Aug).
+            Until the six files land in assets/, `resolveBackdrop` returns null
+            and the theme palette paints the scene instead — every theme still
+            reads differently and nothing renders broken. See ./backdrops.ts.
           */}
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceSunken }]} />
-          {palette.map((tone, index) => (
-            <View
-              key={tone}
-              style={[
-                styles.wash,
-                {
-                  backgroundColor: tone,
-                  opacity: index === 0 ? 0.9 : 0.28,
-                  top: `${index * 26}%`,
-                },
-              ]}
-            />
-          ))}
-          <View style={styles.floor} />
+          {backdrop ? (
+            <Image source={backdrop} style={StyleSheet.absoluteFill} contentFit="cover" />
+          ) : (
+            <>
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceSunken }]} />
+              {palette.map((tone, index) => (
+                <View
+                  key={tone}
+                  style={[
+                    styles.wash,
+                    {
+                      backgroundColor: tone,
+                      opacity: index === 0 ? 0.9 : 0.28,
+                      top: `${index * 26}%`,
+                    },
+                  ]}
+                />
+              ))}
+              <View style={styles.floor} />
+            </>
+          )}
+
+          {/* Lighting wash — preset tint over a brightness-driven veil. */}
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: colors.surfaceSunken, opacity: veilOpacity },
+            ]}
+          />
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: lighting.tint,
+                opacity: animateLighting
+                  ? pulse.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.3] })
+                  : 0.18,
+              },
+            ]}
+          />
 
           {room.slots.map((slot) => {
             const placement = room.placements.find((p) => p.slotId === slot.id);
@@ -197,6 +254,10 @@ export function RoomScene({
                   style={[
                     styles.card,
                     slot.kind === 'wall' && styles.cardWall,
+                    // §11 F4: "cards, statues or wall art". The display style is
+                    // a room-level choice; the slot kind still shapes the frame.
+                    room.settings.displayStyle === 'framed' && styles.cardFramed,
+                    room.settings.displayStyle === 'hologram' && styles.cardHologram,
                     item ? { borderColor: rarityColors[item.rarityTier] } : styles.cardEmpty,
                     focused && styles.cardFocused,
                     selected && styles.cardSelected,
@@ -284,6 +345,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardWall: { borderRadius: 2 },
+  cardFramed: { borderRadius: 2, borderWidth: 3, backgroundColor: colors.surfaceElevated },
+  cardHologram: { backgroundColor: 'transparent', borderRadius: radius.card },
   cardEmpty: { borderStyle: 'dashed', borderColor: colors.border, backgroundColor: 'transparent' },
   cardFocused: { borderWidth: 3 },
   cardSelected: { borderColor: colors.accent, borderWidth: 3 },
