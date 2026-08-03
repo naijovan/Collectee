@@ -61,8 +61,10 @@ export function ItemArt({
       <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
         <Image
           source={art.source}
-          style={art.fit === 'contain' ? styles.artInset : StyleSheet.absoluteFill}
+          style={art.fit === 'contain' ? styles.artInset : styles.artFill}
           resizeMode={art.fit}
+          accessible
+          accessibilityLabel={art.alt}
           accessibilityIgnoresInvertColors
         />
       </View>
@@ -262,8 +264,16 @@ export function LoadingState({ height = 120 }: { height?: number }) {
 
 const styles = StyleSheet.create({
   art: { overflow: 'hidden', borderRadius: radius.card },
+  /**
+   * Width and height are explicit on both. Inset alone (`absoluteFill`, or
+   * top/right/bottom/left) does not size an Image on web: react-native-web
+   * writes the source's intrinsic pixel size onto the element, which wins over
+   * the stretch and leaves a 660x440 render overflowing a 78x58 tile — you then
+   * see its top-left corner at 8x zoom instead of the picture.
+   */
+  artFill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   /** Small inset for `contain` renders; the PNGs already carry ~10% margin. */
-  artInset: { position: 'absolute', top: '4%', left: '4%', right: '4%', bottom: '4%' },
+  artInset: { position: 'absolute', top: '4%', left: '4%', width: '92%', height: '92%' },
   artStripe: { position: 'absolute', width: '160%', height: 26, left: '-30%', top: '42%' },
   artGlow: {
     position: 'absolute',

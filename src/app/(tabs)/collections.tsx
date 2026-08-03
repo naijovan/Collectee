@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CollectionCard, EmptyState, LoadingState, PrimaryButton, SectionHeader } from '@/components';
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, inventoryService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
@@ -32,6 +33,8 @@ export default function CollectionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory } = useApp();
+
+  const scrollRef = useTopOnFocus();
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [progress, setProgress] = useState<SetProgress[]>([]);
@@ -64,6 +67,7 @@ export default function CollectionsScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >

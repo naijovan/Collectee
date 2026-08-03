@@ -1,9 +1,15 @@
 /**
  * J1 — Import inventory (PRD §10, §11 F1). Flow owner: Bernard.
  *
- * Upload → Scan → Review → Needs Review → Completion, as one route with a stage
+ * Upload → Scan → Review → Needs Review → Complete, as one route with a stage
  * machine, because every stage reads the same `ScanResult` and splitting it
  * across four routes means threading it through params.
+ *
+ * Built to the Figma "Import Inventory Flow" frames: numbered-circle stepper
+ * (Upload · Scan · Review · Complete), the Scan screen's sweeping beam over a
+ * stack of uploaded screenshots with a per-stage checklist, and a Review screen
+ * whose summary card, filter chips, inline Confirm / Change and collapsed
+ * duplicates row all come from frame 3 of that group.
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
  * │  COUNTS ARE DERIVED, NEVER STORED.                                  │
@@ -21,40 +27,65 @@
  *     item — that needs a linked game account and is partnership-gated (§9.3).
  *
  * The pipeline itself is specified, not built (§12.1): this serves canned
- * fixtures behind timed loading states. Say so plainly on stage.
+ * fixtures behind timed loading states. The uploaded file is real — it is
+ * genuinely read off the device — but nothing looks at its pixels. Say both
+ * halves of that plainly on stage.
  */
 
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import type { StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import {
+  Avatar,
   EmptyState,
   FilterChips,
   ItemArt,
   ItemCard,
   LoadingState,
   PrimaryButton,
+  RarityBadge,
   SecondaryButton,
-  StepperHeader,
 } from '@/components';
+import { ART_PLACEMENTS } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import type { CollectionSuggestion } from '@/domain/collections';
 import { groupByRarity, rarityLabelFor } from '@/domain/rarity';
 import { CONFIDENCE_AUTO_ACCEPT, CONFIDENCE_REVIEW_FLOOR, isMatchIncluded } from '@/domain/scan';
-import { catalogueService, collectionService, inventoryService, scanService } from '@/services';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
+import {
+  catalogueService,
+  collectionService,
+  formatBytes,
+  inventoryService,
+  mediaService,
+  scanService,
+  SCAN_STAGES,
+} from '@/services';
+import type { PickedImage } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { GameTitle, Item, ScanDetection, ScanResolution, ScanResult } from '@/types';
 
-/** Local to J1. The canonical stepper arrays in §11 F3 are for J2 and J3. */
-const IMPORT_STEPS = ['Upload', 'Scan', 'Review', 'Done'] as const;
+/** The Figma's four labels. §11 F3's stepper arrays are J2's and J3's. */
+const IMPORT_STEPS = ['Upload', 'Scan', 'Review', 'Complete'] as const;
 
 /**
  * `landing` sits on step 0 alongside `upload`: picking a title is part of
  * choosing what to upload, not a numbered step of its own. The Figma draws it
- * as a separate screen but the same "1 of 4 — Upload" bar.
+ * as a separate screen under the same highlighted "Upload" circle.
  */
 type Stage = 'landing' | 'upload' | 'scanning' | 'review' | 'needs-review' | 'complete';
 
@@ -67,25 +98,53 @@ const STAGE_STEP: Record<Stage, number> = {
   complete: 3,
 };
 
+/** Each frame's own header, rather than one title for the whole flow. */
+const STAGE_TITLE: Record<Stage, string> = {
+  landing: 'Import inventory',
+  upload: 'Upload',
+  scanning: 'Scanning inventory',
+  review: 'Review items',
+  'needs-review': 'Confirm a match',
+  complete: 'Import complete',
+};
+
 /** Review sections. `All` shows every section stacked, matching the Figma tabs. */
 const REVIEW_FILTERS = ['All', 'Matched', 'Needs review', 'Duplicates'] as const;
 type ReviewFilter = (typeof REVIEW_FILTERS)[number];
 
+/** How many of each section the `All` tab previews before "See all". */
+const PREVIEW_MATCHED = 3;
+const PREVIEW_NEEDS_REVIEW = 2;
+
 export default function ImportScreen() {
   const router = useRouter();
-  const { viewerId, refreshInventory } = useApp();
+  const { viewer, viewerId, refreshInventory } = useApp();
 
   const [stage, setStage] = useState<Stage>('landing');
+  const scrollRef = useTopOnFocus(stage);
+
   const [title, setTitle] = useState<GameTitle>('codm');
   const [kind, setKind] = useState<'image' | 'video'>(FEATURES.scanVideoInput ? 'video' : 'image');
+  const [upload, setUpload] = useState<PickedImage | null>(null);
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [resolutions, setResolutions] = useState<ScanResolution[]>([]);
   const [items, setItems] = useState<ReadonlyMap<string, Item>>(new Map());
   const [importedCount, setImportedCount] = useState(0);
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('All');
+  const [dupesOpen, setDupesOpen] = useState(false);
+  /** Which detection "Change" opened. Null falls back to the first unresolved. */
+  const [focusId, setFocusId] = useState<string | null>(null);
   const [nextUp, setNextUp] = useState<CollectionSuggestion[]>([]);
   const [suggesting, setSuggesting] = useState(false);
+
+  /**
+   * Incremented by "Cancel scan". The scan is a timer, not a request, so it
+   * cannot be aborted — but a stale run must not be allowed to push a result
+   * onto a screen the user has already left.
+   */
+  const runId = useRef(0);
 
   const detections = result?.detections ?? [];
 
@@ -129,11 +188,41 @@ export default function ImportScreen() {
     [detections, items],
   );
 
+  /** Pick the screenshot to scan. The file is real even though the read is not. */
+  async function chooseUpload() {
+    const picked = await mediaService.pickImage();
+    switch (picked.status) {
+      case 'picked':
+        setUpload(picked.image);
+        setUploadNote(null);
+        return;
+      case 'unsupported-type':
+        setUploadNote(`${picked.name} isn't a PNG or JPG.`);
+        return;
+      case 'too-large':
+        setUploadNote(`${picked.name} is ${formatBytes(picked.bytes)} — keep uploads under 8 MB.`);
+        return;
+      case 'unavailable':
+        setUploadNote('File picking needs the web build — the prepared recording is used instead.');
+        return;
+      case 'cancelled':
+        return;
+    }
+  }
+
   async function runScan() {
+    const run = (runId.current += 1);
     setStage('scanning');
     setProgress(0);
 
-    const scan = await scanService.scan({ kind, uri: `demo://${title}-inventory`, title }, setProgress);
+    const scan = await scanService.scan(
+      { kind, uri: upload?.uri ?? `demo://${title}-inventory`, title },
+      (fraction) => {
+        // A cancelled run keeps ticking; it just stops being allowed to speak.
+        if (runId.current === run) setProgress(fraction);
+      },
+    );
+    if (runId.current !== run) return;
 
     // Every item id the Review and Needs Review screens can possibly show.
     const ids = new Set<string>();
@@ -142,10 +231,17 @@ export default function ImportScreen() {
       for (const candidate of detection.candidateItemIds) ids.add(candidate);
     }
     const catalogue = await catalogueService.getItems([...ids]);
+    if (runId.current !== run) return;
 
     setItems(new Map(catalogue.map((item) => [item.id, item])));
     setResult(scan);
     setStage('review');
+  }
+
+  function cancelScan() {
+    runId.current += 1;
+    setProgress(0);
+    setStage('upload');
   }
 
   function resolve(detectionId: string, itemId: string | null) {
@@ -188,19 +284,28 @@ export default function ImportScreen() {
     setSuggesting(false);
   }
 
+  function goBack() {
+    if (stage === 'needs-review') return setStage('review');
+    if (stage === 'upload') return setStage('landing');
+    if (stage === 'scanning') return cancelScan();
+    return router.back();
+  }
+
+  const focused = pending.find((d) => d.id === focusId) ?? pending[0];
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <StepperHeader
-        steps={IMPORT_STEPS}
-        current={STAGE_STEP[stage]}
-        onBack={
-          stage === 'needs-review'
-            ? () => setStage('review')
-            : stage === 'upload'
-              ? () => setStage('landing')
-              : () => router.back()
-        }
-      />
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
+      <View style={styles.navRow}>
+        <Pressable onPress={goBack} hitSlop={8}>
+          <Text style={styles.back}>←</Text>
+        </Pressable>
+        <Text style={styles.navTitle} numberOfLines={1}>
+          {STAGE_TITLE[stage]}
+        </Text>
+        <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={36} />
+      </View>
+
+      <FlowStepper steps={IMPORT_STEPS} current={STAGE_STEP[stage]} />
 
       {stage === 'landing' ? (
         <View style={styles.block}>
@@ -253,82 +358,181 @@ export default function ImportScreen() {
             onChange={setKind}
           />
 
-          <View style={styles.dropZone}>
-            <Text style={styles.dropGlyph}>⇪</Text>
-            <Text style={styles.body}>
-              {kind === 'video' ? 'inventory-scroll.mp4' : 'inventory-01.png'}
-            </Text>
-            <Text style={styles.muted}>
-              {kind === 'video'
-                ? 'Sampled at ~2 fps with a frame-difference filter'
-                : 'Single frame, grid segmented into tiles'}
-            </Text>
-          </View>
+          {/* An image source takes a real file; video stays the prepared recording. */}
+          {kind === 'image' && upload ? (
+            <Pressable style={styles.dropFilled} onPress={() => void chooseUpload()}>
+              <Image
+                source={{ uri: upload.uri }}
+                style={styles.dropPreview}
+                resizeMode="cover"
+                accessible
+                accessibilityLabel={`Selected screenshot: ${upload.name}`}
+              />
+              <View style={styles.rowBody}>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {upload.name}
+                </Text>
+                <Text style={styles.muted}>
+                  {formatBytes(upload.bytes)} · grid segmented into tiles
+                </Text>
+              </View>
+              <Text style={styles.change}>Change</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={styles.dropZone}
+              onPress={kind === 'image' ? () => void chooseUpload() : undefined}
+            >
+              <Text style={styles.dropGlyph}>⇪</Text>
+              <Text style={styles.body}>
+                {kind === 'video' ? 'inventory-scroll.mp4' : 'Choose a screenshot'}
+              </Text>
+              <Text style={styles.muted}>
+                {kind === 'video'
+                  ? 'Sampled at ~2 fps with a frame-difference filter'
+                  : 'PNG or JPG, up to 8 MB · grid segmented into tiles'}
+              </Text>
+            </Pressable>
+          )}
+
+          {uploadNote ? <Text style={styles.warn}>{uploadNote}</Text> : null}
 
           <PrimaryButton label="Start scan" onPress={() => void runScan()} />
           <Text style={styles.footnote}>
-            The vision pipeline is specified, not built — this demo serves prepared results behind
-            real loading states (§12.1).
+            The vision pipeline is specified, not built — your file is read off the device, but the
+            results below are the prepared set for this title (§12.1).
           </Text>
         </View>
       ) : null}
 
       {stage === 'scanning' ? (
         <View style={styles.block}>
-          <Text style={styles.stage}>{scanService.stageFor(progress)}</Text>
-          <View style={styles.track}>
-            <View style={[styles.fill, { width: `${Math.round(progress * 100)}%` }]} />
-          </View>
-          <Text style={styles.muted}>{Math.round(progress * 100)}%</Text>
+          <ScanPreview />
 
-          <View style={styles.thresholds}>
-            <Text style={styles.footnote}>
-              ≥ {CONFIDENCE_AUTO_ACCEPT} auto-accepted · {CONFIDENCE_REVIEW_FLOOR}–
-              {CONFIDENCE_AUTO_ACCEPT} needs review · below {CONFIDENCE_REVIEW_FLOOR} discarded
-            </Text>
+          <Text style={styles.percent}>{Math.round(progress * 100)}%</Text>
+          <Text style={styles.scanHead}>Identifying your items</Text>
+          <Text style={styles.bodyCentre}>
+            Collectee is analysing the item names and artwork in your uploads.
+          </Text>
+
+          {/*
+            The checklist is derived from `progress`, not tracked alongside it:
+            one number decides which row is ticked, which is spinning and which
+            is still waiting, so the list cannot disagree with the percentage.
+          */}
+          <View style={styles.checklist}>
+            {SCAN_STAGES.map((label, index) => {
+              const reached = progress * SCAN_STAGES.length;
+              const done = index < Math.floor(reached);
+              const active = !done && index === Math.floor(reached);
+              return (
+                <View key={label} style={styles.checkRow}>
+                  <View
+                    style={[
+                      styles.checkMark,
+                      done && styles.checkMarkDone,
+                      active && styles.checkMarkActive,
+                    ]}
+                  >
+                    <Text style={[styles.checkGlyph, (done || active) && styles.checkGlyphOn]}>
+                      {done ? '✓' : active ? '◌' : ''}
+                    </Text>
+                  </View>
+                  <Text style={[styles.checkLabel, (done || active) && styles.checkLabelOn]}>
+                    {label}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
+
+          <View style={styles.infoBox}>
+            <Text style={styles.infoGlyph}>ⓘ</Text>
+            <View style={styles.rowBody}>
+              <Text style={styles.rowTitle}>You can leave this screen.</Text>
+              <Text style={styles.muted}>
+                We&apos;ll notify you when the scan is complete. [ROADMAP] — this demo scans in the
+                foreground, so cancelling and leaving are the same thing today.
+              </Text>
+            </View>
+          </View>
+
+          <SecondaryButton label="Cancel scan" onPress={cancelScan} />
         </View>
       ) : null}
 
       {stage === 'review' && result ? (
         <View style={styles.block}>
-          <View style={styles.countCard}>
-            <Text style={styles.countHead}>{counts.detected} items detected</Text>
-            {/* The invariant, printed: detected = matched + needs review + duplicates. */}
-            <Text style={styles.muted}>
-              {counts.matched} matched + {counts.needsReview} needs review + {counts.duplicates}{' '}
-              duplicates
-            </Text>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryHead}>
+              <View style={styles.sparkle}>
+                <Text style={styles.sparkleGlyph}>✦</Text>
+              </View>
+              <View style={styles.rowBody}>
+                <Text style={styles.countHead}>{counts.detected} items detected</Text>
+                <Text style={styles.muted}>Review the results before importing.</Text>
+              </View>
+            </View>
+
+            {/* The invariant, as three columns: detected = matched + review + dupes. */}
+            <View style={styles.statRow}>
+              <Stat
+                glyph="✓"
+                value={counts.matched}
+                label="Matched"
+                note="Ready to import"
+                noteStyle={styles.noteGood}
+              />
+              <Stat
+                glyph="?"
+                value={counts.needsReview}
+                label="Possible matches"
+                note="Needs review"
+                noteStyle={styles.noteWarn}
+              />
+              <Stat
+                glyph="⧉"
+                value={counts.duplicates}
+                label="Duplicates"
+                note="Will be skipped"
+                noteStyle={styles.noteMuted}
+              />
+            </View>
+
             {counts.discarded > 0 ? (
               <Text style={styles.warn}>
-                {counts.discarded} items we couldn&apos;t read — not included in the total
+                {counts.discarded} items we couldn&apos;t read — below the {CONFIDENCE_REVIEW_FLOOR}{' '}
+                floor, so not in the total
               </Text>
             ) : null}
           </View>
 
-          {pending.length > 0 ? (
-            <Pressable style={styles.reviewBanner} onPress={() => setStage('needs-review')}>
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle}>{pending.length} items need your eyes</Text>
-                <Text style={styles.muted}>
-                  We read these but aren&apos;t confident enough to add them silently
-                </Text>
-              </View>
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
-          ) : (
-            <View style={styles.resolvedBanner}>
-              <Text style={styles.rowTitle}>All items resolved</Text>
-              <Text style={styles.muted}>Nothing ambiguous will enter your collection</Text>
-            </View>
-          )}
-
           <FilterChips options={REVIEW_FILTERS} value={reviewFilter} onChange={setReviewFilter} />
 
-          {/* §11 F1 step 6 — "Review screen groups detected items by rarity". */}
-          {reviewFilter === 'All' || reviewFilter === 'Matched' ? (
+          {/* ── Matched ─────────────────────────────────────────────────── */}
+          {reviewFilter === 'All' ? (
             <View style={styles.block}>
-              <Text style={styles.label}>Matched</Text>
+              <SeeAllRow
+                title="Matched items"
+                count={counts.matched}
+                onSeeAll={() => setReviewFilter('Matched')}
+              />
+              <View style={styles.grid}>
+                {matchedEntries.slice(0, PREVIEW_MATCHED).map(({ detection, item }) => (
+                  <MatchedTile
+                    key={detection.id}
+                    item={item}
+                    included={isMatchIncluded(detection.id, resolutions)}
+                    onToggle={() => toggleMatch(detection.id)}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {/* §11 F1 step 6 — "Review screen groups detected items by rarity". */}
+          {reviewFilter === 'Matched' ? (
+            <View style={styles.block}>
               <Text style={styles.footnote}>
                 Tap any item to leave it out — nothing here is final until you import.
               </Text>
@@ -338,100 +542,121 @@ export default function ImportScreen() {
                     {rarityLabelFor(group.tier, title)} · {group.items.length}
                   </Text>
                   <View style={styles.grid}>
-                    {group.items.map(({ detection, item }) => {
-                      const included = isMatchIncluded(detection.id, resolutions);
-                      return (
-                        <View key={detection.id} style={styles.tile}>
-                          <View style={!included && styles.tileRemoved}>
-                            <ItemCard
-                              item={item}
-                              width="100%"
-                              trustLevel="unverified"
-                              onPress={() => toggleMatch(detection.id)}
-                            />
-                          </View>
-                          <Pressable
-                            onPress={() => toggleMatch(detection.id)}
-                            hitSlop={6}
-                            style={[styles.tick, !included && styles.tickOff]}
-                          >
-                            <Text style={styles.tickGlyph}>{included ? '✓' : '＋'}</Text>
-                          </Pressable>
-                        </View>
-                      );
-                    })}
+                    {group.items.map(({ detection, item }) => (
+                      <MatchedTile
+                        key={detection.id}
+                        item={item}
+                        included={isMatchIncluded(detection.id, resolutions)}
+                        onToggle={() => toggleMatch(detection.id)}
+                      />
+                    ))}
                   </View>
                 </View>
               ))}
             </View>
           ) : null}
 
-          {reviewFilter === 'Needs review' ? (
+          {/* ── Needs review ────────────────────────────────────────────── */}
+          {(reviewFilter === 'All' || reviewFilter === 'Needs review') && pending.length > 0 ? (
             <View style={styles.block}>
-              {pending.length === 0 ? (
-                <EmptyState
-                  title="Nothing left to review"
-                  body="Every uncertain detection has a decision."
+              {reviewFilter === 'All' ? (
+                <SeeAllRow
+                  title="Needs review"
+                  count={pending.length}
+                  onSeeAll={() => setReviewFilter('Needs review')}
                 />
               ) : (
-                pending.map((d) => (
-                  <Pressable key={d.id} style={styles.pendingRow} onPress={() => setStage('needs-review')}>
-                    <View style={styles.rowBody}>
-                      <Text style={styles.rowTitle}>
-                        {d.ocrText ? `“${d.ocrText}”` : 'Unreadable label'}
-                      </Text>
-                      <Text style={styles.muted}>
-                        {Math.round(d.confidence * 100)}% confidence · frame {d.frameIndex}
-                      </Text>
-                    </View>
-                    <Text style={styles.chevron}>›</Text>
-                  </Pressable>
-                ))
+                <Text style={styles.footnote}>
+                  We read these but aren&apos;t confident enough to add them silently.
+                </Text>
               )}
+              <View style={styles.grid}>
+                {(reviewFilter === 'All' ? pending.slice(0, PREVIEW_NEEDS_REVIEW) : pending).map(
+                  (detection) => (
+                    <PossibleMatch
+                      key={detection.id}
+                      detection={detection}
+                      item={detection.itemId === null ? undefined : items.get(detection.itemId)}
+                      onConfirm={() => resolve(detection.id, detection.itemId)}
+                      onChange={() => {
+                        setFocusId(detection.id);
+                        setStage('needs-review');
+                      }}
+                    />
+                  ),
+                )}
+              </View>
             </View>
           ) : null}
 
-          {reviewFilter === 'Duplicates' ? (
-            <View style={styles.block}>
-              {duplicateEntries.length === 0 ? (
+          {reviewFilter === 'Needs review' && pending.length === 0 ? (
+            <EmptyState
+              title="Nothing left to review"
+              body="Every uncertain detection has a decision."
+            />
+          ) : null}
+
+          {/* ── Duplicates ──────────────────────────────────────────────── */}
+          {reviewFilter === 'All' || reviewFilter === 'Duplicates' ? (
+            duplicateEntries.length === 0 ? (
+              reviewFilter === 'Duplicates' ? (
                 <EmptyState title="No duplicates" body="Nothing repeated across frames." />
-              ) : (
-                duplicateEntries.map(({ detection, item }) => (
-                  <View key={detection.id} style={styles.pendingRow}>
-                    <View style={styles.rowBody}>
-                      <Text style={styles.rowTitle}>{item.name}</Text>
-                      <Text style={styles.muted}>
-                        Already counted from an earlier frame · frame {detection.frameIndex}
-                      </Text>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
-          ) : null}
+              ) : null
+            ) : (
+              <View style={styles.block}>
+                <Pressable
+                  style={styles.dupeRow}
+                  onPress={() => setDupesOpen((prev) => !prev)}
+                  hitSlop={4}
+                >
+                  <Text style={styles.dupeGlyph}>⧉</Text>
+                  <Text style={styles.dupeText}>
+                    {counts.duplicates} duplicate upload{counts.duplicates === 1 ? '' : 's'} will be
+                    skipped
+                  </Text>
+                  <Text style={styles.chevron}>{dupesOpen ? '⌃' : '⌄'}</Text>
+                </Pressable>
 
-          {counts.duplicates > 0 && reviewFilter === 'All' ? (
-            <Text style={styles.footnote}>
-              {counts.duplicates} duplicates were removed across frames by item id.
-            </Text>
+                {dupesOpen || reviewFilter === 'Duplicates'
+                  ? duplicateEntries.map(({ detection, item }) => (
+                      <View key={detection.id} style={styles.pendingRow}>
+                        <ItemArt seed={item.id} tier={item.rarityTier} style={styles.dupeThumb} />
+                        <View style={styles.rowBody}>
+                          <Text style={styles.rowTitle} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.muted}>
+                            Already counted from an earlier frame · frame {detection.frameIndex}
+                          </Text>
+                        </View>
+                      </View>
+                    ))
+                  : null}
+              </View>
+            )
           ) : null}
 
           <PrimaryButton
-            label={`Import ${counts.confirmed} confirmed items`}
+            label={`⤓  Import ${counts.confirmed} confirmed items`}
             disabled={!fullyResolved || counts.confirmed === 0}
             onPress={() => void runImport()}
           />
           {!fullyResolved ? (
             <Text style={styles.footnote}>
-              Resolve the {pending.length} pending items first — the count above updates as you go.
+              Resolve the {pending.length} possible match{pending.length === 1 ? '' : 'es'} first —
+              the count above updates as you go.
             </Text>
           ) : null}
+          <Text style={styles.footnote}>
+            ≥ {CONFIDENCE_AUTO_ACCEPT} auto-accepted · {CONFIDENCE_REVIEW_FLOOR}–
+            {CONFIDENCE_AUTO_ACCEPT} needs review · below {CONFIDENCE_REVIEW_FLOOR} discarded
+          </Text>
         </View>
       ) : null}
 
       {stage === 'needs-review' ? (
         <View style={styles.block}>
-          {pending.length === 0 ? (
+          {focused === undefined ? (
             <EmptyState
               title="Nothing left to review"
               body="Every uncertain detection has a decision."
@@ -440,10 +665,16 @@ export default function ImportScreen() {
             />
           ) : (
             <NeedsReviewCard
-              detection={pending[0]!}
+              detection={focused}
               items={items}
-              onConfirm={(itemId) => resolve(pending[0]!.id, itemId)}
-              onReject={() => resolve(pending[0]!.id, null)}
+              onConfirm={(itemId) => {
+                resolve(focused.id, itemId);
+                setFocusId(null);
+              }}
+              onReject={() => {
+                resolve(focused.id, null);
+                setFocusId(null);
+              }}
             />
           )}
 
@@ -524,8 +755,263 @@ export default function ImportScreen() {
 }
 
 /**
- * One uncertain detection. Shows the raw OCR text so the user can see what we
- * actually read — a correction is only possible if the evidence is visible.
+ * Numbered-circle bar with a label under each step, as drawn on every Import
+ * frame. The shared `StepperHeader` renders "Step N of M" over plain segments
+ * instead, and it belongs to Jovan (§13.3) and is used by J3 as well — so this
+ * local one matches the Figma without changing a shared component under someone
+ * else's name. J2 carries the same component for the same reason; when Jovan
+ * takes the numbered style into `StepperHeader`, both callers collapse into it.
+ */
+function FlowStepper({ steps, current }: { steps: readonly string[]; current: number }) {
+  return (
+    <View style={styles.stepperRow}>
+      {steps.map((label, index) => {
+        const done = index < current;
+        const active = index === current;
+        return (
+          <View key={label} style={styles.stepCol}>
+            <View style={styles.stepLine}>
+              <View style={[styles.connector, index > 0 && done && styles.connectorOn]} />
+              <View
+                style={[styles.circle, active && styles.circleActive, done && styles.circleDone]}
+              >
+                <Text style={[styles.circleText, (active || done) && styles.circleTextOn]}>
+                  {done ? '✓' : index + 1}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.connector,
+                  index < steps.length - 1 && index < current && styles.connectorOn,
+                ]}
+              />
+            </View>
+            <Text style={[styles.stepLabel, active && styles.stepLabelActive]} numberOfLines={1}>
+              {label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
+ * The Scan frame's hero: a fan of uploaded inventory screenshots with a beam
+ * sweeping across them.
+ *
+ * The beam oscillates about the centre rather than wrapping top-to-bottom,
+ * because a scanner that restarts from the top every cycle reads as a progress
+ * bar that keeps resetting — the opposite of what the percentage is saying. It
+ * is brightest and widest as it crosses the middle, which is where the frame
+ * draws it at rest.
+ *
+ * Plain `Animated`, not Reanimated: one interpolated transform does not need a
+ * worklet, and this file should not add the dependency surface. `useNativeDriver`
+ * is off on web, where react-native-web warns rather than using it.
+ */
+function ScanPreview() {
+  const sweep = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const cycle = Animated.sequence([
+      Animated.timing(sweep, {
+        toValue: 1,
+        duration: 1500,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(sweep, {
+        toValue: 0,
+        duration: 1500,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]);
+    const loop = Animated.loop(cycle);
+    loop.start();
+    return () => loop.stop();
+  }, [sweep]);
+
+  const translateY = sweep.interpolate({ inputRange: [0, 1], outputRange: [-BEAM_TRAVEL, BEAM_TRAVEL] });
+  // Peaks at the centre of the travel, in both directions.
+  const opacity = sweep.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.35, 1, 0.35] });
+  const scaleX = sweep.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.82, 1, 0.82] });
+
+  const shots = ART_PLACEMENTS['import.scanPreview'];
+
+  return (
+    <View style={styles.scanStage}>
+      {/* Three offset "screenshots", each a grid of item tiles like an inventory. */}
+      {[0, 1, 2].map((layer) => (
+        <View
+          key={layer}
+          style={[
+            styles.shot,
+            {
+              transform: [{ translateX: (layer - 1) * 26 }, { scale: 1 - Math.abs(layer - 1) * 0.08 }],
+              opacity: layer === 1 ? 1 : 0.45,
+              zIndex: layer === 1 ? 2 : 1,
+            },
+          ]}
+        >
+          <View style={styles.shotGrid}>
+            {shots.slice(layer * 3, layer * 3 + 6).map((id) => (
+              <ItemArt key={id} seed={id} tier="mythic" style={styles.shotTile} />
+            ))}
+          </View>
+        </View>
+      ))}
+
+      <Animated.View style={[styles.beam, { opacity, transform: [{ translateY }, { scaleX }] }]}>
+        <View style={styles.beamHalo} />
+        <View style={styles.beamGlow} />
+        <View style={styles.beamCore} />
+      </Animated.View>
+    </View>
+  );
+}
+
+/** How far the beam travels either side of the centre line, in px. */
+const BEAM_TRAVEL = 52;
+
+/** One column of the Review summary card. */
+function Stat({
+  glyph,
+  value,
+  label,
+  note,
+  noteStyle,
+}: {
+  glyph: string;
+  value: number;
+  label: string;
+  note: string;
+  noteStyle: StyleProp<TextStyle>;
+}) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statGlyph}>{glyph}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statNote, noteStyle]}>{note}</Text>
+    </View>
+  );
+}
+
+/** Section title + "See all (N)". `SectionHeader` prints no count and is shared. */
+function SeeAllRow({
+  title,
+  count,
+  onSeeAll,
+}: {
+  title: string;
+  count: number;
+  onSeeAll: () => void;
+}) {
+  return (
+    <View style={styles.seeAllRow}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Pressable onPress={onSeeAll} hitSlop={8}>
+        <Text style={styles.seeAll}>See all ({count})</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** A matched item, with the Figma's check badge and the §11 F1 reversal. */
+function MatchedTile({
+  item,
+  included,
+  onToggle,
+}: {
+  item: Item;
+  included: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <View style={styles.tile}>
+      <View style={!included && styles.tileRemoved}>
+        <ItemCard item={item} width="100%" artHeight={84} trustLevel="unverified" onPress={onToggle} />
+      </View>
+      <Pressable
+        onPress={onToggle}
+        hitSlop={6}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: included }}
+        accessibilityLabel={`${included ? 'Exclude' : 'Include'} ${item.name}`}
+        style={[styles.tick, !included && styles.tickOff]}
+      >
+        <Text style={styles.tickGlyph}>{included ? '✓' : '＋'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * An uncertain detection, resolvable in place — the Figma's Confirm / Change
+ * pair. Confirm accepts the top candidate; Change opens the full candidate list,
+ * because picking a different item needs to show what the alternatives are.
+ *
+ * The percentage belongs to the top candidate only. That is the one the pipeline
+ * scored, and it is printed here rather than hidden because a confidence-based
+ * feature that hides its confidence is asking to be trusted blindly.
+ */
+function PossibleMatch({
+  detection,
+  item,
+  onConfirm,
+  onChange,
+}: {
+  detection: ScanDetection;
+  item: Item | undefined;
+  onConfirm: () => void;
+  onChange: () => void;
+}) {
+  return (
+    <View style={styles.possibleCard}>
+      <View style={styles.possibleTop}>
+        {item ? (
+          <ItemArt seed={item.id} tier={item.rarityTier} style={styles.possibleThumb} />
+        ) : (
+          <View style={[styles.possibleThumb, styles.possibleThumbEmpty]}>
+            <Text style={styles.muted}>?</Text>
+          </View>
+        )}
+        <View style={styles.rowBody}>
+          <Text style={styles.possibleTag}>Possible match</Text>
+          <Text style={styles.rowTitle} numberOfLines={2}>
+            {item?.name ?? (detection.ocrText ? `“${detection.ocrText}”` : 'Unreadable label')}
+          </Text>
+          <Text style={styles.muted}>
+            {item ? GAME_LABELS[item.title] : `Frame ${detection.frameIndex}`}
+          </Text>
+        </View>
+      </View>
+
+      {item ? <RarityBadge tier={item.rarityTier} title={item.title} /> : null}
+      <Text style={styles.matchPercent}>{Math.round(detection.confidence * 100)}% match</Text>
+
+      <View style={styles.possibleActions}>
+        <Pressable
+          onPress={onConfirm}
+          disabled={item === undefined}
+          style={[styles.miniButton, styles.miniPrimary, item === undefined && styles.miniDisabled]}
+        >
+          <Text style={styles.miniPrimaryText}>Confirm</Text>
+        </Pressable>
+        <Pressable onPress={onChange} style={[styles.miniButton, styles.miniSecondary]}>
+          <Text style={styles.miniSecondaryText}>Change</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * One uncertain detection in full. Shows the raw OCR text so the user can see
+ * what we actually read — a correction is only possible if the evidence is
+ * visible.
  *
  * The percentage is printed on the top suggestion ONLY, because that is the
  * only candidate the pipeline actually scored. The Figma shows a descending
@@ -593,16 +1079,48 @@ function NeedsReviewCard({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg },
+  content: { padding: spacing.lg, gap: spacing.md },
   block: { gap: spacing.md },
+
+  navRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  navTitle: { ...typography.sectionHeader, color: colors.textPrimary, flex: 1 },
+  back: { fontSize: 22, color: colors.textPrimary },
+
+  // Stepper
+  stepperRow: { flexDirection: 'row', marginVertical: spacing.md },
+  stepCol: { flex: 1, alignItems: 'center', gap: spacing.xs },
+  stepLine: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch' },
+  connector: { flex: 1, height: 2, backgroundColor: colors.border },
+  connectorOn: { backgroundColor: colors.accent },
+  circle: {
+    width: 26,
+    height: 26,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  circleDone: { backgroundColor: colors.accentMuted, borderColor: colors.accent },
+  circleText: { ...typography.meta, color: colors.textSecondary },
+  circleTextOn: { color: colors.textOnAccent },
+  stepLabel: { ...typography.meta, color: colors.textTertiary },
+  stepLabelActive: { color: colors.accent },
 
   title: { ...typography.screenTitle, color: colors.textPrimary },
   label: { ...typography.sectionHeader, color: colors.textPrimary, marginTop: spacing.sm },
   body: { ...typography.body, color: colors.textSecondary },
+  bodyCentre: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   muted: { ...typography.meta, color: colors.textSecondary },
   footnote: { ...typography.meta, color: colors.textTertiary },
   warn: { ...typography.meta, color: colors.warning },
+  sectionTitle: { ...typography.cardTitle, color: colors.textPrimary },
+  seeAll: { ...typography.meta, color: colors.accent },
+  seeAllRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 
+  // Upload
   dropZone: {
     alignItems: 'center',
     gap: spacing.xs,
@@ -614,6 +1132,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   dropGlyph: { fontSize: 32, color: colors.accent },
+  dropFilled: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  dropPreview: { width: 64, height: 64, borderRadius: radius.sm },
 
   gameCard: {
     flexDirection: 'row',
@@ -640,50 +1169,146 @@ const styles = StyleSheet.create({
   },
   change: { ...typography.meta, color: colors.accent },
 
-  stage: { ...typography.sectionHeader, color: colors.textPrimary },
-  track: { height: 8, borderRadius: radius.pill, backgroundColor: colors.surface },
-  fill: { height: 8, borderRadius: radius.pill, backgroundColor: colors.accent },
-  thresholds: { marginTop: spacing.lg },
+  // Scan
+  scanStage: {
+    height: 190,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceSunken,
+    marginBottom: spacing.sm,
+  },
+  shot: {
+    position: 'absolute',
+    width: '62%',
+    padding: spacing.xs,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  shotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+  shotTile: { width: '31%', height: 34, borderRadius: 3 },
+  beam: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+  },
+  beamCore: {
+    position: 'absolute',
+    left: '4%',
+    right: '4%',
+    height: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.textPrimary,
+  },
+  beamGlow: {
+    position: 'absolute',
+    left: '2%',
+    right: '2%',
+    height: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    opacity: 0.4,
+  },
+  beamHalo: {
+    left: 0,
+    right: 0,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    opacity: 0.14,
+  },
+  percent: { ...typography.screenTitle, fontSize: 40, color: colors.accent, textAlign: 'center' },
+  scanHead: { ...typography.screenTitle, fontSize: 22, color: colors.textPrimary, textAlign: 'center' },
 
-  countCard: {
+  checklist: {
+    gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.xs,
-  },
-  countHead: { ...typography.screenTitle, fontSize: 24, color: colors.textPrimary },
-
-  reviewBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.card,
     padding: spacing.md,
   },
-  resolvedBanner: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.card,
+  checkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  checkMark: {
+    width: 22,
+    height: 22,
+    borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.success,
-    padding: spacing.md,
-    gap: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  checkMarkDone: { backgroundColor: colors.accent, borderColor: colors.accent },
+  checkMarkActive: { borderColor: colors.accent },
+  checkGlyph: { ...typography.meta, fontSize: 12, color: 'transparent' },
+  checkGlyphOn: { color: colors.textOnAccent },
+  checkLabel: { ...typography.body, color: colors.textTertiary },
+  checkLabelOn: { color: colors.textPrimary },
+
+  infoBox: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.card,
+    padding: spacing.md,
+  },
+  infoGlyph: { fontSize: 16, color: colors.accent },
+
+  // Review summary
+  summaryCard: {
+    backgroundColor: colors.accentMuted,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  summaryHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  sparkle: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sparkleGlyph: { color: colors.textOnAccent, fontSize: 16 },
+  countHead: { ...typography.screenTitle, fontSize: 22, color: colors.textPrimary },
+
+  statRow: { flexDirection: 'row', gap: spacing.sm },
+  stat: {
+    flex: 1,
+    gap: 2,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border,
+    paddingLeft: spacing.sm,
+  },
+  statGlyph: { ...typography.meta, color: colors.textSecondary },
+  statValue: { ...typography.screenTitle, fontSize: 20, color: colors.textPrimary },
+  statLabel: { ...typography.meta, color: colors.textPrimary },
+  statNote: { ...typography.meta, fontSize: 11 },
+  noteGood: { color: colors.success },
+  noteWarn: { color: colors.warning },
+  noteMuted: { color: colors.textTertiary },
+
   rowBody: { flex: 1, gap: 2 },
   rowTitle: { ...typography.cardTitle, color: colors.textPrimary },
-  chevron: { fontSize: 22, color: colors.textPrimary },
+  chevron: { fontSize: 18, color: colors.textPrimary },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-
   tierHead: { ...typography.cardTitle, color: colors.textSecondary },
   tile: { width: '30%' },
   tileRemoved: { opacity: 0.32 },
   tick: {
     position: 'absolute',
     top: 4,
-    right: 4,
+    left: 4,
     width: 22,
     height: 22,
     borderRadius: radius.pill,
@@ -693,6 +1318,44 @@ const styles = StyleSheet.create({
   },
   tickOff: { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border },
   tickGlyph: { ...typography.meta, color: colors.textOnAccent, fontSize: 12 },
+
+  // Needs review, inline
+  possibleCard: {
+    width: '47%',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    padding: spacing.md,
+  },
+  possibleTop: { flexDirection: 'row', gap: spacing.sm },
+  possibleThumb: { width: 52, height: 52 },
+  possibleThumbEmpty: { alignItems: 'center', justifyContent: 'center' },
+  possibleTag: { ...typography.meta, fontSize: 11, color: colors.warning },
+  possibleActions: { flexDirection: 'row', gap: spacing.sm },
+  miniButton: { flex: 1, alignItems: 'center', paddingVertical: spacing.sm, borderRadius: radius.pill },
+  miniPrimary: { backgroundColor: colors.accent },
+  miniSecondary: { borderWidth: 1, borderColor: colors.border },
+  miniDisabled: { opacity: 0.4 },
+  miniPrimaryText: { ...typography.meta, color: colors.textOnAccent },
+  miniSecondaryText: { ...typography.meta, color: colors.textPrimary },
+  matchPercent: { ...typography.cardTitle, color: colors.warning },
+
+  // Duplicates
+  dupeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  dupeGlyph: { fontSize: 16, color: colors.textSecondary },
+  dupeText: { ...typography.body, color: colors.textSecondary, flex: 1 },
+  dupeThumb: { width: 40, height: 40 },
 
   pendingRow: {
     flexDirection: 'row',
@@ -727,7 +1390,6 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
     padding: spacing.sm,
   },
-  matchPercent: { ...typography.cardTitle, color: colors.accent },
 
   reviewCard: {
     backgroundColor: colors.surface,

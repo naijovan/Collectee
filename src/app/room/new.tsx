@@ -35,6 +35,7 @@ import {
   inventoryService,
   roomService,
 } from '@/services';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Collection, Item, OwnedItem, Room, RoomTheme, Slot, Visibility } from '@/types';
@@ -49,6 +50,8 @@ export default function CreateRoomScreen() {
   const sceneWidth = Math.min(width, 520) - spacing.lg * 2;
 
   const [step, setStep] = useState(preselected ? 1 : 0);
+  /** Every step opens at the top — the flow is one route, so nothing remounts. */
+  const scrollRef = useTopOnFocus(step);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionId, setCollectionId] = useState<string | null>(preselected ?? null);
   const [themes, setThemes] = useState<RoomTheme[]>([]);
@@ -170,7 +173,7 @@ export default function CreateRoomScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <StepperHeader
         steps={ROOM_STEPS}
         current={step}

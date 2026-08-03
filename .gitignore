@@ -43,6 +43,12 @@ example
 # assets/collectee/ and are tracked. This folder is just working material.
 assets/Heroes\ &\ Items/
 
+# Same reasoning for the app-ready delivery: its PNGs are copied verbatim into
+# assets/collectee/{subjects,items}/ and tracked there, so keeping the originals
+# too would double the repo's art weight for no benefit. The pack's docs and
+# manifest ARE tracked — they are the provenance record for who each render is.
+assets/collectee/collectee-app-ready/images/
+
 # generated native folders
 /ios
 /android

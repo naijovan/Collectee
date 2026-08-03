@@ -29,7 +29,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import {
@@ -48,8 +48,9 @@ import {
 } from '@/domain/collections';
 import type { ItemFit, ThemeSuggestion } from '@/domain/collections';
 import { byRarityDesc } from '@/domain/rarity';
-import { collectionService, inventoryService } from '@/services';
-import type { OwnedItemView } from '@/services';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
+import { collectionService, formatBytes, inventoryService, mediaService } from '@/services';
+import type { OwnedItemView, PickedImage } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
@@ -129,9 +130,15 @@ export default function CreateCollectionScreen() {
 
   const [coverItemId, setCoverItemId] = useState<string | null>(null);
   const [pickingCover, setPickingCover] = useState(false);
+  /** An uploaded cover outranks the item-derived one until it is removed. */
+  const [coverUpload, setCoverUpload] = useState<PickedImage | null>(null);
+  const [coverNote, setCoverNote] = useState<string | null>(null);
 
   const [query, setQuery] = useState('');
   const [itemFilter, setItemFilter] = useState<ItemFilter>('All');
+
+  /** Each step and sub-view opens at the top, not at the last one's offset. */
+  const scrollRef = useTopOnFocus(`${stage}:${step}:${arranging}`);
 
   const [theme, setTheme] = useState<ThemeSuggestion | null>(null);
   const [fits, setFits] = useState<ItemFit[]>([]);
@@ -151,6 +158,39 @@ export default function CreateCollectionScreen() {
     ? selectedItems.find((item) => item.id === coverItemId)
     : undefined;
   const cover: Item | null = chosenCover ?? headlineItem(selectedItems);
+
+  /**
+   * Open the file dialog for a cover image.
+   *
+   * The empty state used to reveal a grid of the selected items, which on the
+   * first step is always empty — so "Choose cover" appeared broken. Uploading is
+   * what the button says and what the Figma implies, and the item grid stays as
+   * the second route to a cover for people who have already picked some.
+   */
+  async function chooseCoverFile() {
+    const result = await mediaService.pickImage();
+    switch (result.status) {
+      case 'picked':
+        setCoverUpload(result.image);
+        setCoverItemId(null);
+        setPickingCover(false);
+        setCoverNote(null);
+        return;
+      case 'unsupported-type':
+        setCoverNote(`${result.name} isn't a PNG or JPG.`);
+        return;
+      case 'too-large':
+        setCoverNote(`${result.name} is ${formatBytes(result.bytes)} — keep covers under 8 MB.`);
+        return;
+      case 'unavailable':
+        // Native has no picker until expo-image-picker lands (§13.1).
+        setPickingCover(true);
+        setCoverNote('Uploading needs the web build — pick one of your items instead.');
+        return;
+      case 'cancelled':
+        return;
+    }
+  }
 
   // Only fetch on the suggestions sub-view, so changing the selection earlier
   // in the flow does not fire a request per tap.
@@ -204,7 +244,7 @@ export default function CreateCollectionScreen() {
         userId: viewerId,
         name: name.trim() || 'Untitled collection',
         description: description.trim(),
-        coverUrl: cover?.renderUrl ?? '',
+        coverUrl: coverUpload?.uri ?? cover?.renderUrl ?? '',
         themeTags: tags,
         itemIds: selected,
         visibility,
@@ -234,7 +274,7 @@ export default function CreateCollectionScreen() {
   // ── Posted ────────────────────────────────────────────────────────────
   if (stage === 'posted' && publishedId) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
         <Text style={styles.done}>✓</Text>
         <Text style={styles.title}>{name} is live</Text>
         <Text style={styles.muted}>
@@ -265,7 +305,7 @@ export default function CreateCollectionScreen() {
   // ── Preview — frame 3:47, a confirm state outside the numbered bar ─────
   if (stage === 'preview') {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.contentFlush}>
+      <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.contentFlush}>
         <View style={styles.previewHeader}>
           <Pressable onPress={() => setStage('steps')} hitSlop={8}>
             <Text style={styles.back}>←</Text>
@@ -274,11 +314,27 @@ export default function CreateCollectionScreen() {
           <View style={styles.navSpacer} />
         </View>
 
-        <View style={styles.banner}>
-          {selectedItems.slice(0, 5).map((item) => (
-            <ItemArt key={item.id} seed={item.id} tier={item.rarityTier} style={styles.bannerSlice} />
-          ))}
-        </View>
+        {/* An uploaded cover replaces the item fan — it is what the user chose. */}
+        {coverUpload ? (
+          <Image
+            source={{ uri: coverUpload.uri }}
+            style={styles.bannerUpload}
+            resizeMode="cover"
+            accessible
+            accessibilityLabel={`Collection cover: ${coverUpload.name}`}
+          />
+        ) : (
+          <View style={styles.banner}>
+            {selectedItems.slice(0, 5).map((item) => (
+              <ItemArt
+                key={item.id}
+                seed={item.id}
+                tier={item.rarityTier}
+                style={styles.bannerSlice}
+              />
+            ))}
+          </View>
+        )}
 
         <View style={styles.previewBody}>
           <Text style={styles.title}>{name || 'Untitled collection'}</Text>
@@ -331,7 +387,7 @@ export default function CreateCollectionScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.navRow}>
         <Pressable
           hitSlop={8}
@@ -354,11 +410,33 @@ export default function CreateCollectionScreen() {
       {/* ── Step 1 — Details (frame 3:42) ───────────────────────────────── */}
       {step === 0 ? (
         <View style={styles.block}>
-          {cover ? (
+          {coverUpload ? (
+            <View style={styles.coverCard}>
+              <Image
+                source={{ uri: coverUpload.uri }}
+                style={styles.coverArt}
+                resizeMode="cover"
+                accessible
+                accessibilityLabel={`Collection cover: ${coverUpload.name}`}
+              />
+              <Text style={styles.footnote}>
+                {coverUpload.name} · {formatBytes(coverUpload.bytes)}
+              </Text>
+              <SecondaryButton label="▣  Change cover" onPress={() => void chooseCoverFile()} />
+              <Pressable onPress={() => setCoverUpload(null)} hitSlop={8}>
+                <Text style={styles.coverLink}>Remove upload</Text>
+              </Pressable>
+            </View>
+          ) : cover ? (
             <View style={styles.coverCard}>
               <ItemArt seed={cover.id} tier={cover.rarityTier} style={styles.coverArt} />
               <Text style={styles.footnote}>Cover from {cover.name}</Text>
-              <SecondaryButton label="▣  Change cover" onPress={() => setPickingCover(true)} />
+              <SecondaryButton label="▣  Upload a cover" onPress={() => void chooseCoverFile()} />
+              <Pressable onPress={() => setPickingCover((prev) => !prev)} hitSlop={8}>
+                <Text style={styles.coverLink}>
+                  {pickingCover ? 'Hide your items' : 'Or use one of your items'}
+                </Text>
+              </Pressable>
             </View>
           ) : (
             <View style={styles.coverEmpty}>
@@ -367,31 +445,31 @@ export default function CreateCollectionScreen() {
               <Text style={styles.mutedCentre}>
                 Show off your collection with epic artwork.
               </Text>
-              <SecondaryButton label="▣  Choose cover" onPress={() => setPickingCover(true)} />
+              <SecondaryButton label="▣  Choose cover" onPress={() => void chooseCoverFile()} />
+              <Text style={styles.mutedCentre}>
+                PNG or JPG, up to 8 MB — or leave it and we&apos;ll use your rarest item.
+              </Text>
             </View>
           )}
 
-          {pickingCover ? (
-            selectedItems.length === 0 ? (
-              <Text style={styles.footnote}>
-                Choose items first — your cover comes from one of them.
-              </Text>
-            ) : (
-              <View style={styles.coverPicker}>
-                {selectedItems.map((item) => (
-                  <Pressable
-                    key={item.id}
-                    onPress={() => {
-                      setCoverItemId(item.id);
-                      setPickingCover(false);
-                    }}
-                    style={[styles.coverOption, cover?.id === item.id && styles.coverOptionActive]}
-                  >
-                    <ItemArt seed={item.id} tier={item.rarityTier} style={styles.coverThumb} />
-                  </Pressable>
-                ))}
-              </View>
-            )
+          {coverNote ? <Text style={styles.warn}>{coverNote}</Text> : null}
+
+          {pickingCover && selectedItems.length > 0 ? (
+            <View style={styles.coverPicker}>
+              {selectedItems.map((item) => (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    setCoverItemId(item.id);
+                    setCoverUpload(null);
+                    setPickingCover(false);
+                  }}
+                  style={[styles.coverOption, cover?.id === item.id && styles.coverOptionActive]}
+                >
+                  <ItemArt seed={item.id} tier={item.rarityTier} style={styles.coverThumb} />
+                </Pressable>
+              ))}
+            </View>
           ) : null}
 
           <Text style={styles.label}>Collection name</Text>
@@ -1052,6 +1130,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   coverArt: { width: '100%', height: 150, borderRadius: radius.card },
+  coverLink: { ...typography.meta, color: colors.accent },
+  warn: { ...typography.meta, color: colors.warning },
   pencil: {
     position: 'absolute',
     top: spacing.lg,
@@ -1325,6 +1405,7 @@ const styles = StyleSheet.create({
   },
   banner: { flexDirection: 'row', height: 200, gap: 2 },
   bannerSlice: { flex: 1, height: 200, borderRadius: 0 },
+  bannerUpload: { width: '100%', height: 200 },
   previewBody: { padding: spacing.lg, gap: spacing.md },
   ownerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   contentRow: {

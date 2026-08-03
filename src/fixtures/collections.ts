@@ -50,12 +50,42 @@ export const COLLECTIONS = [
     description: 'Work in progress.',
     coverUrl: 'covers/val-knives.png',
     themeTags: ['valorant'],
-    itemIds: ['val-prime-karambit'],
+    // The two art-pack blades sit here as well as in Neon Legends — the one
+    // place the seeded data demonstrates §11 F3's "an item can belong to more
+    // than one collection", which the Select-items screen claims in copy.
+    itemIds: ['val-prime-karambit', 'valorant-riftblade-katana', 'valorant-voidglass-blade'],
     visibility: 'private',
     allowComments: false,
     showOnProfile: false,
     likeCount: 0,
     createdAt: '2026-07-28T21:03:00.000Z',
+  },
+  {
+    /**
+     * Membership is the art pack's own `collectionCompositions['neon-legends']`,
+     * re-mapped onto our item ids. It exists so a real cover mosaic is on screen
+     * from a cold start: every other seeded collection predates the pack and
+     * holds items with no render, so their covers still fall back to a block.
+     */
+    id: 'col-jovan-neon-legends',
+    userId: 'user-jovan',
+    name: 'Neon Legends',
+    description: 'Everything that glows. Two games, one palette.',
+    coverUrl: 'covers/neon-legends.png',
+    themeTags: ['cross-game', 'collector'],
+    itemIds: [
+      'mlbb-neon-ronin',
+      'mlbb-cyber-breacher',
+      'mlbb-neon-encore',
+      'mlbb-shadow-protocol',
+      'valorant-riftblade-katana',
+      'valorant-voidglass-blade',
+    ],
+    visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 412,
+    createdAt: '2026-07-30T18:26:00.000Z',
   },
   {
     id: 'col-rei-mythic-only',

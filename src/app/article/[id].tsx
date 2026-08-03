@@ -21,6 +21,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { LoadingState, SecondaryButton } from '@/components';
 import { timeAgo } from '@/components';
 import { FEATURES } from '@/config/features';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { newsService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
@@ -30,6 +31,8 @@ import type { Article } from '@/types';
 export default function ArticleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { viewerId } = useApp();
+
+  const scrollRef = useTopOnFocus();
 
   const [article, setArticle] = useState<Article | null>(null);
   const [summary, setSummary] = useState<string[] | null>(null);
@@ -78,7 +81,7 @@ export default function ArticleScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.overline}>
         {article.sourceTitle} · {timeAgo(article.publishedAt)}
       </Text>

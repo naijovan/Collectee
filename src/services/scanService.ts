@@ -28,12 +28,22 @@ import type {
 } from '@/types';
 import { delayWithProgress } from './latency';
 
-/** §11 F1 progress stages, in pipeline order. Drives the loading copy. */
+/**
+ * §11 F1 progress stages, in pipeline order. Drives the loading copy and the
+ * Scan screen's checklist.
+ *
+ * Wording and order are the Figma Scan frame's. §11 F1 numbers confidence
+ * routing (4) before deduplication (5); the frame lists them the other way
+ * round. Nothing observable turns on it — routing happens in
+ * `domain/scan.routeDetections` regardless of which label is ticked when — so
+ * the frame wins rather than the demo disagreeing with the design in front of
+ * the panel.
+ */
 export const SCAN_STAGES = [
-  'Reading your upload',
-  'Finding items',
-  'Matching against the catalogue',
+  'Reading item names',
+  'Matching skins and collectibles',
   'Removing duplicates',
+  'Calculating confidence scores',
 ] as const;
 
 export type ScanStage = (typeof SCAN_STAGES)[number];

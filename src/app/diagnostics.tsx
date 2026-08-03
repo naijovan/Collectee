@@ -18,6 +18,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-nat
 import { FEATURES } from '@/config/features';
 import { countScan } from '@/domain/scan';
 import { FLAG_THRESHOLD } from '@/domain/trust';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
   catalogueService,
   collectionService,
@@ -39,6 +40,7 @@ interface Check {
 
 export default function FoundationScreen() {
   const { viewer, viewerId, inventory, hasImported, unreadNotifications, loading } = useApp();
+  const scrollRef = useTopOnFocus();
   const [checks, setChecks] = useState<Check[]>([]);
   const [running, setRunning] = useState(true);
 
@@ -156,7 +158,7 @@ export default function FoundationScreen() {
   const failures = checks.filter((c) => !c.ok).length;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Foundation</Text>
       <Text style={[styles.muted, failures > 0 && styles.bad]}>
         {failures === 0 ? 'All checks passing' : `${failures} check(s) failing`}

@@ -40,7 +40,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "validate:fixtures": "tsx scripts/validate-fixtures.ts"
+    "validate:fixtures": "tsx scripts/validate-fixtures.ts",
+    "audit:art": "tsx scripts/audit-art.ts"
   },
   "private": true
 }

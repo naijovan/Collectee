@@ -34,8 +34,10 @@ import {
   PrimaryButton,
   SectionHeader,
 } from '@/components';
+import { ART_PLACEMENTS } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { headlineItem } from '@/domain/collections';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
   catalogueService,
   collectionService,
@@ -69,6 +71,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory, unreadNotifications, loading } = useApp();
+
+  /** Tab screens stay mounted, so returning here has to be sent back to the top. */
+  const scrollRef = useTopOnFocus();
 
   const [filter, setFilter] = useState<Filter>('All');
   const [articles, setArticles] = useState<Article[]>([]);
@@ -142,6 +147,7 @@ export default function HomeScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >
@@ -173,12 +179,24 @@ export default function HomeScreen() {
       {/* 3 — Hero banner */}
       <View style={styles.hero}>
         <View style={styles.heroArt}>
-          {['a', 'b', 'c'].map((seed, index) => (
+          {/*
+            The tiles used to be seeded 'hero-a/b/c', which matched no item, so
+            the first thing on Home was three colour blocks. They now point at
+            the four ids the art pack assigns to this banner.
+          */}
+          {/*
+            Four equal panels, not an overlapping fan. Overlapping shifted each
+            tile under the one before it, so the part left showing was the right
+            edge of the crop — sky and motion blur — while the face sat hidden
+            underneath. Equal panels are also close to the art's 3:2, so the
+            cover-crop barely trims.
+          */}
+          {ART_PLACEMENTS['home.heroMosaic'].map((itemId) => (
             <ItemArt
-              key={seed}
-              seed={`hero-${seed}`}
-              tier={index === 1 ? 'mythic' : index === 0 ? 'legendary' : 'epic'}
-              style={[styles.heroTile, { marginLeft: index === 0 ? 0 : -18, zIndex: 3 - index }]}
+              key={itemId}
+              seed={itemId}
+              tier={inventory.find((entry) => entry.item.id === itemId)?.item.rarityTier ?? 'mythic'}
+              style={styles.heroTile}
             />
           ))}
         </View>
@@ -381,8 +399,8 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.sm,
   },
-  heroArt: { flexDirection: 'row', marginBottom: spacing.sm },
-  heroTile: { width: 78, height: 58, borderWidth: 2, borderColor: colors.surface },
+  heroArt: { flexDirection: 'row', gap: 2, marginBottom: spacing.sm },
+  heroTile: { flex: 1, height: 72 },
   eyebrow: { ...typography.meta, color: colors.accent, letterSpacing: 0.5 },
   heroHeadline: { ...typography.sectionHeader, color: colors.textPrimary, fontSize: 20 },
   heroCta: { alignSelf: 'flex-start', marginTop: spacing.sm },

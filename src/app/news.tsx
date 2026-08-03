@@ -22,6 +22,7 @@ import { useRouter } from 'expo-router';
 import { ArticleCard, EmptyState, FilterChips, LoadingState } from '@/components';
 import { FEATURES } from '@/config/features';
 import type { RankedArticle } from '@/domain/news';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { newsService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, spacing, typography } from '@/theme/theme';
@@ -35,6 +36,8 @@ export default function NewsScreen() {
   const { viewerId } = useApp();
 
   const [feed, setFeed] = useState<Feed>('For you');
+  /** Switching feed replaces the whole list, so it reads as a new page. */
+  const scrollRef = useTopOnFocus(feed);
   const [fyp, setFyp] = useState<RankedArticle[]>([]);
   const [discover, setDiscover] = useState<Article[]>([]);
   const [saved, setSaved] = useState<Article[]>([]);
@@ -59,7 +62,7 @@ export default function NewsScreen() {
   const open = (id: string) => router.push({ pathname: '/article/[id]', params: { id } });
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <FilterChips options={FEEDS} value={feed} onChange={setFeed} />
 
       {busy ? <LoadingState height={200} /> : null}

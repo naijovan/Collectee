@@ -20,6 +20,7 @@ import { GAME_SHORT_LABELS } from '@/types';
 import type { Article, Collection, Item, TrustLevel, User } from '@/types';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 
+import { CollectionCoverMosaic } from './CollectionCoverMosaic';
 import { Avatar, GameBadge, ItemArt } from './primitives';
 
 /** Fixtures use absolute dates so nothing drifts at demo time (§12.3). */
@@ -107,9 +108,11 @@ export function CollectionCard({
       style={({ pressed }) => [styles.collectionCard, width ? { width } : null, pressed && styles.pressed]}
     >
       <View>
-        <ItemArt
-          seed={collection.id}
+        {/* Composed from the members' own renders — never a baked collage. */}
+        <CollectionCoverMosaic
+          itemIds={collection.itemIds}
           tier={headline?.rarityTier ?? 'epic'}
+          fallbackSeed={collection.id}
           style={styles.collectionArt}
         />
         {headline ? (

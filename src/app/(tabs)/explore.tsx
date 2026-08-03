@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, CollectorCard, FilterChips, LoadingState, SectionHeader } from '@/components';
 import { FEATURES } from '@/config/features';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { matchService, socialService } from '@/services';
 import type { CollectorRecommendation, CommunityRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
@@ -27,6 +28,8 @@ export default function ExploreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { viewerId } = useApp();
+
+  const scrollRef = useTopOnFocus();
 
   const [tab, setTab] = useState<Tab>('Collectors');
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
@@ -69,6 +72,7 @@ export default function ExploreScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >

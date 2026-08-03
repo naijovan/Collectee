@@ -12,6 +12,7 @@
  * Ownership, so two people don't edit one file (§14):
  *   scanService        → Bernard (J1)
  *   collectionService  → Bernard (J2)
+ *   mediaService       → Bernard (file picking, used by J1 upload and J2 cover)
  *   roomService        → Jovan   (J3)
  *   matchService       → Marcus  (J4)
  *   newsService        → Marcus  (J5)
@@ -22,6 +23,15 @@ export { catalogueService, type CatalogueService } from './catalogueService';
 export { collectionService, type CollectionService, type CreateCollectionInput } from './collectionService';
 export { inventoryService, type InventoryService, type OwnedItemView } from './inventoryService';
 export { matchService, type MatchService, type CollectorRecommendation, type CommunityRecommendation } from './matchService';
+export {
+  mediaService,
+  type MediaService,
+  type PickedImage,
+  type PickImageResult,
+  formatBytes,
+  IMAGE_MIME_TYPES,
+  MAX_IMAGE_BYTES,
+} from './mediaService';
 export { newsService, type NewsService } from './newsService';
 export { roomService, type RoomService } from './roomService';
 export { scanService, type ScanService, type ScanStage, SCAN_STAGES } from './scanService';

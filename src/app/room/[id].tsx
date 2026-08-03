@@ -18,6 +18,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Avatar, LoadingState, PrimaryButton, RoomScene, SectionHeader } from '@/components';
 import { rarityLabelFor } from '@/domain/rarity';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
   catalogueService,
   collectionService,
@@ -34,6 +35,8 @@ export default function RoomScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const sceneWidth = Math.min(width, 520) - spacing.lg * 2;
+
+  const scrollRef = useTopOnFocus();
 
   const [room, setRoom] = useState<Room | null>(null);
   const [theme, setTheme] = useState<RoomTheme | null>(null);
@@ -102,7 +105,7 @@ export default function RoomScreen() {
   const focusedItem = focusedPlacement ? itemsByOwnedId.get(focusedPlacement.ownedItemId) : null;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <RoomScene
         room={room}
         theme={theme}
