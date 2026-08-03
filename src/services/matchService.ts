@@ -14,6 +14,7 @@ import type { MatchResult } from '@/domain/matching';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Community, GameTitle, Item, User } from '@/types';
 import { inventoryService } from './inventoryService';
+import { socialService } from './socialService';
 import { LATENCY_FETCH, LATENCY_INSTANT, delay } from './latency';
 
 export interface CollectorRecommendation {
@@ -117,11 +118,11 @@ export const matchService = {
       if (item) titles.add(item.title);
     }
 
-    const alreadyIn = new Set(
-      COMMUNITIES.filter((c) => c.memberIds.some((m) => m === viewerId)).map((c) => c.id),
-    );
-
-    const recommendations = COMMUNITIES.filter((c) => !alreadyIn.has(c.id))
+    // Live membership, not the seeded `memberIds`: a community the viewer joins
+    // during the session must stop being recommended back to them.
+    const recommendations = COMMUNITIES.filter(
+      (community) => !socialService.isMember(viewerId, community.id),
+    )
       .map((community) => {
         const tagHit = community.tags.find((tag) =>
           [...titles].some((t) => tag.toLowerCase().includes(t.toLowerCase())),

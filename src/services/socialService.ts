@@ -9,7 +9,14 @@
  * theme. Do not treat this file as plumbing.
  */
 
-import { COMMENTS, COMMUNITIES, FLAGS, FOLLOWS, NOTIFICATIONS } from '@/fixtures/social';
+import {
+  COMMENTS,
+  COMMUNITIES,
+  COMMUNITY_MEMBERSHIPS,
+  FLAGS,
+  FOLLOWS,
+  NOTIFICATIONS,
+} from '@/fixtures/social';
 import { OWNED_BY_USER } from '@/fixtures/owned-items';
 import { USERS, USERS_BY_ID } from '@/fixtures/users';
 import {
@@ -21,6 +28,7 @@ import { discoveryWeight } from '@/domain/trust';
 import type {
   Comment,
   Community,
+  CommunityNotificationPref,
   Flag,
   FlagReason,
   Follow,
@@ -39,7 +47,17 @@ const communityMembers = new Map<string, Set<string>>(
   COMMUNITIES.map((c) => [c.id, new Set<string>(c.memberIds)]),
 );
 const blocked = new Map<string, Set<string>>();
+/** §12.3 `CommunityMembership.notificationPref`, keyed `userId:communityId`. */
+const membershipPrefs = new Map<string, CommunityNotificationPref>(
+  COMMUNITY_MEMBERSHIPS.map((m) => [`${m.userId}:${m.communityId}`, m.notificationPref]),
+);
 let nextId = 1;
+
+const DEFAULT_NOTIFICATION_PREF: CommunityNotificationPref = 'all';
+
+function prefKey(userId: string, communityId: string): string {
+  return `${userId}:${communityId}`;
+}
 
 /** §9.2 — only accounts with their own verified items can move the needle. */
 function reporterIsEligible(reporterId: string): boolean {
@@ -97,7 +115,50 @@ export const socialService = {
     const joined = !members.has(userId);
     if (joined) members.add(userId);
     else members.delete(userId);
+    // The notification pref deliberately survives a leave, so re-joining
+    // restores what the user last chose rather than silently resetting them
+    // to the default.
     return delay(joined, LATENCY_INSTANT);
+  },
+
+  /**
+   * Members as `User`s, read from the live membership map rather than the
+   * frozen `Community.memberIds` fixture — otherwise anyone who joins during
+   * the session is absent from the list they just joined.
+   */
+  async getCommunityMembers(communityId: string): Promise<User[]> {
+    const ids = communityMembers.get(communityId) ?? new Set<string>();
+    return delay(
+      [...ids].map((id) => USERS_BY_ID.get(id)).filter((u): u is User => u !== undefined),
+      LATENCY_FETCH,
+    );
+  },
+
+  /**
+   * Display member count.
+   *
+   * `Community.memberCount` is the real-world-scale figure (§15 wants counts
+   * that read as plausible — thousands, not the handful of seeded accounts), so
+   * a session join has to move it by the delta against the seeded roster rather
+   * than replace it with the size of the live set.
+   */
+  memberCountFor(community: Community): number {
+    const live = communityMembers.get(community.id)?.size ?? 0;
+    return community.memberCount + (live - community.memberIds.length);
+  },
+
+  /** §12.3 `CommunityMembership.notificationPref`. */
+  membershipPrefFor(userId: string, communityId: string): CommunityNotificationPref {
+    return membershipPrefs.get(prefKey(userId, communityId)) ?? DEFAULT_NOTIFICATION_PREF;
+  },
+
+  async setMembershipPref(
+    userId: string,
+    communityId: string,
+    pref: CommunityNotificationPref,
+  ): Promise<CommunityNotificationPref> {
+    membershipPrefs.set(prefKey(userId, communityId), pref);
+    return delay(pref, LATENCY_INSTANT);
   },
 
   // ── Comments ─────────────────────────────────────────────────────────
