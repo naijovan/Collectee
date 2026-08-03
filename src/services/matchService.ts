@@ -7,12 +7,13 @@
  */
 
 import { ITEMS_BY_ID } from '@/fixtures/catalogue';
-import { OWNED_BY_USER } from '@/fixtures/owned-items';
 import { USERS, USERS_BY_ID } from '@/fixtures/users';
 import { COMMUNITIES } from '@/fixtures/social';
 import { matchPercent, rankCollectors } from '@/domain/matching';
 import type { MatchResult } from '@/domain/matching';
+import { GAME_SHORT_LABELS } from '@/types';
 import type { Community, GameTitle, Item, User } from '@/types';
+import { inventoryService } from './inventoryService';
 import { LATENCY_FETCH, LATENCY_INSTANT, delay } from './latency';
 
 export interface CollectorRecommendation {
@@ -29,8 +30,17 @@ export interface CommunityRecommendation {
   reason: string;
 }
 
-function itemIdsFor(userId: string): string[] {
-  return (OWNED_BY_USER.get(userId) ?? []).map((o) => o.itemId);
+/**
+ * Ownership read seam.
+ *
+ * Read through `inventoryService`, never from `@/fixtures/owned-items`: the
+ * fixture is the seeded state only, so a fixture read makes everything the
+ * viewer imports during the session invisible to matching. Import → Discover is
+ * on the never-cut demo chain (§14) and a scan that does not move a single match
+ * score is the failure this seam exists to prevent.
+ */
+function ownershipSnapshot(): ReadonlyMap<string, readonly string[]> {
+  return inventoryService.getItemIdsByUser();
 }
 
 export const matchService = {
@@ -42,9 +52,19 @@ export const matchService = {
     const viewer = USERS_BY_ID.get(viewerId);
     if (!viewer) return delay([], LATENCY_INSTANT);
 
-    const candidates = USERS.map((user) => ({ user, itemIds: itemIdsFor(user.id) }));
+    // Taken once per call: every candidate is scored against the same snapshot,
+    // so an import landing mid-pass cannot produce an inconsistent ranking.
+    const ownership = ownershipSnapshot();
+    const candidates = USERS.map((user) => ({
+      user,
+      itemIds: ownership.get(user.id) ?? [],
+    }));
     const ranked = rankCollectors(
-      { userId: viewerId, itemIds: itemIdsFor(viewerId), followedGames: viewer.followedGames },
+      {
+        userId: viewerId,
+        itemIds: ownership.get(viewerId) ?? [],
+        followedGames: viewer.followedGames,
+      },
       candidates,
       ITEMS_BY_ID,
       limit,
@@ -53,10 +73,32 @@ export const matchService = {
     return delay(ranked.map(toRecommendation), LATENCY_FETCH);
   },
 
-  /** The Collection Match screen — one pairwise result with its shared items. */
+  /**
+   * The Collection Match screen — one pairwise result with its shared items.
+   *
+   * `rankCollectors` drops zero-score candidates, which is right for a ranked
+   * rail and wrong for a profile you navigated to directly: the card would
+   * silently vanish. §11 F5 makes the reason part of the feature, so a genuine
+   * no-overlap pair gets an honest 0% and an honest reason rather than nothing.
+   */
   async getMatch(viewerId: string, otherId: string): Promise<CollectorRecommendation | null> {
     const all = await this.getRecommendedCollectors(viewerId, USERS.length);
-    return all.find((r) => r.user.id === otherId) ?? null;
+    const ranked = all.find((r) => r.user.id === otherId);
+    if (ranked) return ranked;
+
+    const viewer = USERS_BY_ID.get(viewerId);
+    const other = USERS_BY_ID.get(otherId);
+    if (!viewer || !other || viewer.id === other.id) return delay(null, LATENCY_INSTANT);
+
+    return delay(
+      {
+        user: other,
+        percent: 0,
+        reason: explainNoOverlap(viewer, other),
+        sharedItems: [],
+      },
+      LATENCY_INSTANT,
+    );
   },
 
   /**
@@ -68,7 +110,7 @@ export const matchService = {
     viewerId: string,
     limit = 5,
   ): Promise<CommunityRecommendation[]> {
-    const owned = itemIdsFor(viewerId);
+    const owned = ownershipSnapshot().get(viewerId) ?? [];
     const titles = new Set<GameTitle>();
     for (const id of owned) {
       const item = ITEMS_BY_ID.get(id);
@@ -100,6 +142,22 @@ export const matchService = {
     return delay([...COMMUNITIES], LATENCY_FETCH);
   },
 };
+
+/**
+ * The reason string for a pair with no co-owned items.
+ *
+ * Says what is true and nothing more. Naming the shared games explains why the
+ * collector is worth a look without dressing a zero up as a match — §11 F5's
+ * whole point is that the explanation is what makes a number feel earned, and
+ * that cuts both ways.
+ */
+function explainNoOverlap(viewer: User, other: User): string {
+  const shared = viewer.followedGames.filter((game) => other.followedGames.includes(game));
+  if (shared.length === 0) return 'No items in common yet';
+  return `No items in common yet — you both play ${shared
+    .map((game) => GAME_SHORT_LABELS[game])
+    .join(' and ')}`;
+}
 
 function toRecommendation(result: MatchResult): CollectorRecommendation {
   return {

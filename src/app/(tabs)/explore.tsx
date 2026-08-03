@@ -8,9 +8,9 @@
  * so `reason` is rendered on every card here, not behind a tap.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, CollectorCard, FilterChips, LoadingState, SectionHeader } from '@/components';
@@ -34,28 +34,44 @@ export default function ExploreScreen() {
   const [joined, setJoined] = useState<ReadonlySet<string>>(new Set());
   const [busy, setBusy] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  /**
+   * Refetch on focus, not only on mount.
+   *
+   * Match scores are computed from the viewer's owned items (§11 F5), so an
+   * import changes every number on this screen. Discover is a tab and stays
+   * mounted while the user runs the import flow — a mount-only effect would
+   * leave the demo looking at pre-import recommendations for the rest of the
+   * session. `busy` is deliberately not reset here, so a refocus updates in
+   * place instead of flashing a skeleton over data that is already on screen.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
 
-    async function load() {
-      const [people, groups] = await Promise.all([
-        matchService.getRecommendedCollectors(viewerId, 12),
-        matchService.getRecommendedCommunities(viewerId),
-      ]);
-      if (cancelled) return;
-      setCollectors(people);
-      setCommunities(groups);
-      setJoined(
-        new Set(groups.filter((g) => socialService.isMember(viewerId, g.community.id)).map((g) => g.community.id)),
-      );
-      setBusy(false);
-    }
+      async function load() {
+        const [people, groups] = await Promise.all([
+          matchService.getRecommendedCollectors(viewerId, 12),
+          matchService.getRecommendedCommunities(viewerId),
+        ]);
+        if (cancelled) return;
+        setCollectors(people);
+        setCommunities(groups);
+        setJoined(
+          new Set(
+            groups
+              .filter((g) => socialService.isMember(viewerId, g.community.id))
+              .map((g) => g.community.id),
+          ),
+        );
+        setBusy(false);
+      }
 
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [viewerId]);
+      void load();
+      return () => {
+        cancelled = true;
+      };
+    }, [viewerId]),
+  );
 
   async function toggleJoin(communityId: string) {
     const isMember = await socialService.toggleMembership(viewerId, communityId);

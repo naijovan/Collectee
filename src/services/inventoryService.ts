@@ -48,6 +48,30 @@ export const inventoryService = {
   },
 
   /**
+   * userId → the item ids that user owns, seeded inventories and session
+   * imports merged.
+   *
+   * Synchronous on purpose, mirroring `catalogueService.getCatalogueMap()`:
+   * collector matching (§11 F5) and FYP ranking (§11 F6) score every candidate
+   * in one pass, so a per-user `await` would put N × LATENCY_FETCH on a screen
+   * mount for data already in memory.
+   *
+   * This exists so no sibling service reaches into `@/fixtures/owned-items`
+   * directly. A service that reads the fixture sees the seeded data only, and
+   * everything a user imports during the demo is invisible to it — which is
+   * exactly the bug this method removes from Discover and the FYP.
+   */
+  getItemIdsByUser(): ReadonlyMap<string, readonly string[]> {
+    const byUser = new Map<string, string[]>();
+    for (const owned of [...OWNED_ITEMS, ...imported]) {
+      const existing = byUser.get(owned.userId);
+      if (existing) existing.push(owned.itemId);
+      else byUser.set(owned.userId, [owned.itemId]);
+    }
+    return byUser;
+  },
+
+  /**
    * Import scanner results.
    *
    * §11 F1 step 6: items land as `unverified`. The scanner NEVER produces a
