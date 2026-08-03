@@ -63,9 +63,17 @@ export interface ScanCounts {
   confirmed: number;
 }
 
-/** A user decision on a Needs Review detection. */
+/**
+ * A user decision on a detection.
+ *
+ * Two cases, both required by §11 F1 acceptance criteria:
+ *   - On a `needs_review` detection: the item the user confirmed, or null if
+ *     they marked it unknown. "No ambiguous item enters a collection silently."
+ *   - On a `matched` detection: null means the user removed an auto-accepted
+ *     item. "Every auto-accepted item is reversible in Review."
+ */
 export interface ScanResolution {
   detectionId: string;
-  /** The item the user confirmed, or null if they rejected the detection. */
+  /** The confirmed item, or null for rejected / removed. */
   itemId: string | null;
 }

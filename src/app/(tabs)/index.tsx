@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -77,55 +77,61 @@ export default function HomeScreen() {
   const [rooms, setRooms] = useState<RoomEntry[]>([]);
   const [busy, setBusy] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async () => {
+    const [news, collections, users, recommended, publishedRooms] = await Promise.all([
+      FEATURES.news ? newsService.getDiscover(6) : Promise.resolve([]),
+      collectionService.getPublicCollections(),
+      socialService.getUsers(),
+      matchService.getRecommendedCollectors(viewerId, 6),
+      roomService.getPublishedRooms(),
+    ]);
 
-    async function load() {
-      const [news, collections, users, recommended, publishedRooms] = await Promise.all([
-        FEATURES.news ? newsService.getDiscover(6) : Promise.resolve([]),
-        collectionService.getPublicCollections(),
-        socialService.getUsers(),
-        matchService.getRecommendedCollectors(viewerId, 6),
-        roomService.getPublishedRooms(),
-      ]);
+    const usersById = new Map(users.map((user) => [user.id, user]));
 
-      const usersById = new Map(users.map((user) => [user.id, user]));
+    const entries = await Promise.all(
+      collections.map(async (collection) => ({
+        collection,
+        owner: usersById.get(collection.userId) ?? null,
+        headline: headlineItem(await catalogueService.getItems(collection.itemIds)),
+      })),
+    );
 
-      const entries = await Promise.all(
-        collections.map(async (collection) => ({
-          collection,
-          owner: usersById.get(collection.userId) ?? null,
-          headline: headlineItem(await catalogueService.getItems(collection.itemIds)),
-        })),
-      );
+    const roomEntries = await Promise.all(
+      publishedRooms.map(async (room) => {
+        const [theme, collection] = await Promise.all([
+          roomService.getTheme(room.themeId),
+          collectionService.getCollection(room.collectionId),
+        ]);
+        return {
+          room,
+          themeName: theme?.name ?? 'Room',
+          collectionName: collection?.name ?? 'Collection',
+        };
+      }),
+    );
 
-      const roomEntries = await Promise.all(
-        publishedRooms.map(async (room) => {
-          const [theme, collection] = await Promise.all([
-            roomService.getTheme(room.themeId),
-            collectionService.getCollection(room.collectionId),
-          ]);
-          return {
-            room,
-            themeName: theme?.name ?? 'Room',
-            collectionName: collection?.name ?? 'Collection',
-          };
-        }),
-      );
-
-      if (cancelled) return;
-      setArticles(news);
-      setExplore(entries);
-      setCollectors(recommended);
-      setRooms(roomEntries);
-      setBusy(false);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
+    setArticles(news);
+    setExplore(entries);
+    setCollectors(recommended);
+    setRooms(roomEntries);
+    setBusy(false);
   }, [viewerId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  /**
+   * Home is the screen every flow returns to, so it has to reflect what just
+   * happened: a collection published in J2 and the collector matches that shift
+   * after an import both land here. Mount-only loading left it stale until the
+   * app was restarted. Same pattern as `(tabs)/collections.tsx`.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const openCollection = useCallback(
     (id: string) => router.push({ pathname: '/collection/[id]', params: { id } }),

@@ -10,8 +10,20 @@
 
 import { COLLECTIONS, COLLECTIONS_BY_ID } from '@/fixtures/collections';
 import { ALL_SETS, ITEMS_BY_ID } from '@/fixtures/catalogue';
-import { isDiscoverable, setsInProgress, suggestCollections } from '@/domain/collections';
-import type { CollectionSuggestion, SetProgress } from '@/domain/collections';
+import {
+  isDiscoverable,
+  setsInProgress,
+  suggestCollections,
+  suggestItemsThatFit,
+  suggestTheme,
+} from '@/domain/collections';
+import type {
+  CollectionSuggestion,
+  ItemFit,
+  SetProgress,
+  ThemeSuggestion,
+} from '@/domain/collections';
+import type { Item } from '@/types';
 import type { Collection, OwnedItem, Visibility } from '@/types';
 import { LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT, delay } from './latency';
 
@@ -79,6 +91,36 @@ export const collectionService = {
    */
   async suggest(owned: readonly OwnedItem[]): Promise<CollectionSuggestion[]> {
     return delay(suggestCollections(owned, ITEMS_BY_ID, ALL_SETS), LATENCY_GENERATE);
+  },
+
+  /**
+   * Step 3 of J2 — a theme for what the user has picked so far, plus owned
+   * items that would extend it. Each fit carries its reason (§11 F5).
+   *
+   * Takes the user's owned items rather than reading a fixture directly so the
+   * phase-2 swap to a model call is a change inside this method only.
+   */
+  async suggestForSelection(
+    selectedItemIds: readonly string[],
+    owned: readonly OwnedItem[],
+  ): Promise<{ theme: ThemeSuggestion | null; fits: ItemFit[] }> {
+    const selectedIds = new Set(selectedItemIds);
+    const resolve = (id: string): Item | undefined => ITEMS_BY_ID.get(id);
+
+    const selected = selectedItemIds
+      .map(resolve)
+      .filter((i): i is Item => i !== undefined);
+
+    // Candidates are what the user owns but has not already put in.
+    const candidates = owned
+      .filter((o) => !selectedIds.has(o.itemId))
+      .map((o) => resolve(o.itemId))
+      .filter((i): i is Item => i !== undefined);
+
+    return delay(
+      { theme: suggestTheme(selected), fits: suggestItemsThatFit(selected, candidates) },
+      LATENCY_GENERATE,
+    );
   },
 
   /** Set-completion progress for the Completionist persona (§4). */
