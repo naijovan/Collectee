@@ -53,6 +53,7 @@ export default function RootLayout() {
         <Stack.Screen name="room/[id]" options={{ title: 'Room' }} />
         <Stack.Screen name="collector/[id]" options={{ title: 'Collector' }} />
         <Stack.Screen name="community/[id]" options={{ title: 'Community' }} />
+        <Stack.Screen name="thread/[id]" options={{ title: 'Thread' }} />
         <Stack.Screen name="article/[id]" options={{ title: 'Article' }} />
       </Stack>
     </AppProvider>
