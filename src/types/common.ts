@@ -70,8 +70,16 @@ export type DisplayStyle = 'card' | 'framed' | 'hologram';
 /** PRD §12.3 — GameAccount.linkStatus. Verified tier is partnership-gated (§9.3). */
 export type LinkStatus = 'unlinked' | 'pending' | 'linked' | 'failed';
 
-/** Anything that can be commented on or flagged. */
-export type TargetType = 'item' | 'collection' | 'room' | 'comment' | 'user' | 'post';
+/**
+ * Anything that can be commented on or flagged.
+ *
+ * `thread` is a community discussion (§11 F5). Adding it here rather than giving
+ * threads their own reply and report systems is deliberate: a thread reply is a
+ * `Comment` with `targetType: 'thread'`, so blocked-author filtering, one-level
+ * nesting via `parentId` and the §9.2 review queue all apply to threads without
+ * a second implementation of any of them.
+ */
+export type TargetType = 'item' | 'collection' | 'room' | 'comment' | 'user' | 'post' | 'thread';
 
 /** PRD §9.2 — the three ownership flag reasons, plus moderation reasons from F5. */
 export type FlagReason =
