@@ -119,6 +119,18 @@ async function previewFor(targetType: TargetType, targetId: string): Promise<Rev
     };
   }
 
+  if (targetType === 'user') {
+    // §11 F5 names an impersonation takedown path; a reported account is the
+    // one queue entry where the target and the author are the same person.
+    const user = USERS_BY_ID.get(targetId);
+    return {
+      title: user ? `@${user.handle}` : targetId,
+      body: user?.bio ?? null,
+      authorId: user?.id ?? null,
+      authorName: user?.displayName ?? null,
+    };
+  }
+
   return { title: targetId, body: null, authorId: null, authorName: null };
 }
 
@@ -268,6 +280,16 @@ export const socialService = {
     return delay(comment, LATENCY_INSTANT);
   },
 
+  /**
+   * Block someone (§11 F5 moderation).
+   *
+   * Blocking is one-directional and private to the viewer — it is not a report
+   * and it does not touch the review queue. Nobody is told, and the blocked
+   * account keeps working normally for everyone else. That separation matters:
+   * §9.2's queue is for community judgement, blocking is for one person wanting
+   * a quieter feed, and conflating them turns a personal preference into a
+   * moderation signal other people's rankings depend on.
+   */
   async blockUser(viewerId: string, targetId: string): Promise<void> {
     const set = blocked.get(viewerId) ?? new Set<string>();
     set.add(targetId);
@@ -278,6 +300,15 @@ export const socialService = {
   async unblockUser(viewerId: string, targetId: string): Promise<void> {
     blocked.get(viewerId)?.delete(targetId);
     await delay(null, LATENCY_INSTANT);
+  },
+
+  isBlocked(viewerId: string, targetId: string): boolean {
+    return blocked.get(viewerId)?.has(targetId) ?? false;
+  },
+
+  /** Everyone this viewer has blocked. Discovery surfaces filter against it. */
+  blockedBy(viewerId: string): ReadonlySet<string> {
+    return blocked.get(viewerId) ?? new Set<string>();
   },
 
   // ── Flags and the review queue (§9.2) ────────────────────────────────
