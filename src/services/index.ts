@@ -47,5 +47,10 @@ export {
   type RoomStage,
 } from './roomService';
 export { scanService, type ScanService, type ScanStage, SCAN_STAGES } from './scanService';
-export { socialService, type SocialService } from './socialService';
+export {
+  socialService,
+  type SocialService,
+  type ReviewQueueEntry,
+  type ReviewPreview,
+} from './socialService';
 export { delay, delayWithProgress, LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT } from './latency';
