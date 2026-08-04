@@ -9,26 +9,37 @@
  * theme. Do not treat this file as plumbing.
  */
 
-import { COMMENTS, COMMUNITIES, FLAGS, FOLLOWS, NOTIFICATIONS } from '@/fixtures/social';
-import { OWNED_BY_USER } from '@/fixtures/owned-items';
+import {
+  COMMENTS,
+  COMMUNITIES,
+  COMMUNITY_MEMBERSHIPS,
+  FLAGS,
+  FOLLOWS,
+  NOTIFICATIONS,
+} from '@/fixtures/social';
 import { USERS, USERS_BY_ID } from '@/fixtures/users';
 import {
   countableFlags,
-  isEligibleFlagger,
+  deriveTrust,
+  discoveryWeight,
   isUnderReview,
+  rankByTrust,
 } from '@/domain/trust';
-import { discoveryWeight } from '@/domain/trust';
+import type { DerivedTrust } from '@/domain/trust';
 import type {
   Comment,
   Community,
+  CommunityNotificationPref,
   Flag,
   FlagReason,
   Follow,
   Notification,
+  OwnedItem,
   TargetType,
   TrustLevel,
   User,
 } from '@/types';
+import { inventoryService } from './inventoryService';
 import { LATENCY_FETCH, LATENCY_INSTANT, delay } from './latency';
 
 const follows: Follow[] = [...FOLLOWS];
@@ -39,11 +50,29 @@ const communityMembers = new Map<string, Set<string>>(
   COMMUNITIES.map((c) => [c.id, new Set<string>(c.memberIds)]),
 );
 const blocked = new Map<string, Set<string>>();
+/** §12.3 `CommunityMembership.notificationPref`, keyed `userId:communityId`. */
+const membershipPrefs = new Map<string, CommunityNotificationPref>(
+  COMMUNITY_MEMBERSHIPS.map((m) => [`${m.userId}:${m.communityId}`, m.notificationPref]),
+);
 let nextId = 1;
 
-/** §9.2 — only accounts with their own verified items can move the needle. */
+const DEFAULT_NOTIFICATION_PREF: CommunityNotificationPref = 'all';
+
+function prefKey(userId: string, communityId: string): string {
+  return `${userId}:${communityId}`;
+}
+
+/**
+ * §9.2 — only accounts with their own verified items can move the needle.
+ *
+ * Read through `inventoryService`, not the fixture: linking an account promotes
+ * items to verified during the session, and that is exactly what should make an
+ * account an eligible flagger. Reading the seeded data would freeze eligibility
+ * at app start and quietly contradict the trust model it implements.
+ */
 function reporterIsEligible(reporterId: string): boolean {
-  return isEligibleFlagger(OWNED_BY_USER.get(reporterId) ?? []);
+  const verified = inventoryService.getVerifiedItemIdsByUser().get(reporterId) ?? [];
+  return verified.length > 0;
 }
 
 export const socialService = {
@@ -97,7 +126,50 @@ export const socialService = {
     const joined = !members.has(userId);
     if (joined) members.add(userId);
     else members.delete(userId);
+    // The notification pref deliberately survives a leave, so re-joining
+    // restores what the user last chose rather than silently resetting them
+    // to the default.
     return delay(joined, LATENCY_INSTANT);
+  },
+
+  /**
+   * Members as `User`s, read from the live membership map rather than the
+   * frozen `Community.memberIds` fixture — otherwise anyone who joins during
+   * the session is absent from the list they just joined.
+   */
+  async getCommunityMembers(communityId: string): Promise<User[]> {
+    const ids = communityMembers.get(communityId) ?? new Set<string>();
+    return delay(
+      [...ids].map((id) => USERS_BY_ID.get(id)).filter((u): u is User => u !== undefined),
+      LATENCY_FETCH,
+    );
+  },
+
+  /**
+   * Display member count.
+   *
+   * `Community.memberCount` is the real-world-scale figure (§15 wants counts
+   * that read as plausible — thousands, not the handful of seeded accounts), so
+   * a session join has to move it by the delta against the seeded roster rather
+   * than replace it with the size of the live set.
+   */
+  memberCountFor(community: Community): number {
+    const live = communityMembers.get(community.id)?.size ?? 0;
+    return community.memberCount + (live - community.memberIds.length);
+  },
+
+  /** §12.3 `CommunityMembership.notificationPref`. */
+  membershipPrefFor(userId: string, communityId: string): CommunityNotificationPref {
+    return membershipPrefs.get(prefKey(userId, communityId)) ?? DEFAULT_NOTIFICATION_PREF;
+  },
+
+  async setMembershipPref(
+    userId: string,
+    communityId: string,
+    pref: CommunityNotificationPref,
+  ): Promise<CommunityNotificationPref> {
+    membershipPrefs.set(prefKey(userId, communityId), pref);
+    return delay(pref, LATENCY_INSTANT);
   },
 
   // ── Comments ─────────────────────────────────────────────────────────
@@ -201,6 +273,30 @@ export const socialService = {
   /** Ranking multiplier for a specific owned item, trust + flags combined. */
   discoveryWeightFor(ownedItemId: string, trustLevel: TrustLevel): number {
     return discoveryWeight(trustLevel, this.isUnderReview(ownedItemId));
+  },
+
+  /**
+   * Item-level discovery ranking (§9.2): verified first, unverified after,
+   * anything past the flag threshold dropped entirely.
+   *
+   * Keyed on `OwnedItem.id` — see `FLAG_TARGET_ID_SPACE` in domain/trust.ts for
+   * why a flag can only ever target an ownership claim, and for the outstanding
+   * TODO(Bernard) on the collection screen.
+   */
+  rankOwnedItemsForDiscovery(ownedItems: readonly OwnedItem[]): OwnedItem[] {
+    return rankByTrust(ownedItems, (owned) => ({
+      trustLevel: owned.trustLevel,
+      underReview: this.isUnderReview(owned.id),
+    }));
+  },
+
+  /**
+   * Derived trust for a set of owned items — a collection, a room, a profile
+   * section. Nothing stores this (§12.3 gives Collection no trust field, and it
+   * should not get one); it is computed so it cannot drift from the items.
+   */
+  derivedTrustFor(ownedItems: readonly OwnedItem[]): DerivedTrust {
+    return deriveTrust(ownedItems, (ownedItemId) => this.isUnderReview(ownedItemId));
   },
 
   // ── Notifications ────────────────────────────────────────────────────

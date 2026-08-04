@@ -10,6 +10,14 @@
  *    believable band. Rei and Arya overlap heavily with the viewer on
  *    high-signal (low-popularity) items, which is what drives a ~90% match.
  *    Nadia barely overlaps, which is what makes the ranking legible.
+ *
+ * **Verified placement is load-bearing (team decision, 3 Aug).** Matching counts
+ * VERIFIED items only, so an account with no verified items cannot be matched in
+ * either direction — it is absent from Discover rather than ranked low. Every
+ * `trust: 'verified'` below is therefore a deliberate choice about who is
+ * reachable, not decoration, and each is `source: 'linked-account'`: a scanned
+ * item can never be verified (§11 F1 step 6), and `validate-fixtures.ts` fails
+ * the build if one is.
  */
 
 import type { IsoDateString, OwnedItem, OwnershipSource, TrustLevel } from '@/types';
@@ -67,7 +75,11 @@ const JOVAN = ownAll('user-jovan', [
   { itemId: 'val-oni-phantom', confidence: 0.92, acquiredAt: '2026-04-21T11:47:00.000Z' },
   { itemId: 'val-origin-vandal', confidence: 0.9, acquiredAt: '2026-04-21T11:47:00.000Z' },
   // MLBB
-  { itemId: 'mlbb-gusion-cyber-faust', confidence: 0.95, acquiredAt: '2026-06-11T15:28:00.000Z' },
+  // One verified MLBB item, deliberately just one: it keeps MLBB in the viewer's
+  // verified title set — so the MLBB community stays recommendable under
+  // verified-only matching — while the viewer's three other MLBB items stay
+  // unverified, which is what the live account-link step has left to move.
+  { itemId: 'mlbb-gusion-cyber-faust', trust: 'verified', source: 'linked-account', acquiredAt: '2026-06-11T15:28:00.000Z' },
   { itemId: 'mlbb-gusion-cyber-ops', confidence: 0.93, acquiredAt: '2026-06-11T15:28:00.000Z' },
   { itemId: 'mlbb-hayabusa-shadow-vanguard', confidence: 0.91, acquiredAt: '2026-06-11T15:28:00.000Z' },
   { itemId: 'mlbb-layla-malefic-gunner', source: 'manual', acquiredAt: '2026-06-11T15:28:00.000Z' },
@@ -138,15 +150,23 @@ const MEI = ownAll('user-mei', [
   { itemId: 'val-spectrum-waveform', confidence: 0.9, acquiredAt: '2026-03-28T12:00:00.000Z' },
 ]);
 
-/** MLBB Collector-skin specialist. Unverified account — a deliberate contrast. */
+/**
+ * MLBB Collector-skin specialist.
+ *
+ * Two verified items so he is reachable under verified-only matching, and no
+ * more: the flagged `mlbb-lancelot-royal-matador` stays UNVERIFIED on purpose.
+ * §9.2 flags dispute an unverified ownership claim — a flag against an item read
+ * from a linked account would be incoherent, and this is the fixture that
+ * carries the whole §9.2 threshold story.
+ */
 const DANISH = ownAll('user-danish', [
-  { itemId: 'mlbb-gusion-cyber-faust', confidence: 0.94, acquiredAt: '2026-02-20T12:00:00.000Z' },
+  { itemId: 'mlbb-gusion-cyber-faust', trust: 'verified', source: 'linked-account', acquiredAt: '2026-02-20T12:00:00.000Z' },
   { itemId: 'mlbb-lancelot-royal-matador', confidence: 0.93, acquiredAt: '2026-02-20T12:00:00.000Z' },
   { itemId: 'mlbb-kagura-feathery-wonderland', confidence: 0.91, acquiredAt: '2026-02-20T12:00:00.000Z' },
   { itemId: 'mlbb-ling-serpent-lord', confidence: 0.9, acquiredAt: '2026-02-20T12:00:00.000Z' },
   { itemId: 'mlbb-miya-modena-butterfly', confidence: 0.97, acquiredAt: '2026-04-14T12:00:00.000Z' },
   { itemId: 'mlbb-alucard-obsidian-blade', confidence: 0.95, acquiredAt: '2026-04-14T12:00:00.000Z' },
-  { itemId: 'mlbb-kagura-cherry-witch', confidence: 0.96, acquiredAt: '2026-04-14T12:00:00.000Z' },
+  { itemId: 'mlbb-kagura-cherry-witch', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-14T12:00:00.000Z' },
   { itemId: 'mlbb-chou-dragon-boy', confidence: 0.92, acquiredAt: '2026-04-14T12:00:00.000Z' },
 ]);
 
@@ -163,18 +183,39 @@ const ARYA = ownAll('user-arya', [
   { itemId: 'mlbb-lesley-cyber-blossom', confidence: 0.94, acquiredAt: '2026-06-02T12:00:00.000Z' },
 ]);
 
-/** Set completionist — mid overlap. */
+/**
+ * Set completionist — mid overlap.
+ *
+ * Verified on the Karambit and the Spectre, NOT on `val-prime-vandal`: that
+ * OwnedItem is the sub-threshold flag fixture (2 eligible reporters plus 1
+ * ineligible), and it has to stay an unverified claim for that case to mean
+ * anything.
+ */
 const KAI = ownAll('user-kai', [
   { itemId: 'val-prime-vandal', confidence: 0.95, acquiredAt: '2026-05-01T12:00:00.000Z' },
-  { itemId: 'val-prime-spectre', confidence: 0.93, acquiredAt: '2026-05-01T12:00:00.000Z' },
-  { itemId: 'val-prime-karambit', confidence: 0.92, acquiredAt: '2026-05-01T12:00:00.000Z' },
+  { itemId: 'val-prime-spectre', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-01T12:00:00.000Z' },
+  { itemId: 'val-prime-karambit', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-01T12:00:00.000Z' },
   { itemId: 'val-origin-vandal', confidence: 0.94, acquiredAt: '2026-05-01T12:00:00.000Z' },
   { itemId: 'val-origin-phantom', confidence: 0.91, acquiredAt: '2026-05-01T12:00:00.000Z' },
   { itemId: 'codm-mac10-riptide', confidence: 0.9, acquiredAt: '2026-06-18T12:00:00.000Z' },
   { itemId: 'codm-pdw57-abyss', confidence: 0.93, acquiredAt: '2026-06-18T12:00:00.000Z' },
 ]);
 
-/** Light collection — the News Reader persona (§4). Low match by design. */
+/**
+ * Light collection — the News Reader persona (§4). Low match by design.
+ *
+ * ⚠️ NADIA MUST KEEP ZERO VERIFIED ITEMS. She is not just a low match — she is
+ * the only ineligible flagger in the fixtures, and §9.2's threshold guard is
+ * demonstrated *through* her: `own-kai-val-prime-vandal` carries three flags,
+ * one of them hers, and stays below the threshold precisely because an account
+ * with no verified items of its own does not count. Verifying anything here
+ * silently pushes that item into the review queue and destroys the fixture that
+ * proves an unguarded flag button would be a weapon.
+ *
+ * Under verified-only matching this also makes her the honest zero-state: a real
+ * collector who scores 0% because she has verified nothing yet, not because
+ * anything is broken.
+ */
 const NADIA = ownAll('user-nadia', [
   { itemId: 'mlbb-layla-malefic-gunner', source: 'manual', acquiredAt: '2026-07-02T12:00:00.000Z' },
   { itemId: 'mlbb-nana-cat-fairy', source: 'manual', acquiredAt: '2026-07-02T12:00:00.000Z' },

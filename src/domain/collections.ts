@@ -26,7 +26,13 @@ import { RARITY_RANK } from './rarity';
  */
 export const COLLECTION_STEPS = ['Details', 'Select items', 'Arrange', 'Publish'] as const;
 
-export const ROOM_STEPS = ['Collection', 'Style', 'Generate', 'Adjust', 'Publish'] as const;
+/**
+ * J3 canonical steps, matching the design frames (3 Aug): the collection is
+ * chosen BEFORE the flow starts — from the Collections tab card or the
+ * collection page — so it is not a numbered step. Preview is numbered here,
+ * unlike J2 where §11 F3 keeps it outside the bar.
+ */
+export const ROOM_STEPS = ['Style', 'Generate', 'Edit', 'Preview', 'Publish'] as const;
 
 export type CollectionStep = (typeof COLLECTION_STEPS)[number];
 export type RoomStep = (typeof ROOM_STEPS)[number];

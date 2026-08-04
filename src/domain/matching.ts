@@ -6,10 +6,24 @@
  * popularity — owning a common battle-pass skin says little, owning the same
  * limited exclusive says a lot.
  *
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │  VERIFIED ITEMS ONLY (team decision, 3 Aug).                        │
+ * │  Matching counts items whose ownership is verified. An unverified   │
+ * │  item contributes nothing — not a reduced weight, nothing — because │
+ * │  verification is the incentive: verify your collection, become      │
+ * │  discoverable (§9.2 "priority in Collectors You May Like").         │
+ * └─────────────────────────────────────────────────────────────────────┘
+ *
+ * The consequence to keep in mind: an account with no verified items cannot be
+ * matched in either direction. It is absent from Discover, not ranked low. That
+ * is deliberate, and `viewerMatchState` exists so callers can say so out loud
+ * rather than rendering an empty list with no explanation.
+ *
  * The reason string is not decoration. §11 F5: "Always display the
  * human-readable reason; the explanation is what makes a recommendation feel
  * earned." `explainMatch` is therefore part of the scoring contract, not a
- * presentation concern bolted on afterwards.
+ * presentation concern bolted on afterwards — and now that only verified items
+ * score, the reason has to say so.
  */
 
 import type { GameTitle, Item, RarityTier, User } from '@/types';
@@ -27,21 +41,69 @@ export function itemWeight(item: Item): number {
   return Math.log(1 / Math.max(item.popularityScore, MIN_POPULARITY));
 }
 
+/**
+ * What a score is actually built on. Lets a screen pick the right empty state
+ * and the right call to action without re-deriving the rule.
+ */
+export type MatchBasis =
+  /** Verified items in common — the real thing. */
+  | 'verified-overlap'
+  /** Both collectors have verified items; none of them are shared. */
+  | 'no-verified-overlap'
+  /** The viewer owns items but has verified none, so nothing can score. */
+  | 'viewer-unverified'
+  /** The viewer owns nothing at all — content-based fallback on followed games. */
+  | 'cold-start';
+
 export interface MatchResult {
   userId: string;
   /** 0–1. Multiply by 100 for the percentage the UI prints. */
   score: number;
-  /** Item ids both collectors own, ordered by descending weight. */
+  /** VERIFIED item ids both collectors own, ordered by descending weight. */
   sharedItemIds: string[];
   /** Human-readable, always shown alongside the score. */
   reason: string;
+  basis: MatchBasis;
 }
+
+/** A collector's inventory as matching sees it. */
+export interface MatchInventory {
+  /** Everything owned, whatever its trust level. */
+  itemIds: readonly string[];
+  /** The subset whose ownership is verified — the only items that score. */
+  verifiedItemIds: readonly string[];
+}
+
+/**
+ * Which of the three viewer states applies.
+ *
+ * The middle one is the trap this function exists to prevent: a viewer with 20
+ * scanned items and none verified is NOT a cold start. Treating it as one falls
+ * through to content-based scoring and prints a confident-looking percentage
+ * built on no verified data at all, which is exactly the black box §11 F5
+ * forbids.
+ */
+export function viewerMatchState(
+  inventory: MatchInventory,
+): 'cold-start' | 'unverified-only' | 'ready' {
+  if (inventory.itemIds.length === 0) return 'cold-start';
+  if (inventory.verifiedItemIds.length === 0) return 'unverified-only';
+  return 'ready';
+}
+
+/** Shown when the viewer owns items but has verified none. States the rule and the fix. */
+export const VIEWER_UNVERIFIED_REASON =
+  'Matches are built from verified items — link a game account to see collectors like you';
 
 /**
  * Weighted Jaccard similarity between two item-id sets.
  *
  * intersectionWeight / unionWeight, so a collector who owns everything you own
  * plus 500 more does not automatically score 100%.
+ *
+ * Callers pass VERIFIED ids only. This function does not filter — keeping the
+ * trust rule in `rankCollectors` means there is exactly one place it can be got
+ * wrong.
  */
 export function similarity(
   aItemIds: readonly string[],
@@ -78,8 +140,13 @@ export function similarity(
  * Build the reason string from the highest-signal shared items.
  *
  * Picks the (rarity, game) pair that dominates the top of the shared list —
- * that produces "you both collect Mythic MLBB skins" rather than a generic
- * "you have items in common".
+ * that produces "you both collect verified Mythic MLBB skins" rather than a
+ * generic "you have items in common". The word "verified" is load-bearing: only
+ * verified items score, so a reason that omitted it would misdescribe what the
+ * percentage measured.
+ *
+ * The empty-shared branch is reached only on cold start, where the honest
+ * explanation is the games in common rather than any item.
  */
 export function explainMatch(
   sharedItemIds: readonly string[],
@@ -114,29 +181,43 @@ export function explainMatch(
 
   const label = rarityLabelFor(top.tier, top.title);
   const game = GAME_SHORT_LABELS[top.title];
-  return `You both collect ${label} ${game} skins`;
+  return `You both collect verified ${label} ${game} skins`;
 }
 
 /**
- * Rank candidate collectors against a viewer.
+ * Rank candidate collectors against a viewer, on verified items only.
  *
- * Cold start (§11 F5): a viewer with no items falls back to content-based
- * matching on followed games, so the Discover tab is never empty for a new
- * account that hasn't imported yet.
+ * Three states, deliberately distinct:
+ *
+ *   cold-start      — the viewer owns nothing. Content-based fallback on
+ *                     followed games (§11 F5), capped below real overlap scores
+ *                     so it is never presented as if item data earned it.
+ *   unverified-only — the viewer owns items but has verified none. Returns
+ *                     EMPTY. There is no honest ranking to produce: falling
+ *                     through to cold start here would print a percentage built
+ *                     on nothing, and scoring unverified items would ignore the
+ *                     rule. The caller shows `VIEWER_UNVERIFIED_REASON` and a
+ *                     route to verification instead.
+ *   ready           — score on verified overlap.
  */
 export function rankCollectors(
-  viewer: { userId: string; itemIds: readonly string[]; followedGames: readonly GameTitle[] },
-  candidates: readonly { user: User; itemIds: readonly string[] }[],
+  viewer: {
+    userId: string;
+    inventory: MatchInventory;
+    followedGames: readonly GameTitle[];
+  },
+  candidates: readonly { user: User; inventory: MatchInventory }[],
   catalogue: ReadonlyMap<string, Item>,
   limit = 10,
 ): MatchResult[] {
+  const state = viewerMatchState(viewer.inventory);
+  if (state === 'unverified-only') return [];
+
   const results = candidates
     .filter((c) => c.user.id !== viewer.userId)
-    .map(({ user, itemIds }) => {
-      if (viewer.itemIds.length === 0) {
+    .map<MatchResult>(({ user, inventory }) => {
+      if (state === 'cold-start') {
         const overlap = viewer.followedGames.filter((g) => user.followedGames.includes(g));
-        // Cold-start scores are capped below real overlap scores so they are
-        // never presented as if they were earned by item data.
         const score = viewer.followedGames.length
           ? (overlap.length / viewer.followedGames.length) * 0.5
           : 0;
@@ -145,15 +226,21 @@ export function rankCollectors(
           score,
           sharedItemIds: [],
           reason: explainMatch([], catalogue, overlap),
+          basis: 'cold-start',
         };
       }
 
-      const { score, sharedItemIds } = similarity(viewer.itemIds, itemIds, catalogue);
+      const { score, sharedItemIds } = similarity(
+        viewer.inventory.verifiedItemIds,
+        inventory.verifiedItemIds,
+        catalogue,
+      );
       return {
         userId: user.id,
         score,
         sharedItemIds,
         reason: explainMatch(sharedItemIds, catalogue, user.followedGames),
+        basis: sharedItemIds.length > 0 ? 'verified-overlap' : 'no-verified-overlap',
       };
     })
     .filter((r) => r.score > 0);

@@ -56,8 +56,18 @@ export const FEATURES = {
   /** [ROADMAP] §11 F2 — Collection Insights. Build only if all four flows land early. */
   collectionInsights: false,
 
-  /** [ROADMAP] §11 F4 — brightness slider and animated lighting. Not for the demo. */
-  roomLightingControls: false,
+  /**
+   * §11 F4 lists the brightness slider and animated-lighting toggle as
+   * [ROADMAP] and tells us to build to the spec rather than the richer Figma
+   * frames. **The team overrode that on 3 Aug** and took lighting into demo
+   * scope.
+   *
+   * It stays a flag rather than becoming unconditional, which is the whole
+   * point of §14: if the 5 Aug checkpoint gets tight, lighting is the honest
+   * first cut on this flow and switching it off here degrades the Customise tab
+   * cleanly instead of breaking a screen.
+   */
+  roomLightingControls: true,
 } as const;
 
 export type FeatureFlag = keyof typeof FEATURES;

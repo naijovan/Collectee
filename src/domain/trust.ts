@@ -22,6 +22,24 @@ import type { Flag, FlagReason, OwnedItem, TrustLevel } from '@/types';
  */
 export const FLAG_THRESHOLD = 3;
 
+/**
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │  A FLAG TARGETS AN `OwnedItem.id`, NEVER AN `Item.id`.              │
+ * └─────────────────────────────────────────────────────────────────────┘
+ *
+ * A flag disputes *a specific person's ownership claim*, not a catalogue entry:
+ * flagging "Prime Vandal" as a concept would be meaningless, and the same skin
+ * is a legitimate claim for one collector and a disputed one for another. The
+ * fixtures already document this (`src/fixtures/social.ts`) and every seeded
+ * flag follows it.
+ *
+ * TODO(Bernard): `src/app/collection/[id].tsx` raises flags with `item.id`, a
+ * catalogue id, so those flags can never match a target here and never reach the
+ * review queue. It needs the viewer-visible `OwnedItem.id` for the item's owner.
+ * Until then the flag path works on seeded data only.
+ */
+export const FLAG_TARGET_ID_SPACE = 'OwnedItem.id' as const;
+
 /** The three ownership-dispute reasons from §9.2, separate from content moderation. */
 export const OWNERSHIP_FLAG_REASONS: readonly FlagReason[] = [
   'false_ownership',
@@ -88,6 +106,54 @@ export function isUnderReview(
 export function discoveryWeight(trustLevel: TrustLevel, underReview: boolean): number {
   if (underReview) return 0;
   return trustLevel === 'verified' ? 1 : 0.6;
+}
+
+/**
+ * Trust for a SET of owned items — a collection, a room, a profile section.
+ *
+ * Derived, never stored. §12.3 gives `Collection` no trust field and it should
+ * not get one: a stored flag would drift the moment an item in the collection
+ * was flagged or an account was linked, and there is no way to notice. Deriving
+ * it means the answer is always current by construction.
+ *
+ * `verified` only when EVERY item is verified — a collection is not "verified"
+ * because most of it is, and claiming otherwise is the kind of overstatement
+ * §9.2's whole trust model exists to avoid.
+ */
+export interface DerivedTrust {
+  trustLevel: TrustLevel;
+  /** True when any item in the set has crossed `FLAG_THRESHOLD`. */
+  underReview: boolean;
+  verifiedCount: number;
+  totalCount: number;
+}
+
+export function deriveTrust(
+  ownedItems: readonly OwnedItem[],
+  isTargetUnderReview: (ownedItemId: string) => boolean,
+): DerivedTrust {
+  const verifiedCount = ownedItems.filter((o) => o.trustLevel === 'verified').length;
+  return {
+    trustLevel:
+      ownedItems.length > 0 && verifiedCount === ownedItems.length ? 'verified' : 'unverified',
+    underReview: ownedItems.some((o) => isTargetUnderReview(o.id)),
+    verifiedCount,
+    totalCount: ownedItems.length,
+  };
+}
+
+/**
+ * Ordering for SETS — collections, rooms, profile sections.
+ *
+ * Under-review sets are demoted, not removed. §9.2 takes discovery ranking away
+ * from the disputed *item*; making an entire collection disappear because one of
+ * its four items is disputed punishes far more than the claim in question, and
+ * flags explicitly "do not auto-remove". `rankByTrust` below is the stricter
+ * item-level rule and still drops them outright.
+ */
+export function compareByDerivedTrust(a: DerivedTrust, b: DerivedTrust): number {
+  if (a.underReview !== b.underReview) return a.underReview ? 1 : -1;
+  return discoveryWeight(b.trustLevel, false) - discoveryWeight(a.trustLevel, false);
 }
 
 /**

@@ -191,26 +191,42 @@ export const COLLECTIONS_BY_ID: ReadonlyMap<string, Collection> = new Map(
  * Seeded rooms. `slots` are copied from the theme at creation time so a later
  * theme edit cannot silently invalidate an existing room's placements.
  */
-const neonVault = ROOM_THEMES[0];
-const fantasyArmoury = ROOM_THEMES[1];
+const weaponVault = ROOM_THEMES[0];
+const fantasyArmoury = ROOM_THEMES[2];
 const collectorsStudy = ROOM_THEMES[5];
 
 export const ROOMS = [
   {
     id: 'room-jovan-crown-jewels',
     collectionId: 'col-jovan-crown-jewels',
-    themeId: neonVault.id,
-    backdropUrl: neonVault.backdropUrl,
-    slots: [...neonVault.slots],
+    themeId: weaponVault.id,
+    // The room is its own object: "Crown Jewels" the collection becomes
+    // "The Vault" the room, with its own title, description and cover.
+    title: 'The Vault',
+    description: 'Five items I would not trade, one wall each. Built from Crown Jewels.',
+    coverUrl: 'room-covers/jovan-the-vault.png',
+    backdropUrl: weaponVault.backdropUrl,
+    slots: [...weaponVault.slots],
     placements: [
-      { slotId: 'neon-pedestal-hero', ownedItemId: 'own-jovan-codm-dlq33-lightbringer', rotation: 0 },
-      { slotId: 'neon-case-left', ownedItemId: 'own-jovan-val-elderflame-vandal', rotation: 0 },
-      { slotId: 'neon-case-right', ownedItemId: 'own-jovan-mlbb-gusion-cyber-faust', rotation: 0 },
-      { slotId: 'neon-wall-1', ownedItemId: 'own-jovan-codm-fennec-ascended', rotation: 0 },
-      { slotId: 'neon-wall-2', ownedItemId: 'own-jovan-val-prime-karambit', rotation: 0 },
+      { slotId: 'vault-pedestal-hero', ownedItemId: 'own-jovan-codm-dlq33-lightbringer', rotation: 0 },
+      { slotId: 'vault-pedestal-left', ownedItemId: 'own-jovan-val-elderflame-vandal', rotation: 0 },
+      { slotId: 'vault-pedestal-right', ownedItemId: 'own-jovan-mlbb-gusion-cyber-faust', rotation: 0 },
+      { slotId: 'vault-wall-1', ownedItemId: 'own-jovan-codm-fennec-ascended', rotation: 0 },
+      { slotId: 'vault-wall-2', ownedItemId: 'own-jovan-val-prime-karambit', rotation: 0 },
     ],
-    settings: { parallaxEnabled: true, focusedSlotId: 'neon-pedestal-hero' },
+    settings: {
+      parallaxEnabled: true,
+      focusedSlotId: 'vault-pedestal-hero',
+      lightingPreset: 'cool-blue',
+      brightness: 0.68,
+      animatedLighting: true,
+      displayStyle: 'hologram',
+    },
     visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 1842,
+    visitorCount: 12400,
     publishedAt: '2026-06-21T10:00:00.000Z',
     createdAt: '2026-06-20T15:40:00.000Z',
   },
@@ -218,6 +234,9 @@ export const ROOMS = [
     id: 'room-mei-elderflame',
     collectionId: 'col-mei-elderflame',
     themeId: fantasyArmoury.id,
+    title: 'Elderflame Hall',
+    description: 'The full Elderflame set under torchlight.',
+    coverUrl: 'room-covers/mei-elderflame-hall.png',
     backdropUrl: fantasyArmoury.backdropUrl,
     slots: [...fantasyArmoury.slots],
     placements: [
@@ -225,8 +244,19 @@ export const ROOMS = [
       { slotId: 'armoury-case-left', ownedItemId: 'own-mei-val-elderflame-operator', rotation: 0 },
       { slotId: 'armoury-case-right', ownedItemId: 'own-mei-val-elderflame-dagger', rotation: 0 },
     ],
-    settings: { parallaxEnabled: true, focusedSlotId: null },
+    settings: {
+      parallaxEnabled: true,
+      focusedSlotId: null,
+      lightingPreset: 'warm-gold',
+      brightness: 0.6,
+      animatedLighting: false,
+      displayStyle: 'framed',
+    },
     visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 2310,
+    visitorCount: 9800,
     publishedAt: '2026-04-01T09:30:00.000Z',
     createdAt: '2026-03-30T12:00:00.000Z',
   },
@@ -234,6 +264,9 @@ export const ROOMS = [
     id: 'room-danish-collectors',
     collectionId: 'col-danish-collector',
     themeId: collectorsStudy.id,
+    title: "The Collector's Table",
+    description: 'Four MLBB pieces I chased for two years.',
+    coverUrl: 'room-covers/danish-collectors-table.png',
     backdropUrl: collectorsStudy.backdropUrl,
     slots: [...collectorsStudy.slots],
     placements: [
@@ -242,8 +275,19 @@ export const ROOMS = [
       { slotId: 'study-case-right', ownedItemId: 'own-danish-mlbb-lancelot-royal-matador', rotation: 0 },
       { slotId: 'study-wall-1', ownedItemId: 'own-danish-mlbb-kagura-feathery-wonderland', rotation: 0 },
     ],
-    settings: { parallaxEnabled: true, focusedSlotId: null },
+    settings: {
+      parallaxEnabled: true,
+      focusedSlotId: null,
+      lightingPreset: 'dark-cinematic',
+      brightness: 0.52,
+      animatedLighting: false,
+      displayStyle: 'card',
+    },
     visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 760,
+    visitorCount: 4120,
     publishedAt: '2026-04-19T08:00:00.000Z',
     createdAt: '2026-04-18T14:20:00.000Z',
   },

@@ -8,18 +8,31 @@
  * so `reason` is rendered on every card here, not behind a tap.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Avatar, CollectorCard, FilterChips, LoadingState, SectionHeader } from '@/components';
+import {
+  Avatar,
+  CollectorCard,
+  EmptyState,
+  FilterChips,
+  LoadingState,
+  SectionHeader,
+} from '@/components';
 import { FEATURES } from '@/config/features';
+import { VIEWER_UNVERIFIED_REASON } from '@/domain/matching';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { matchService, socialService } from '@/services';
-import type { CollectorRecommendation, CommunityRecommendation } from '@/services';
+import type {
+  CollectorRecommendation,
+  CommunityRecommendation,
+  ViewerMatchState,
+} from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
+import type { Community } from '@/types';
 
 const TABS = ['Collectors', 'Communities'] as const;
 type Tab = (typeof TABS)[number];
@@ -34,40 +47,57 @@ export default function ExploreScreen() {
   const [tab, setTab] = useState<Tab>('Collectors');
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
   const [communities, setCommunities] = useState<CommunityRecommendation[]>([]);
+  const [mine, setMine] = useState<Community[]>([]);
   const [joined, setJoined] = useState<ReadonlySet<string>>(new Set());
+  const [matchState, setMatchState] = useState<ViewerMatchState>('ready');
   const [busy, setBusy] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      const [people, groups] = await Promise.all([
-        matchService.getRecommendedCollectors(viewerId, 12),
-        matchService.getRecommendedCommunities(viewerId),
-      ]);
-      if (cancelled) return;
-      setCollectors(people);
-      setCommunities(groups);
-      setJoined(
-        new Set(groups.filter((g) => socialService.isMember(viewerId, g.community.id)).map((g) => g.community.id)),
-      );
-      setBusy(false);
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    const [people, groups, all, state] = await Promise.all([
+      matchService.getRecommendedCollectors(viewerId, 12),
+      matchService.getRecommendedCommunities(viewerId),
+      matchService.getCommunities(),
+      matchService.getViewerMatchState(viewerId),
+    ]);
+    setCollectors(people);
+    setMatchState(state);
+    setCommunities(groups);
+    // Recommendations exclude communities the viewer is already in, so without
+    // this list a community would vanish the moment it was joined and its
+    // detail page would be unreachable from Discover.
+    setMine(all.filter((community) => socialService.isMember(viewerId, community.id)));
+    setJoined(
+      new Set(
+        groups
+          .filter((g) => socialService.isMember(viewerId, g.community.id))
+          .map((g) => g.community.id),
+      ),
+    );
+    setBusy(false);
   }, [viewerId]);
 
+  /**
+   * Refetch on focus, not only on mount.
+   *
+   * Match scores are computed from the viewer's owned items (§11 F5), so an
+   * import changes every number on this screen. Discover is a tab and stays
+   * mounted while the user runs the import flow — a mount-only effect would
+   * leave the demo looking at pre-import recommendations for the rest of the
+   * session. `busy` is deliberately not reset here, so a refocus updates in
+   * place instead of flashing a skeleton over data that is already on screen.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
   async function toggleJoin(communityId: string) {
-    const isMember = await socialService.toggleMembership(viewerId, communityId);
-    setJoined((prev) => {
-      const next = new Set(prev);
-      if (isMember) next.add(communityId);
-      else next.delete(communityId);
-      return next;
-    });
+    await socialService.toggleMembership(viewerId, communityId);
+    // Reload rather than patching local state: membership drives the
+    // recommendation filter, the joined list and the member counts, and
+    // updating three derived things by hand is how they drift apart.
+    await load();
   }
 
   return (
@@ -81,9 +111,29 @@ export default function ExploreScreen() {
 
       {busy ? <LoadingState height={200} /> : null}
 
-      {!busy && tab === 'Collectors' ? (
+      {/*
+        Two different empty lists, two different explanations. A viewer who has
+        verified nothing cannot be matched at all under the 3 Aug rule — saying
+        "no matches" there would blame the data for a rule. The other empty case
+        genuinely means nobody overlaps yet.
+      */}
+      {!busy && tab === 'Collectors' && matchState === 'unverified-only' ? (
+        <EmptyState
+          title="Nothing verified yet"
+          body={VIEWER_UNVERIFIED_REASON}
+          actionLabel="Connect a game account"
+          onAction={() => router.push('/link-account')}
+        />
+      ) : null}
+
+      {!busy && tab === 'Collectors' && matchState !== 'unverified-only' ? (
         <View style={styles.list}>
           <SectionHeader title="Collectors you may like" />
+          {collectors.length === 0 ? (
+            <Text style={styles.muted}>
+              No collectors share a verified item with you yet.
+            </Text>
+          ) : null}
           {collectors.map((entry) => (
             <Pressable
               key={entry.user.id}
@@ -109,13 +159,45 @@ export default function ExploreScreen() {
         </View>
       ) : null}
 
+      {!busy && tab === 'Communities' && mine.length > 0 ? (
+        <View style={styles.list}>
+          <SectionHeader title="Your communities" />
+          {mine.map((community) => (
+            <Pressable
+              key={community.id}
+              onPress={() =>
+                router.push({ pathname: '/community/[id]', params: { id: community.id } })
+              }
+              style={styles.row}
+            >
+              <Avatar name={community.name} size={44} />
+              <View style={styles.rowBody}>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {community.name}
+                </Text>
+                <Text style={styles.muted}>
+                  {socialService.memberCountFor(community).toLocaleString()} members
+                </Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       {!busy && tab === 'Communities' ? (
         <View style={styles.list}>
           <SectionHeader title="Communities for you" />
           {communities.map(({ community, reason }) => {
             const isMember = joined.has(community.id);
             return (
-              <View key={community.id} style={styles.row}>
+              <Pressable
+                key={community.id}
+                onPress={() =>
+                  router.push({ pathname: '/community/[id]', params: { id: community.id } })
+                }
+                style={styles.row}
+              >
                 <Avatar name={community.name} size={44} />
                 <View style={styles.rowBody}>
                   <Text style={styles.rowTitle} numberOfLines={1}>
@@ -123,7 +205,8 @@ export default function ExploreScreen() {
                   </Text>
                   <Text style={styles.reason}>{reason}</Text>
                   <Text style={styles.muted}>
-                    {community.memberCount.toLocaleString()} members
+                    {/* Live count — a session join has to move the number it sits next to. */}
+                    {socialService.memberCountFor(community).toLocaleString()} members
                     {FEATURES.communityPosting ? '' : ' · view only'}
                   </Text>
                 </View>
@@ -135,9 +218,15 @@ export default function ExploreScreen() {
                     {isMember ? 'Joined' : 'Join'}
                   </Text>
                 </Pressable>
-              </View>
+              </Pressable>
             );
           })}
+          {communities.length === 0 ? (
+            <Text style={styles.muted}>
+              You&apos;re in every community we&apos;d suggest. Import more items and new ones
+              surface here.
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -167,6 +256,7 @@ const styles = StyleSheet.create({
   percent: { ...typography.cardTitle, color: colors.accent },
   reason: { ...typography.meta, color: colors.textSecondary },
   muted: { ...typography.meta, color: colors.textTertiary },
+  chevron: { fontSize: 22, color: colors.textTertiary },
   join: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,

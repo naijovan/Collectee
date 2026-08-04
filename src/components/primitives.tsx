@@ -12,6 +12,8 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
+import { resolveItemArt } from './item-art';
+
 import { artFor } from '@/config/artRegistry';
 import { rarityLabelFor } from '@/domain/rarity';
 import { GAME_SHORT_LABELS } from '@/types';
@@ -29,10 +31,12 @@ function hash(seed: string): number {
  * Item art — the real render when the art pack has one, a deterministic colour
  * block when it does not.
  *
- * `seed` is the catalogue `Item.id` at every item call site, which is what
- * `artRegistry` is keyed on. Other call sites pass a collection id, a theme id
- * or a game title; those simply miss the registry and get the colour block, so
- * no caller has to know whether art exists.
+ * Two seams feed this, tried in order. `artRegistry` is keyed on the catalogue
+ * `Item.id`, which is what `seed` is at every item call site. `item-art.ts` is
+ * keyed on `Item.renderUrl` and covers art that ships as a bundled asset rather
+ * than a registry entry. Other call sites pass a collection id, a theme id or a
+ * game title; those miss both and get the colour block, so no caller has to
+ * know whether art exists.
  *
  * The fallback stays. It is what lets the app run with a partly-populated art
  * pack instead of showing broken images, and 73 catalogue items will not all
@@ -41,10 +45,13 @@ function hash(seed: string): number {
 export function ItemArt({
   seed,
   tier,
+  renderUrl,
   style,
 }: {
   seed: string;
   tier: RarityTier;
+  /** `Item.renderUrl`. Omit for non-item art such as collection covers. */
+  renderUrl?: string;
   style?: StyleProp<ViewStyle>;
 }) {
   const art = artFor(seed);
@@ -65,6 +72,20 @@ export function ItemArt({
           resizeMode={art.fit}
           accessible
           accessibilityLabel={art.alt}
+          accessibilityIgnoresInvertColors
+        />
+      </View>
+    );
+  }
+
+  const bundled = renderUrl ? resolveItemArt(renderUrl) : null;
+  if (bundled !== null) {
+    return (
+      <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
+        <Image
+          source={bundled}
+          style={styles.artFill}
+          resizeMode="cover"
           accessibilityIgnoresInvertColors
         />
       </View>

@@ -55,6 +55,18 @@ export type OwnershipSource = 'scan' | 'manual' | 'linked-account';
 /** PRD §12.3 — Collection.visibility */
 export type Visibility = 'public' | 'unlisted' | 'private';
 
+/**
+ * Room customise panel — the lighting presets in the J3 frames.
+ *
+ * §11 F4 lists lighting as [ROADMAP]; the team overrode that on 3 Aug and it is
+ * being built for the demo, behind `FEATURES.roomLightingControls` so §14 can
+ * still cut it with a flag rather than a revert.
+ */
+export type LightingPreset = 'cool-blue' | 'purple-glow' | 'warm-gold' | 'dark-cinematic';
+
+/** How items composite into slots — §11 F4: "collectible cards or framed artwork". */
+export type DisplayStyle = 'card' | 'framed' | 'hologram';
+
 /** PRD §12.3 — GameAccount.linkStatus. Verified tier is partnership-gated (§9.3). */
 export type LinkStatus = 'unlinked' | 'pending' | 'linked' | 'failed';
 

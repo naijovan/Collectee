@@ -120,6 +120,21 @@ export function rotatePlacement(
   );
 }
 
+/**
+ * The title an assistant would suggest for a room, without a model call.
+ *
+ * Deterministic because the demo is mocked (§12.1) — same pattern as
+ * `suggestCollections` in `domain/collections.ts`. "Neon Legends" built in the
+ * "Futuristic Weapon Vault" style suggests "Neon Vault", which is exactly the
+ * naming the design frames show. The user can always overwrite it at publish.
+ */
+export function suggestRoomTitle(collectionName: string, themeName: string): string {
+  const head = collectionName.trim().split(/\s+/)[0];
+  const tail = themeName.trim().split(/\s+/).at(-1);
+  if (!head || !tail) return collectionName.trim() || 'My room';
+  return head === tail ? head : `${head} ${tail}`;
+}
+
 /** The item currently in focus — the sword on the central pedestal, by default. */
 export function focusedPlacement(room: Room): Placement | null {
   const focusedId = room.settings.focusedSlotId;
