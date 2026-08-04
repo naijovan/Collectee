@@ -82,7 +82,11 @@ export const matchService = {
     // Taken once per call: every candidate is scored against the same snapshot,
     // so an import landing mid-pass cannot produce an inconsistent ranking.
     const ownership = ownershipSnapshot();
-    const candidates = USERS.map((user) => ({
+    // Blocking is private to the viewer (§11 F5), so it filters here rather than
+    // affecting anyone's score: a blocked collector stops being recommended TO
+    // this viewer, and is unaffected everywhere else.
+    const blockedByViewer = socialService.blockedBy(viewerId);
+    const candidates = USERS.filter((user) => !blockedByViewer.has(user.id)).map((user) => ({
       user,
       inventory: ownership.inventoryFor(user.id),
     }));

@@ -106,7 +106,22 @@ export default function ExploreScreen() {
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >
-      <Text style={styles.title}>Discover</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Discover</Text>
+        {/*
+          Utility entries for the two surfaces that otherwise have no route in:
+          the review queue, and account linking — whose only other entry is an
+          empty state a viewer with verified items never sees.
+        */}
+        <View style={styles.headerActions}>
+          <Pressable onPress={() => router.push('/link-account')} hitSlop={8}>
+            <Text style={styles.headerLink}>Verify</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/moderation')} hitSlop={8}>
+            <Text style={styles.headerLink}>Queue</Text>
+          </Pressable>
+        </View>
+      </View>
       <FilterChips options={TABS} value={tab} onChange={setTab} />
 
       {busy ? <LoadingState height={200} /> : null}
@@ -239,6 +254,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.lg },
   title: { ...typography.screenTitle, color: colors.textPrimary },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerActions: { flexDirection: 'row', gap: spacing.lg },
+  headerLink: { ...typography.meta, color: colors.accent },
   list: { gap: spacing.sm },
   row: {
     flexDirection: 'row',

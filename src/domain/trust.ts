@@ -33,10 +33,13 @@ export const FLAG_THRESHOLD = 3;
  * fixtures already document this (`src/fixtures/social.ts`) and every seeded
  * flag follows it.
  *
- * TODO(Bernard): `src/app/collection/[id].tsx` raises flags with `item.id`, a
- * catalogue id, so those flags can never match a target here and never reach the
- * review queue. It needs the viewer-visible `OwnedItem.id` for the item's owner.
- * Until then the flag path works on seeded data only.
+ * TODO(Bernard): `src/app/collection/[id].tsx` (currently line 103, inside
+ * `raiseFlag`) passes `targetId: item.id`, a catalogue id, so those flags can
+ * never match a target here and never reach the review queue at
+ * `/moderation`. It needs the `OwnedItem.id` of the claim being disputed —
+ * i.e. the collection owner's ownership record for that item, not the
+ * catalogue entry. Until then the flag path works on seeded data only, and
+ * every flag raised through the UI is silently inert.
  */
 export const FLAG_TARGET_ID_SPACE = 'OwnedItem.id' as const;
 
@@ -46,6 +49,40 @@ export const OWNERSHIP_FLAG_REASONS: readonly FlagReason[] = [
   'duplicate_uniqueness',
   'identity_impersonation',
 ] as const;
+
+/** Content-moderation reasons from §11 F5 — harassment and spam, not ownership. */
+export const CONTENT_FLAG_REASONS: readonly FlagReason[] = ['abusive_content', 'spam'] as const;
+
+/**
+ * ONE QUEUE, TWO THRESHOLDS (team decision, 4 Aug — provisional).
+ *
+ * §9.2's guard — three reports, all from accounts owning verified items — is
+ * built for OWNERSHIP disputes, where an unguarded button in a competitive
+ * community becomes a weapon and a throwaway-account brigade is the threat.
+ *
+ * Applying that same rule to harassment would mean a new account cannot report
+ * abuse until it owns a verified item, and verification is partnership-gated
+ * (§9.3) — so in practice, never. That would actively damage the "safer and more
+ * inclusive communities" theme §8.2 names as a judging criterion, using a rule
+ * written to protect something else entirely.
+ *
+ * So content reports need fewer reporters and no eligibility test. Both kinds
+ * still land in the same review queue and still never auto-remove.
+ */
+export const CONTENT_REPORT_THRESHOLD = 2;
+
+export function isOwnershipReason(reason: FlagReason): boolean {
+  return OWNERSHIP_FLAG_REASONS.includes(reason);
+}
+
+/** Ownership disputes require a reporter with skin in the game; abuse reports do not. */
+export function requiresEligibleReporter(reason: FlagReason): boolean {
+  return isOwnershipReason(reason);
+}
+
+export function thresholdFor(reason: FlagReason): number {
+  return isOwnershipReason(reason) ? FLAG_THRESHOLD : CONTENT_REPORT_THRESHOLD;
+}
 
 export const FLAG_REASON_LABELS: Record<FlagReason, string> = {
   false_ownership: 'False ownership',
@@ -85,15 +122,60 @@ export function countableFlags(
   return reporters.size;
 }
 
+/** Distinct reporters of content abuse. No eligibility test — see CONTENT_REPORT_THRESHOLD. */
+export function countableContentReports(flags: readonly Flag[]): number {
+  const reporters = new Set<string>();
+  for (const flag of flags) {
+    if (flag.status !== 'open' && flag.status !== 'under_review') continue;
+    if (isOwnershipReason(flag.reason)) continue;
+    reporters.add(flag.reporterId);
+  }
+  return reporters.size;
+}
+
+/** Both halves of the queue, evaluated independently against their own rule. */
+export interface ReviewState {
+  underReview: boolean;
+  /** Set when a moderator upheld the reports — suppression outlives the count. */
+  upheld: boolean;
+  ownership: { countable: number; threshold: number; crossed: boolean };
+  content: { countable: number; threshold: number; crossed: boolean };
+}
+
+export function reviewStateFor(
+  flags: readonly Flag[],
+  isReporterEligible: (reporterId: string) => boolean,
+): ReviewState {
+  const ownershipCount = countableFlags(flags, isReporterEligible);
+  const contentCount = countableContentReports(flags);
+  const ownershipCrossed = ownershipCount >= FLAG_THRESHOLD;
+  const contentCrossed = contentCount >= CONTENT_REPORT_THRESHOLD;
+  // An upheld decision keeps the target suppressed even though resolving the
+  // flags drops the live count to zero. Without this, upholding a report would
+  // hand the target its discovery ranking straight back.
+  const upheld = flags.some((flag) => flag.status === 'upheld');
+
+  return {
+    underReview: upheld || ownershipCrossed || contentCrossed,
+    upheld,
+    ownership: { countable: ownershipCount, threshold: FLAG_THRESHOLD, crossed: ownershipCrossed },
+    content: {
+      countable: contentCount,
+      threshold: CONTENT_REPORT_THRESHOLD,
+      crossed: contentCrossed,
+    },
+  };
+}
+
 /**
- * Flags never auto-remove (§9.2). Crossing the threshold does two things:
- * the item loses discovery ranking, and it enters the review queue.
+ * Flags never auto-remove (§9.2). Crossing a threshold does two things:
+ * the target loses discovery ranking, and it enters the review queue.
  */
 export function isUnderReview(
   flags: readonly Flag[],
   isReporterEligible: (reporterId: string) => boolean,
 ): boolean {
-  return countableFlags(flags, isReporterEligible) >= FLAG_THRESHOLD;
+  return reviewStateFor(flags, isReporterEligible).underReview;
 }
 
 /**

@@ -24,8 +24,10 @@ import {
   discoveryWeight,
   isUnderReview,
   rankByTrust,
+  reviewStateFor,
 } from '@/domain/trust';
-import type { DerivedTrust } from '@/domain/trust';
+import type { DerivedTrust, ReviewState } from '@/domain/trust';
+import { catalogueService } from './catalogueService';
 import type {
   Comment,
   Community,
@@ -60,6 +62,76 @@ const DEFAULT_NOTIFICATION_PREF: CommunityNotificationPref = 'all';
 
 function prefKey(userId: string, communityId: string): string {
   return `${userId}:${communityId}`;
+}
+
+/** What a moderator is being asked to judge, resolved once by the service. */
+export interface ReviewPreview {
+  title: string;
+  body: string | null;
+  authorId: string | null;
+  authorName: string | null;
+}
+
+export interface ReviewQueueEntry {
+  targetId: string;
+  targetType: TargetType;
+  flags: Flag[];
+  state: ReviewState;
+  preview: ReviewPreview;
+}
+
+function oldestReport(entryFlags: readonly Flag[]): string {
+  return entryFlags.reduce(
+    (oldest, flag) => (Date.parse(flag.createdAt) < Date.parse(oldest) ? flag.createdAt : oldest),
+    entryFlags[0]!.createdAt,
+  );
+}
+
+/**
+ * Resolve a flag target into something a human can judge.
+ *
+ * An `item` target is an OwnedItem id, so this reads the claim (whose it is) and
+ * the catalogue entry (what it is) — a moderator needs both. A `comment` target
+ * reads the body. Anything else degrades to the raw id rather than guessing;
+ * `thread` lands here when community threads arrive.
+ */
+async function previewFor(targetType: TargetType, targetId: string): Promise<ReviewPreview> {
+  if (targetType === 'item') {
+    const owned = await inventoryService.getOwnedItem(targetId);
+    const item = owned ? await catalogueService.getItem(owned.itemId) : null;
+    const owner = owned ? USERS_BY_ID.get(owned.userId) : undefined;
+    return {
+      title: item?.name ?? targetId,
+      body: owned ? `Claimed as ${owned.trustLevel}, added by ${owned.source}` : null,
+      authorId: owned?.userId ?? null,
+      authorName: owner?.displayName ?? null,
+    };
+  }
+
+  if (targetType === 'comment') {
+    const comment = comments.find((c) => c.id === targetId);
+    const author = comment ? USERS_BY_ID.get(comment.userId) : undefined;
+    return {
+      title: author ? `Reply by ${author.displayName}` : 'Reply',
+      body: comment?.body ?? null,
+      authorId: comment?.userId ?? null,
+      authorName: author?.displayName ?? null,
+    };
+  }
+
+  if (targetType === 'user') {
+    // §11 F5 names an impersonation takedown path; a reported account is the
+    // one queue entry where the target and the author are the same person.
+    const user = USERS_BY_ID.get(targetId);
+    return {
+      title: user ? `@${user.handle}` : targetId,
+      body: user?.bio ?? null,
+      authorId: user?.id ?? null,
+      authorName: user?.displayName ?? null,
+    };
+  }
+
+  return { title: targetId, body: null, authorId: null, authorName: null };
 }
 
 /**
@@ -208,6 +280,16 @@ export const socialService = {
     return delay(comment, LATENCY_INSTANT);
   },
 
+  /**
+   * Block someone (§11 F5 moderation).
+   *
+   * Blocking is one-directional and private to the viewer — it is not a report
+   * and it does not touch the review queue. Nobody is told, and the blocked
+   * account keeps working normally for everyone else. That separation matters:
+   * §9.2's queue is for community judgement, blocking is for one person wanting
+   * a quieter feed, and conflating them turns a personal preference into a
+   * moderation signal other people's rankings depend on.
+   */
   async blockUser(viewerId: string, targetId: string): Promise<void> {
     const set = blocked.get(viewerId) ?? new Set<string>();
     set.add(targetId);
@@ -218,6 +300,15 @@ export const socialService = {
   async unblockUser(viewerId: string, targetId: string): Promise<void> {
     blocked.get(viewerId)?.delete(targetId);
     await delay(null, LATENCY_INSTANT);
+  },
+
+  isBlocked(viewerId: string, targetId: string): boolean {
+    return blocked.get(viewerId)?.has(targetId) ?? false;
+  },
+
+  /** Everyone this viewer has blocked. Discovery surfaces filter against it. */
+  blockedBy(viewerId: string): ReadonlySet<string> {
+    return blocked.get(viewerId) ?? new Set<string>();
   },
 
   // ── Flags and the review queue (§9.2) ────────────────────────────────
@@ -258,8 +349,71 @@ export const socialService = {
     return isUnderReview(this.flagsFor(targetId), reporterIsEligible);
   },
 
-  /** The moderation queue. Ownership flags and comment reports share it. */
-  async getReviewQueue(): Promise<{ targetId: string; flags: Flag[] }[]> {
+  /** Full review state for a target — both thresholds, evaluated separately. */
+  reviewStateFor(targetId: string): ReviewState {
+    return reviewStateFor(this.flagsFor(targetId), reporterIsEligible);
+  },
+
+  /**
+   * Resolve every open report on a target.
+   *
+   * `upheld` keeps the target suppressed — `reviewStateFor` treats an upheld
+   * decision as outliving the live count, because resolving the flags otherwise
+   * drops the count to zero and hands discovery ranking straight back to
+   * something a moderator just judged. `dismissed` releases it.
+   *
+   * Flags still never auto-remove anything (§9.2). This records a human
+   * decision; it does not delete the item, the comment or the account.
+   */
+  async resolveReports(targetId: string, status: 'upheld' | 'dismissed'): Promise<number> {
+    let resolved = 0;
+    for (const flag of flags) {
+      if (flag.targetId !== targetId) continue;
+      if (flag.status !== 'open' && flag.status !== 'under_review') continue;
+      flag.status = status;
+      resolved += 1;
+    }
+    return delay(resolved, LATENCY_INSTANT);
+  },
+
+  /**
+   * The moderation queue — §8.2's "safer communities" made visible.
+   *
+   * One queue, mixed target types: an ownership claim and a reported reply sit
+   * side by side, each judged against its own threshold. Entries carry a
+   * resolved `preview` so the screen never has to reach past the service to work
+   * out what it is looking at.
+   */
+  async getReviewQueue(): Promise<ReviewQueueEntry[]> {
+    const byTarget = new Map<string, Flag[]>();
+    for (const flag of flags) {
+      byTarget.set(flag.targetId, [...(byTarget.get(flag.targetId) ?? []), flag]);
+    }
+
+    const queue: ReviewQueueEntry[] = [];
+    for (const [targetId, targetFlags] of byTarget) {
+      const state = reviewStateFor(targetFlags, reporterIsEligible);
+      if (!state.underReview) continue;
+      const targetType = targetFlags[0]!.targetType;
+      queue.push({
+        targetId,
+        targetType,
+        flags: targetFlags,
+        state,
+        preview: await previewFor(targetType, targetId),
+      });
+    }
+
+    // Oldest report first: a queue that surfaces the newest thing buries
+    // whatever has been waiting longest, which is the opposite of a queue.
+    queue.sort(
+      (a, b) => Date.parse(oldestReport(a.flags)) - Date.parse(oldestReport(b.flags)),
+    );
+    return delay(queue, LATENCY_FETCH);
+  },
+
+  /** @deprecated Kept for the diagnostics screen; use getReviewQueue. */
+  async getReviewQueueRaw(): Promise<{ targetId: string; flags: Flag[] }[]> {
     const byTarget = new Map<string, Flag[]>();
     for (const flag of flags) {
       byTarget.set(flag.targetId, [...(byTarget.get(flag.targetId) ?? []), flag]);
