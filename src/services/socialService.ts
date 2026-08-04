@@ -17,6 +17,7 @@ import {
   FOLLOWS,
   NOTIFICATIONS,
 } from '@/fixtures/social';
+import { THREADS_BY_ID, THREAD_REPLIES } from '@/fixtures/threads';
 import { USERS, USERS_BY_ID } from '@/fixtures/users';
 import {
   countableFlags,
@@ -45,7 +46,16 @@ import { inventoryService } from './inventoryService';
 import { LATENCY_FETCH, LATENCY_INSTANT, delay } from './latency';
 
 const follows: Follow[] = [...FOLLOWS];
-const comments: Comment[] = [...COMMENTS];
+/**
+ * Comments AND thread replies share one store.
+ *
+ * A thread reply is a `Comment` with `targetType: 'thread'` (§11 F5), so
+ * merging the seeds here is what gives threads blocked-author filtering,
+ * reporting into the §9.2 queue and `parentId` nesting without a second
+ * implementation of any of them. `getComments('thread', threadId, viewerId)` is
+ * the read path for both.
+ */
+const comments: Comment[] = [...COMMENTS, ...THREAD_REPLIES];
 const flags: Flag[] = [...FLAGS];
 const notifications: Notification[] = [...NOTIFICATIONS];
 const communityMembers = new Map<string, Set<string>>(
@@ -115,6 +125,17 @@ async function previewFor(targetType: TargetType, targetId: string): Promise<Rev
       title: author ? `Reply by ${author.displayName}` : 'Reply',
       body: comment?.body ?? null,
       authorId: comment?.userId ?? null,
+      authorName: author?.displayName ?? null,
+    };
+  }
+
+  if (targetType === 'thread') {
+    const thread = THREADS_BY_ID.get(targetId);
+    const author = thread ? USERS_BY_ID.get(thread.userId) : undefined;
+    return {
+      title: thread ? thread.title : targetId,
+      body: thread?.body ?? null,
+      authorId: thread?.userId ?? null,
       authorName: author?.displayName ?? null,
     };
   }
