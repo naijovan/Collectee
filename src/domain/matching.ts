@@ -96,12 +96,39 @@ export const VIEWER_UNVERIFIED_REASON =
   'Matches are built from verified items — link a game account to see collectors like you';
 
 /**
- * Weighted Jaccard similarity between two item-id sets.
+ * Denominator smoothing, in the same units as `itemWeight` (natural log of
+ * inverse popularity).
  *
- * intersectionWeight / unionWeight, so a collector who owns everything you own
- * plus 500 more does not automatically score 100%.
+ * Roughly the weight of one item owned by ~5% of players, so a collector who
+ * has verified two items and shares both cannot read 100%. Without it the
+ * overlap coefficient maxes out on any fully-contained collection, however
+ * small, and "100% match" would mean "this person has verified almost nothing".
+ */
+export const SIMILARITY_SMOOTHING = 3;
+
+/**
+ * Similarity between two VERIFIED item sets: a weighted overlap coefficient.
  *
- * Callers pass VERIFIED ids only. This function does not filter — keeping the
+ *   intersectionWeight / (min(weightA, weightB) + SIMILARITY_SMOOTHING)
+ *
+ * **What the number means:** the share of the smaller collection that the two
+ * collectors have in common, weighted by inverse item popularity — owning the
+ * same limited exclusive counts for far more than the same battle-pass skin.
+ * That is still "similarity over co-owned items weighted by inverse item
+ * popularity" (§11 F5); the PRD never named a specific normalisation.
+ *
+ * **Why not Jaccard** (decided 5 Aug, see the commit): dividing by the UNION
+ * makes every score a function of how much unrelated stuff either side owns.
+ * Verifying items nobody else has verified grew the union without growing the
+ * intersection, so the act the product rewards pushed scores DOWN — and worse,
+ * an unrelated art-pack merge that added twenty items to one seeded inventory
+ * halved every score in the demo overnight. A headline number that drifts
+ * whenever somebody else touches a fixture cannot be trusted on stage.
+ *
+ * Dividing by the SMALLER side removes that coupling: adding items to the
+ * larger collection cannot move the score at all.
+ *
+ * Callers pass verified ids only. This function does not filter — keeping the
  * trust rule in `rankCollectors` means there is exactly one place it can be got
  * wrong.
  */
@@ -114,15 +141,16 @@ export function similarity(
   const b = new Set(bItemIds);
 
   let intersectionWeight = 0;
-  let unionWeight = 0;
+  let weightA = 0;
+  let weightB = 0;
   const shared: { id: string; weight: number }[] = [];
 
-  const union = new Set([...a, ...b]);
-  for (const id of union) {
+  for (const id of new Set([...a, ...b])) {
     const item = catalogue.get(id);
     if (!item) continue;
     const weight = itemWeight(item);
-    unionWeight += weight;
+    if (a.has(id)) weightA += weight;
+    if (b.has(id)) weightB += weight;
     if (a.has(id) && b.has(id)) {
       intersectionWeight += weight;
       shared.push({ id, weight });
@@ -130,8 +158,9 @@ export function similarity(
   }
 
   shared.sort((x, y) => y.weight - x.weight);
+  const denominator = Math.min(weightA, weightB) + SIMILARITY_SMOOTHING;
   return {
-    score: unionWeight === 0 ? 0 : intersectionWeight / unionWeight,
+    score: intersectionWeight === 0 ? 0 : intersectionWeight / denominator,
     sharedItemIds: shared.map((s) => s.id),
   };
 }
