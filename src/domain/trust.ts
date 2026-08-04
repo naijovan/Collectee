@@ -33,10 +33,13 @@ export const FLAG_THRESHOLD = 3;
  * fixtures already document this (`src/fixtures/social.ts`) and every seeded
  * flag follows it.
  *
- * TODO(Bernard): `src/app/collection/[id].tsx` raises flags with `item.id`, a
- * catalogue id, so those flags can never match a target here and never reach the
- * review queue. It needs the viewer-visible `OwnedItem.id` for the item's owner.
- * Until then the flag path works on seeded data only.
+ * TODO(Bernard): `src/app/collection/[id].tsx` (currently line 103, inside
+ * `raiseFlag`) passes `targetId: item.id`, a catalogue id, so those flags can
+ * never match a target here and never reach the review queue at
+ * `/moderation`. It needs the `OwnedItem.id` of the claim being disputed —
+ * i.e. the collection owner's ownership record for that item, not the
+ * catalogue entry. Until then the flag path works on seeded data only, and
+ * every flag raised through the UI is silently inert.
  */
 export const FLAG_TARGET_ID_SPACE = 'OwnedItem.id' as const;
 
