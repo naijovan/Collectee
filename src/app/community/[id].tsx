@@ -17,11 +17,20 @@
  */
 
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
-import { Avatar, LoadingState, PrimaryButton, SecondaryButton, SectionHeader } from '@/components';
-import { socialService } from '@/services';
+import {
+  Avatar,
+  EmptyState,
+  LoadingState,
+  PrimaryButton,
+  SecondaryButton,
+  SectionHeader,
+  timeAgo,
+} from '@/components';
+import { socialService, threadService } from '@/services';
+import type { ThreadSummary } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Community, CommunityNotificationPref, User } from '@/types';
@@ -45,6 +54,11 @@ export default function CommunityScreen() {
   const [isMember, setIsMember] = useState(false);
   const [memberCount, setMemberCount] = useState(0);
   const [pref, setPref] = useState<CommunityNotificationPref>('all');
+  const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [composing, setComposing] = useState(false);
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [postError, setPostError] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
 
   const load = useCallback(async () => {
@@ -53,10 +67,14 @@ export default function CommunityScreen() {
       setBusy(false);
       return;
     }
-    const roster = await socialService.getCommunityMembers(found.id);
+    const [roster, discussions] = await Promise.all([
+      socialService.getCommunityMembers(found.id),
+      threadService.getThreads(found.id),
+    ]);
 
     setCommunity(found);
     setMembers(roster);
+    setThreads(discussions);
     setMemberCount(socialService.memberCountFor(found));
     setIsMember(socialService.isMember(viewerId, found.id));
     setPref(socialService.membershipPrefFor(viewerId, found.id));
@@ -85,6 +103,32 @@ export default function CommunityScreen() {
     setPref(await socialService.setMembershipPref(viewerId, community.id, next));
   }
 
+  async function startThread() {
+    if (!community) return;
+    // Validate through the service so the message the user reads is the one the
+    // domain actually produced — a second copy of the rules here would drift.
+    const validation = threadService.validate({ title, body });
+    if (!validation.valid) {
+      setPostError(validation.errors.join(' '));
+      return;
+    }
+    try {
+      const created = await threadService.createThread({
+        communityId: community.id,
+        userId: viewerId,
+        title,
+        body,
+      });
+      setTitle('');
+      setBody('');
+      setComposing(false);
+      setPostError(null);
+      router.push({ pathname: '/thread/[id]', params: { id: created.id } });
+    } catch (error) {
+      setPostError((error as Error).message);
+    }
+  }
+
   if (busy) {
     return (
       <View style={[styles.screen, styles.content]}>
@@ -100,6 +144,10 @@ export default function CommunityScreen() {
       </View>
     );
   }
+
+  // Asked once, from the service, so the screen cannot disagree with the rule
+  // it is enforcing (§14 rung 3).
+  const postingGate = threadService.canPostIn(viewerId, community.id);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -146,6 +194,80 @@ export default function CommunityScreen() {
         </View>
       ) : null}
 
+      {/*
+        Threads — the social half of a community (§11 F5). Reading is never
+        gated; posting is, and the gate's own sentence is what gets shown.
+      */}
+      <SectionHeader title="Discussions" />
+
+      {postingGate.allowed ? (
+        composing ? (
+          <View style={styles.composer}>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="What do you want to talk about?"
+              placeholderTextColor={colors.textTertiary}
+              style={styles.input}
+            />
+            <TextInput
+              value={body}
+              onChangeText={setBody}
+              placeholder="Add some detail (optional)"
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              style={[styles.input, styles.inputMultiline]}
+            />
+            {postError ? <Text style={styles.error}>{postError}</Text> : null}
+            <PrimaryButton label="Start thread" onPress={() => void startThread()} />
+            <SecondaryButton
+              label="Cancel"
+              onPress={() => {
+                setComposing(false);
+                setPostError(null);
+              }}
+            />
+          </View>
+        ) : (
+          <SecondaryButton label="+  Start a thread" onPress={() => setComposing(true)} />
+        )
+      ) : (
+        <Text style={styles.footnote}>{postingGate.reason}</Text>
+      )}
+
+      {threads.length === 0 ? (
+        <EmptyState
+          title="No discussions yet"
+          body={
+            postingGate.allowed
+              ? 'Start the first one — ask something, or show what you just pulled.'
+              : 'Nobody has started a thread here yet.'
+          }
+        />
+      ) : (
+        <View style={styles.list}>
+          {threads.map(({ thread, author, replyCount, lastActivityAt }) => (
+            <Pressable
+              key={thread.id}
+              onPress={() => router.push({ pathname: '/thread/[id]', params: { id: thread.id } })}
+              style={[styles.row, thread.pinned && styles.rowPinned]}
+            >
+              <View style={styles.rowBody}>
+                {thread.pinned ? <Text style={styles.pinned}>PINNED</Text> : null}
+                <Text style={styles.rowTitle} numberOfLines={2}>
+                  {thread.title}
+                </Text>
+                <Text style={styles.muted}>
+                  {author?.displayName ?? 'Unknown'} · {replyCount}{' '}
+                  {replyCount === 1 ? 'reply' : 'replies'} · {timeAgo(lastActivityAt)}
+                </Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
       <SectionHeader title="Collectors here" />
       {members.length === 0 ? (
         <Text style={styles.muted}>No members yet.</Text>
@@ -173,10 +295,6 @@ export default function CommunityScreen() {
         </View>
       )}
 
-      {/*
-        Posting (§11 F5, behind FEATURES.communityPosting) is a separate unit of
-        work. Nothing is rendered for it here on purpose — see §14 rung 3.
-      */}
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
@@ -230,4 +348,20 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, gap: 2 },
   rowTitle: { ...typography.cardTitle, color: colors.textPrimary },
   chevron: { fontSize: 22, color: colors.textTertiary },
+  rowPinned: { borderColor: colors.accent },
+  pinned: { ...typography.meta, fontSize: 10, color: colors.accent, letterSpacing: 0.5 },
+  footnote: { ...typography.meta, color: colors.textTertiary },
+  error: { ...typography.meta, color: colors.danger },
+
+  composer: { gap: spacing.sm },
+  input: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    color: colors.textPrimary,
+    ...typography.body,
+  },
+  inputMultiline: { minHeight: 72, textAlignVertical: 'top' },
 });
