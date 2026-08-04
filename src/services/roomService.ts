@@ -14,6 +14,8 @@
 
 import { ROOMS, ROOMS_BY_ID } from '@/fixtures/collections';
 import { ROOM_THEMES, THEMES_BY_ID } from '@/fixtures/room-themes';
+import { suggestRoom, suggestRooms } from '@/domain/roomSuggestion';
+import type { RoomSuggestion } from '@/domain/roomSuggestion';
 import { ITEMS_BY_ID } from '@/fixtures/catalogue';
 import {
   assertRoomValid,
@@ -76,6 +78,13 @@ export interface RoomStatus {
   published: boolean;
 }
 
+/** OwnedItem rows resolved to catalogue items, dropping anything unknown. */
+function itemsFor(ownedItems: readonly OwnedItem[]) {
+  return ownedItems
+    .map((owned) => ITEMS_BY_ID.get(owned.itemId))
+    .filter((item): item is NonNullable<typeof item> => item !== undefined);
+}
+
 export const roomService = {
   async getThemes(): Promise<RoomTheme[]> {
     return delay([...ROOM_THEMES], LATENCY_INSTANT);
@@ -92,29 +101,24 @@ export const roomService = {
    * "make the reason legible" principle as §11 F5. The reason is returned with
    * the theme so the card can print why it was picked.
    */
+  /**
+   * The best room for a set of owned items, with the reason that drove it.
+   *
+   * Delegates to `domain/roomSuggestion`, which scores every theme on colour,
+   * rarity, title mix and item form. The previous implementation branched on
+   * cross-game alone and could only ever return two of the six themes.
+   */
   async recommendTheme(
     ownedItems: readonly OwnedItem[],
   ): Promise<{ theme: RoomTheme; reason: string }> {
-    const titles = new Set<string>();
-    let mythicish = 0;
-    for (const owned of ownedItems) {
-      const item = ITEMS_BY_ID.get(owned.itemId);
-      if (!item) continue;
-      titles.add(item.title);
-      if (item.rarityTier === 'mythic' || item.rarityTier === 'legendary') mythicish += 1;
-    }
+    const best = suggestRoom(itemsFor(ownedItems), ROOM_THEMES);
+    const fallback = { theme: ROOM_THEMES[0]!, reason: 'A neutral starting point' };
+    return delay(best ?? fallback, LATENCY_FETCH);
+  },
 
-    const themes = [...ROOM_THEMES];
-    const vault = themes[0]!;
-    const study = themes.find((t) => t.id === 'theme-collectors-study') ?? vault;
-
-    const pick = titles.size > 1 ? vault : study;
-    const reason =
-      titles.size > 1
-        ? `Fits a cross-game set — ${titles.size} titles and ${mythicish} high-rarity items`
-        : `Suits a single-title collection with ${mythicish} high-rarity items`;
-
-    return delay({ theme: pick, reason }, LATENCY_FETCH);
+  /** Every theme ranked for these items — the picker orders itself by this. */
+  async rankThemes(ownedItems: readonly OwnedItem[]): Promise<RoomSuggestion[]> {
+    return delay(suggestRooms(itemsFor(ownedItems), ROOM_THEMES), LATENCY_FETCH);
   },
 
   /** Which named stage a 0–1 progress fraction is in. Drives the frame-5 checklist. */

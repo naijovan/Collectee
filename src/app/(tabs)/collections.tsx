@@ -25,6 +25,8 @@ import {
 } from '@/components';
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
+import { suggestRoom } from '@/domain/roomSuggestion';
+import type { RoomSuggestion } from '@/domain/roomSuggestion';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, inventoryService, roomService } from '@/services';
 import type { RoomStatus } from '@/services';
@@ -39,6 +41,8 @@ type Filter = (typeof FILTERS)[number];
 interface Entry {
   collection: Collection;
   headline: Item | null;
+  /** The room this collection would get if the user asked for one. */
+  suggestion: RoomSuggestion | null;
 }
 
 export default function CollectionsScreen() {
@@ -56,11 +60,18 @@ export default function CollectionsScreen() {
 
   const load = useCallback(async () => {
     const mine = await collectionService.getCollectionsByUser(viewerId, true);
+    const themes = await roomService.getThemes();
     const withArt = await Promise.all(
-      mine.map(async (collection) => ({
-        collection,
-        headline: headlineItem(await catalogueService.getItems(collection.itemIds)),
-      })),
+      mine.map(async (collection) => {
+        const items = await catalogueService.getItems(collection.itemIds);
+        return {
+          collection,
+          headline: headlineItem(items),
+          // Scored from the collection's own contents — colour, rarity, title
+          // mix and item form. Pure logic, so it costs nothing to do per card.
+          suggestion: suggestRoom(items, themes),
+        };
+      }),
     );
     const owned = await inventoryService.getOwnedItems(viewerId);
     setEntries(withArt);
@@ -125,33 +136,20 @@ export default function CollectionsScreen() {
                 <Text style={styles.visibility}>
                   {VISIBILITY_LABELS[entry.collection.visibility]}
                 </Text>
-                <RoomCta status={rooms.get(entry.collection.id)} collectionId={entry.collection.id} />
+                <RoomCta
+                  status={rooms.get(entry.collection.id)}
+                  collectionId={entry.collection.id}
+                  suggestion={entry.suggestion}
+                />
               </View>
             ))}
         </View>
       )}
 
-      {progress.length > 0 ? (
-        <View>
-          <SectionHeader title="Sets in progress" />
-          <View style={styles.progressList}>
-            {progress.slice(0, 4).map((entry) => (
-              <View key={entry.setId} style={styles.progressRow}>
-                <View style={styles.progressText}>
-                  <Text style={styles.rowTitle}>{entry.setName}</Text>
-                  <Text style={styles.muted}>
-                    {entry.owned} of {entry.total} owned
-                  </Text>
-                </View>
-                <View style={styles.track}>
-                  <View style={[styles.fill, { width: `${Math.round(entry.ratio * 100)}%` }]} />
-                </View>
-                <Text style={styles.percent}>{Math.round(entry.ratio * 100)}%</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      ) : null}
+      {/* "Sets in progress" lived here. Set completion is a real feature (§4, the
+          Completionist persona) but it is not this screen's job — Collections is
+          the grid, per the frame. It moves to the collection detail page rather
+          than being deleted; `setProgressFor` is untouched. */}
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
@@ -184,9 +182,12 @@ function matchesFilter(
 function RoomCta({
   status,
   collectionId,
+  suggestion,
 }: {
   status: RoomStatus | undefined;
   collectionId: string;
+  /** The room this collection would get, from `domain/roomSuggestion`. */
+  suggestion?: RoomSuggestion | null;
 }) {
   const router = useRouter();
 
@@ -200,7 +201,7 @@ function RoomCta({
           router.push({ pathname: '/room/immersive/[id]', params: { id: status.room.id } })
         }
       >
-        <Text style={styles.roomCtaText}>View room →</Text>
+        <Text style={styles.roomCtaText}>View room  →</Text>
       </Pressable>
     );
   }
@@ -208,21 +209,35 @@ function RoomCta({
   if (status) {
     return (
       <Pressable
-        style={styles.roomCta}
+        style={[styles.roomCta, styles.roomCtaMuted]}
         onPress={() => router.push({ pathname: '/room/[id]', params: { id: status.room.id } })}
       >
-        <Text style={styles.roomCtaPending}>◷ Room in progress</Text>
+        <Text style={styles.roomCtaPending}>◷  Room in progress</Text>
       </Pressable>
     );
   }
 
+  // No room yet — lead with what the app would build, not a bare CTA. The
+  // suggestion is the feature (§11 F4); the button is how you accept it.
   return (
-    <Pressable
-      style={styles.roomCta}
-      onPress={() => router.push({ pathname: '/room/intro', params: { collectionId } })}
-    >
-      <Text style={styles.roomCtaText}>+ Create room</Text>
-    </Pressable>
+    <>
+      {suggestion ? (
+        <View style={styles.suggestRow}>
+          <Text style={styles.suggestSpark}>✦</Text>
+          <Text style={styles.suggestText} numberOfLines={2}>
+            {suggestion.theme.name} · {suggestion.reason}
+          </Text>
+        </View>
+      ) : null}
+      <Pressable
+        style={styles.roomCta}
+        onPress={() => router.push({ pathname: '/room/intro', params: { collectionId } })}
+      >
+        <Text style={styles.roomCtaText}>
+          {suggestion ? `Create ${suggestion.theme.name} room` : '+  Create room'}
+        </Text>
+      </Pressable>
+    </>
   );
 }
 
@@ -236,15 +251,29 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
   gridItem: { width: '48%', gap: spacing.xs },
   visibility: { ...typography.meta, color: colors.textTertiary, paddingLeft: spacing.xs },
+  // Per the frame: a full-width accent-outlined pill inside the card, label
+  // centred with its glyph. Same shape whichever state it is in, so a row of
+  // cards reads as one control repeated rather than three different buttons.
   roomCta: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
   },
-  roomCtaText: { ...typography.meta, color: colors.accent },
-  roomCtaPending: { ...typography.meta, color: colors.warning },
+  /** In-progress is a status, not an action — muted so it reads as one. */
+  roomCtaMuted: { borderColor: colors.border, backgroundColor: 'transparent' },
+  roomCtaText: { ...typography.cardTitle, color: colors.accent },
+  roomCtaPending: { ...typography.cardTitle, color: colors.textSecondary },
+
+  /** The suggested-room line above the CTA. */
+  suggestRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.xs },
+  suggestSpark: { ...typography.meta, color: colors.accent },
+  suggestText: { ...typography.meta, color: colors.textSecondary, flex: 1, minWidth: 0 },
 
   progressList: { gap: spacing.sm },
   progressRow: {

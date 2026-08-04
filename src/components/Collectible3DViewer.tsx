@@ -18,7 +18,7 @@ import type { Item } from '@/types';
 
 import { modelFor } from '@/config/modelRegistry';
 
-import { ArtworkRelief3D, itemTexture } from './ArtworkRelief3D';
+import { ArtworkRelief3D, itemDepth, itemTexture } from './ArtworkRelief3D';
 import { CollectibleGLTF } from './CollectibleGLTF';
 
 interface ViewerControls {
@@ -298,10 +298,11 @@ function CollectibleRig({
       position={[0, art ? 0.45 : kind === 'hero' ? 0.25 : 0.65, 0]}
     >
       {mesh ? (
-        <CollectibleGLTF module={mesh} accent={accent} size={4.6} />
+        <CollectibleGLTF module={mesh} texture={itemTexture(item)} accent={accent} size={4.6} />
       ) : art ? (
         <ArtworkRelief3D
           source={art}
+          depthSource={itemDepth(item)}
           accent={accent}
           width={5.55}
           height={3.7}

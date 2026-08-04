@@ -36,7 +36,14 @@
 
 /** Catalogue item id → bundled .glb. Empty until the first model lands. */
 export const ITEM_MODELS: Record<string, number> = {
-  // 'codm-dlq33-lightbringer': require('../../assets/collectee/models/codm-dlq33-lightbringer.glb'),
+  'codm-dlq33-lightbringer': require('../../assets/collectee/models/codm-dlq33-lightbringer.glb'),
+  'codm-fennec-ascended': require('../../assets/collectee/models/codm-fennec-ascended.glb'),
+  // Character art is deliberately NOT registered. The `subjects/` renders are
+  // head-and-shoulders crops on busy backgrounds, so a baked mesh is a floating
+  // bust — worse than the procedural full-body statue it would replace. Register
+  // one only when a full-body render on a plain background exists to bake from.
+  'val-elderflame-vandal': require('../../assets/collectee/models/val-elderflame-vandal.glb'),
+  'val-prime-karambit': require('../../assets/collectee/models/val-prime-karambit.glb'),
 };
 
 /** The bundled mesh for an item, or null when it has none yet. */

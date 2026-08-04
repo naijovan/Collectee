@@ -6,7 +6,7 @@ import {
   TextureLoader,
 } from 'three';
 
-import { artFor } from '@/config/artRegistry';
+import { artFor, depthFor } from '@/config/artRegistry';
 import { colors } from '@/theme/theme';
 import type { Item } from '@/types';
 
@@ -29,14 +29,32 @@ export function itemTexture(item: Item): number | null {
   return resolveItemArt(item.renderUrl);
 }
 
+/**
+ * The baked depth map for an item, or null.
+ *
+ * Only the id-keyed registry has these — the `renderUrl` fallback path predates
+ * the bake, so art arriving that way displaces by luminance as before rather
+ * than not rendering at all.
+ */
+export function itemDepth(item: Item): number | null {
+  return (depthFor(item.id) as number | null) ?? null;
+}
+
 export function ArtworkRelief3D({
   source,
+  depthSource,
   accent,
   width = 3,
   height = 2,
   depth = 0.16,
 }: {
   source: number;
+  /**
+   * Baked depth map. Without one the colour image is used, which makes
+   * brightness into height — kept only so art on the legacy `renderUrl` path
+   * still renders.
+   */
+  depthSource?: number | null;
   accent: string;
   width?: number;
   height?: number;
@@ -44,6 +62,11 @@ export function ArtworkRelief3D({
 }) {
   // R3F Native resolves Metro module IDs through expo-asset at runtime.
   const texture = useLoader(TextureLoader, source as unknown as string);
+  const depthTexture = useLoader(
+    TextureLoader,
+    (depthSource ?? source) as unknown as string,
+  );
+  const hasRealDepth = depthSource != null;
 
   useEffect(() => {
     texture.colorSpace = SRGBColorSpace;
@@ -52,6 +75,14 @@ export function ArtworkRelief3D({
     texture.anisotropy = 8;
     texture.needsUpdate = true;
   }, [texture]);
+
+  useEffect(() => {
+    // Linear, NOT sRGB — this is height data, not colour. Decoding it as sRGB
+    // would apply a gamma curve to the displacement and flatten the mid-range.
+    depthTexture.minFilter = LinearFilter;
+    depthTexture.magFilter = LinearFilter;
+    depthTexture.needsUpdate = true;
+  }, [depthTexture]);
 
   const rail = 0.045;
 
@@ -67,14 +98,21 @@ export function ArtworkRelief3D({
       </mesh>
 
       <mesh position={[0, 0, depth * 0.06]}>
-        <planeGeometry args={[width, height, 72, 48]} />
+        {/* Denser with a real depth map: displacement can only move existing
+            vertices, so silhouette fidelity is capped by subdivision. 144x96 is
+            ~14k verts — cheap next to a loaded mesh, and it is what lets an
+            edge read as an edge rather than a staircase. */}
+        <planeGeometry args={[width, height, hasRealDepth ? 144 : 72, hasRealDepth ? 96 : 48]} />
         <meshStandardMaterial
           map={texture}
-          bumpMap={texture}
-          bumpScale={depth * 0.16}
-          displacementMap={texture}
-          displacementBias={-depth * 0.08}
-          displacementScale={depth * 0.52}
+          bumpMap={depthTexture}
+          bumpScale={depth * (hasRealDepth ? 0.34 : 0.16)}
+          displacementMap={depthTexture}
+          // Real depth earns a much bigger push: it is the object's actual
+          // shape, so the barrel comes forward instead of every bright pixel.
+          // Bias recentres it so the plane sits mid-relief rather than in front.
+          displacementBias={-depth * (hasRealDepth ? 1.15 : 0.08)}
+          displacementScale={depth * (hasRealDepth ? 2.3 : 0.52)}
           emissive={colors.textPrimary}
           emissiveMap={texture}
           emissiveIntensity={0.12}

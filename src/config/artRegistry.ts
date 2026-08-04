@@ -530,3 +530,123 @@ export function artCoverage(): number {
 export function artIds(): string[] {
   return Object.keys(ART);
 }
+
+/**
+ * Item id → baked depth map, produced by `npm run bake:depth`.
+ *
+ * `ArtworkRelief3D` displaces its plane by this rather than by the colour
+ * image. Displacing by colour makes brightness into height, so a gold highlight
+ * bulges and a dark barrel sinks — an accident of the render's lighting, and
+ * the reason the collectibles read as bumpy photographs. A real monocular-depth
+ * map gives the actual shape from the same single image.
+ *
+ * Greyscale and 512px: displacement samples one channel onto a 72x48 plane, so
+ * colour and extra resolution would both be thrown away.
+ *
+ * Generated. Rerun the bake rather than hand-editing.
+ */
+const DEPTH: Record<string, ImageSourcePropType> = {
+  'codm-ak117-cordite-storm': require('../../assets/collectee/depth/codm-ak117-cordite-storm.png'),
+  'codm-alias-frostbite': require('../../assets/collectee/depth/codm-alias-frostbite.png'),
+  'codm-asm10-sandstorm': require('../../assets/collectee/depth/codm-asm10-sandstorm.png'),
+  'codm-camo-desert-strata': require('../../assets/collectee/depth/codm-camo-desert-strata.png'),
+  'codm-camo-olive-standard': require('../../assets/collectee/depth/codm-camo-olive-standard.png'),
+  'codm-camo-urban-splinter': require('../../assets/collectee/depth/codm-camo-urban-splinter.png'),
+  'codm-charm-brass-shell': require('../../assets/collectee/depth/codm-charm-brass-shell.png'),
+  'codm-charm-chronoseal': require('../../assets/collectee/depth/codm-charm-chronoseal.png'),
+  'codm-charm-dog-tag': require('../../assets/collectee/depth/codm-charm-dog-tag.png'),
+  'codm-charm-golden-skull': require('../../assets/collectee/depth/codm-charm-golden-skull.png'),
+  'codm-charm-sweetheart-prism': require('../../assets/collectee/depth/codm-charm-sweetheart-prism.png'),
+  'codm-dlq33-lightbringer': require('../../assets/collectee/depth/codm-dlq33-lightbringer.png'),
+  'codm-drh-cerberus': require('../../assets/collectee/depth/codm-drh-cerberus.png'),
+  'codm-fennec-ascended': require('../../assets/collectee/depth/codm-fennec-ascended.png'),
+  'codm-ghost-nightfall': require('../../assets/collectee/depth/codm-ghost-nightfall.png'),
+  'codm-hbra3-tidal': require('../../assets/collectee/depth/codm-hbra3-tidal.png'),
+  'codm-kilo141-glacier': require('../../assets/collectee/depth/codm-kilo141-glacier.png'),
+  'codm-locus-ironclad': require('../../assets/collectee/depth/codm-locus-ironclad.png'),
+  'codm-m4-arctic-hunter': require('../../assets/collectee/depth/codm-m4-arctic-hunter.png'),
+  'codm-mac10-riptide': require('../../assets/collectee/depth/codm-mac10-riptide.png'),
+  'codm-mansk-blackout': require('../../assets/collectee/depth/codm-mansk-blackout.png'),
+  'codm-pdw57-abyss': require('../../assets/collectee/depth/codm-pdw57-abyss.png'),
+  'codm-price-monsoon': require('../../assets/collectee/depth/codm-price-monsoon.png'),
+  'codm-qq9-diavolo': require('../../assets/collectee/depth/codm-qq9-diavolo.png'),
+  'codm-rus79u-molten': require('../../assets/collectee/depth/codm-rus79u-molten.png'),
+  'codm-soap-recruit': require('../../assets/collectee/depth/codm-soap-recruit.png'),
+  'mlbb-akai-panda-warrior': require('../../assets/collectee/depth/mlbb-akai-panda-warrior.png'),
+  'mlbb-alucard-obsidian-blade': require('../../assets/collectee/depth/mlbb-alucard-obsidian-blade.png'),
+  'mlbb-arcane-revenant': require('../../assets/collectee/depth/mlbb-arcane-revenant.png'),
+  'mlbb-balmond-frostmoon': require('../../assets/collectee/depth/mlbb-balmond-frostmoon.png'),
+  'mlbb-chou-dragon-boy': require('../../assets/collectee/depth/mlbb-chou-dragon-boy.png'),
+  'mlbb-cyber-breacher': require('../../assets/collectee/depth/mlbb-cyber-breacher.png'),
+  'mlbb-emberfall-warlord': require('../../assets/collectee/depth/mlbb-emberfall-warlord.png'),
+  'mlbb-eudora-royal-sorcerer': require('../../assets/collectee/depth/mlbb-eudora-royal-sorcerer.png'),
+  'mlbb-fanny-skylark': require('../../assets/collectee/depth/mlbb-fanny-skylark.png'),
+  'mlbb-frost-sentinel': require('../../assets/collectee/depth/mlbb-frost-sentinel.png'),
+  'mlbb-gord-conqueror': require('../../assets/collectee/depth/mlbb-gord-conqueror.png'),
+  'mlbb-granger-starfall-knight': require('../../assets/collectee/depth/mlbb-granger-starfall-knight.png'),
+  'mlbb-gusion-cyber-faust': require('../../assets/collectee/depth/mlbb-gusion-cyber-faust.png'),
+  'mlbb-gusion-cyber-ops': require('../../assets/collectee/depth/mlbb-gusion-cyber-ops.png'),
+  'mlbb-hayabusa-shadow-vanguard': require('../../assets/collectee/depth/mlbb-hayabusa-shadow-vanguard.png'),
+  'mlbb-kagura-cherry-witch': require('../../assets/collectee/depth/mlbb-kagura-cherry-witch.png'),
+  'mlbb-kagura-feathery-wonderland': require('../../assets/collectee/depth/mlbb-kagura-feathery-wonderland.png'),
+  'mlbb-lancelot-royal-matador': require('../../assets/collectee/depth/mlbb-lancelot-royal-matador.png'),
+  'mlbb-layla-malefic-gunner': require('../../assets/collectee/depth/mlbb-layla-malefic-gunner.png'),
+  'mlbb-lesley-cyber-blossom': require('../../assets/collectee/depth/mlbb-lesley-cyber-blossom.png'),
+  'mlbb-lightborn-defender': require('../../assets/collectee/depth/mlbb-lightborn-defender.png'),
+  'mlbb-ling-serpent-lord': require('../../assets/collectee/depth/mlbb-ling-serpent-lord.png'),
+  'mlbb-manifold-rift': require('../../assets/collectee/depth/mlbb-manifold-rift.png'),
+  'mlbb-miya-modena-butterfly': require('../../assets/collectee/depth/mlbb-miya-modena-butterfly.png'),
+  'mlbb-nana-cat-fairy': require('../../assets/collectee/depth/mlbb-nana-cat-fairy.png'),
+  'mlbb-neon-encore': require('../../assets/collectee/depth/mlbb-neon-encore.png'),
+  'mlbb-neon-ronin': require('../../assets/collectee/depth/mlbb-neon-ronin.png'),
+  'mlbb-radiant-huntress': require('../../assets/collectee/depth/mlbb-radiant-huntress.png'),
+  'mlbb-selena-virulent-nightmare': require('../../assets/collectee/depth/mlbb-selena-virulent-nightmare.png'),
+  'mlbb-shadow-protocol': require('../../assets/collectee/depth/mlbb-shadow-protocol.png'),
+  'mlbb-slipstream-pilot': require('../../assets/collectee/depth/mlbb-slipstream-pilot.png'),
+  'mlbb-solar-paladin': require('../../assets/collectee/depth/mlbb-solar-paladin.png'),
+  'mlbb-tigreal-lightborn-paladin': require('../../assets/collectee/depth/mlbb-tigreal-lightborn-paladin.png'),
+  'mlbb-valentine-sweetheart': require('../../assets/collectee/depth/mlbb-valentine-sweetheart.png'),
+  'mlbb-void-empress': require('../../assets/collectee/depth/mlbb-void-empress.png'),
+  'mlbb-voidstorm-spirit': require('../../assets/collectee/depth/mlbb-voidstorm-spirit.png'),
+  'mlbb-zilong-eastern-warrior': require('../../assets/collectee/depth/mlbb-zilong-eastern-warrior.png'),
+  'mlbb-zodiac-aquarius': require('../../assets/collectee/depth/mlbb-zodiac-aquarius.png'),
+  'val-araxys-vandal': require('../../assets/collectee/depth/val-araxys-vandal.png'),
+  'val-champions-2022-phantom': require('../../assets/collectee/depth/val-champions-2022-phantom.png'),
+  'val-elderflame-dagger': require('../../assets/collectee/depth/val-elderflame-dagger.png'),
+  'val-elderflame-operator': require('../../assets/collectee/depth/val-elderflame-operator.png'),
+  'val-elderflame-vandal': require('../../assets/collectee/depth/val-elderflame-vandal.png'),
+  'val-glitchpop-vandal': require('../../assets/collectee/depth/val-glitchpop-vandal.png'),
+  'val-infantry-bulldog': require('../../assets/collectee/depth/val-infantry-bulldog.png'),
+  'val-ion-operator': require('../../assets/collectee/depth/val-ion-operator.png'),
+  'val-luxe-classic': require('../../assets/collectee/depth/val-luxe-classic.png'),
+  'val-nebula-sheriff': require('../../assets/collectee/depth/val-nebula-sheriff.png'),
+  'val-oni-phantom': require('../../assets/collectee/depth/val-oni-phantom.png'),
+  'val-origin-phantom': require('../../assets/collectee/depth/val-origin-phantom.png'),
+  'val-origin-vandal': require('../../assets/collectee/depth/val-origin-vandal.png'),
+  'val-prime-karambit': require('../../assets/collectee/depth/val-prime-karambit.png'),
+  'val-prime-spectre': require('../../assets/collectee/depth/val-prime-spectre.png'),
+  'val-prime-vandal': require('../../assets/collectee/depth/val-prime-vandal.png'),
+  'val-prism-spectre': require('../../assets/collectee/depth/val-prism-spectre.png'),
+  'val-reaver-knife': require('../../assets/collectee/depth/val-reaver-knife.png'),
+  'val-reaver-sheriff': require('../../assets/collectee/depth/val-reaver-sheriff.png'),
+  'val-reaver-vandal': require('../../assets/collectee/depth/val-reaver-vandal.png'),
+  'val-riftblade-katana': require('../../assets/collectee/depth/val-riftblade-katana.png'),
+  'val-ruination-sword': require('../../assets/collectee/depth/val-ruination-sword.png'),
+  'val-sarmad-guardian': require('../../assets/collectee/depth/val-sarmad-guardian.png'),
+  'val-singularity-knife': require('../../assets/collectee/depth/val-singularity-knife.png'),
+  'val-singularity-phantom': require('../../assets/collectee/depth/val-singularity-phantom.png'),
+  'val-sovereign-ghost': require('../../assets/collectee/depth/val-sovereign-ghost.png'),
+  'val-spectrum-phantom': require('../../assets/collectee/depth/val-spectrum-phantom.png'),
+  'val-spectrum-waveform': require('../../assets/collectee/depth/val-spectrum-waveform.png'),
+  'val-voidglass-blade': require('../../assets/collectee/depth/val-voidglass-blade.png'),
+};
+
+/** The baked depth map for an item, or null when it has none. */
+export function depthFor(itemId: string): ImageSourcePropType | null {
+  return DEPTH[itemId] ?? null;
+}
+
+/** How many items have depth. Used by scripts/audit-art.ts. */
+export function depthCoverage(): number {
+  return Object.keys(DEPTH).length;
+}

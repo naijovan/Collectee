@@ -25,8 +25,8 @@
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useLoader } from '@react-three/fiber/native';
 import { Asset } from 'expo-asset';
-import { Box3, Vector3 } from 'three';
-import type { Group, Mesh } from 'three';
+import { Box3, LinearFilter, SRGBColorSpace, TextureLoader, Vector3 } from 'three';
+import type { Group, Mesh, MeshStandardMaterial } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 /**
@@ -44,11 +44,18 @@ function sourceUri(module: number): string {
 
 export function CollectibleGLTF({
   module,
+  texture: textureModule,
   accent,
   size = 2.4,
 }: {
   /** The value from `modelFor(item.id)` — a Metro module id. */
   module: number;
+  /**
+   * Colour render to skin the mesh with. Baked meshes ship geometry and UVs but
+   * no embedded image, so the texture lives once in the bundle instead of once
+   * per model, and re-generated art appears without re-baking the mesh.
+   */
+  texture?: number | null;
   /** Rarity colour, used for the floor bounce. */
   accent: string;
   /** Longest axis after normalisation, in world units. */
@@ -57,6 +64,10 @@ export function CollectibleGLTF({
   const uri = useMemo(() => sourceUri(module), [module]);
   const gltf = useLoader(GLTFLoader, uri);
   const holder = useRef<Group>(null);
+  const skin = useLoader(
+    TextureLoader,
+    (textureModule ?? module) as unknown as string,
+  );
 
   // `scene` is shared across every instance of the same model, so it is cloned
   // before being scaled — otherwise two rooms showing the same item fight over
@@ -85,8 +96,20 @@ export function CollectibleGLTF({
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+
+      if (textureModule == null) return;
+      // UVs are a straight projection of the source image, so the render lands
+      // on the front exactly as drawn — and wraps onto the mirrored back, which
+      // is what makes an inferred back read as the same object.
+      const material = mesh.material as MeshStandardMaterial;
+      skin.colorSpace = SRGBColorSpace;
+      skin.minFilter = LinearFilter;
+      skin.magFilter = LinearFilter;
+      skin.anisotropy = 8;
+      material.map = skin;
+      material.needsUpdate = true;
     });
-  }, [scene, size]);
+  }, [scene, size, skin, textureModule]);
 
   return (
     <group ref={holder}>

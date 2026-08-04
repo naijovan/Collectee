@@ -106,16 +106,6 @@ export const COMMENTS = [
     createdAt: '2026-06-21T12:02:00.000Z',
   },
   {
-    id: 'cmt-3',
-    targetType: 'room',
-    targetId: 'room-mei-elderflame',
-    userId: 'user-arya',
-    body: 'The armoury lighting suits this set far better than the vault would.',
-    parentId: null,
-    likeCount: 271,
-    createdAt: '2026-04-02T08:15:00.000Z',
-  },
-  {
     id: 'cmt-4',
     targetType: 'collection',
     targetId: 'col-rei-mythic-only',

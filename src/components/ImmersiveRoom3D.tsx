@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Canvas, useFrame } from '@react-three/fiber/native';
@@ -12,7 +12,7 @@ import type { Item, Room, RoomTheme, Slot } from '@/types';
 import { backdropFor } from '@/config/artRegistry';
 import { modelFor } from '@/config/modelRegistry';
 
-import { ArtworkRelief3D, itemTexture } from './ArtworkRelief3D';
+import { ArtworkRelief3D, itemDepth, itemTexture } from './ArtworkRelief3D';
 import { CollectibleGLTF } from './CollectibleGLTF';
 import { RoomAtmosphere } from './RoomAtmosphere';
 import { CollectibleModel3D } from './Collectible3DViewer';
@@ -25,6 +25,16 @@ interface GalleryControls {
   targetPitch: number;
   velocityYaw: number;
   dragging: boolean;
+  /** User zoom, on top of the fit scale and any focus dolly. */
+  zoom: number;
+  targetZoom: number;
+  /** Pan, in world units. What lets you reach the room once zoomed in. */
+  panX: number;
+  panY: number;
+  targetPanX: number;
+  targetPanY: number;
+  /** World units per screen pixel, so a drag tracks the finger. */
+  worldPerPx: number;
 }
 
 interface GalleryPlacement {
@@ -39,7 +49,17 @@ const INITIAL_CONTROLS: GalleryControls = {
   targetPitch: 0,
   velocityYaw: 0,
   dragging: false,
+  zoom: 1,
+  targetZoom: 1,
+  panX: 0,
+  panY: 0,
+  targetPanX: 0,
+  targetPanY: 0,
+  worldPerPx: 0.01,
 };
+
+/** How far in and out the room can be taken. Below 1 pulls back past the fit. */
+const ZOOM_RANGE = { min: 0.55, max: 3.2 };
 
 /**
  * The world-space box the fractional slot map is projected into, in three.js
@@ -98,7 +118,8 @@ export function ImmersiveRoom3D({
   immersive?: boolean;
 }) {
   const controls = useRef<GalleryControls>({ ...INITIAL_CONTROLS });
-  const gestureStart = useRef({ yaw: 0, pitch: 0 });
+  const gestureStart = useRef({ yaw: 0, pitch: 0, zoom: 1, pinch: 0, panX: 0, panY: 0 });
+  const viewport = useRef<View>(null);
   // Inline on a page this is a card at a fixed ratio. Full-screen it takes the
   // height it is given, and the camera has to widen or the gallery crops.
   const height = heightProp ?? width * 0.68;
@@ -108,6 +129,11 @@ export function ImmersiveRoom3D({
   // Same precedence as RoomScene: the theme's 1920x1080 render, then the
   // path-keyed fallback, then a flat wash. The 3D scene sits over this.
   const backdrop = (theme ? backdropFor(theme.id) : null) ?? resolveBackdrop(room.backdropUrl);
+
+  // How much world one screen pixel covers, from the actual frustum. Without
+  // this a drag either lags the finger or outruns it at different zooms.
+  const visibleWidth = 2 * cameraZ * Math.tan((fov * Math.PI) / 360) * aspect;
+  controls.current.worldPerPx = visibleWidth / Math.max(width, 1);
   const placements = room.placements
     .map((placement) => {
       const item = itemsByOwnedId.get(placement.ownedItemId);
@@ -122,36 +148,69 @@ export function ImmersiveRoom3D({
   const focusedEntry =
     placements.find((entry) => entry.slot.id === room.settings.focusedSlotId) ?? null;
 
+  /**
+   * One responder, two gestures on the same surface:
+   *   two fingers → pinch the room closer or further away
+   *   one finger  → orbit
+   *
+   * Racing separate responders for these is worse than branching on touch
+   * count, which is the same call RoomScene makes for the 2.5D path.
+   */
   const pan = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_event, gesture) =>
-          Math.hypot(gesture.dx, gesture.dy) > 4,
-        onPanResponderGrant: () => {
+        onMoveShouldSetPanResponder: (event, gesture) =>
+          event.nativeEvent.touches.length === 2 || Math.hypot(gesture.dx, gesture.dy) > 4,
+        onPanResponderGrant: (event) => {
           controls.current.dragging = true;
           controls.current.velocityYaw = 0;
           gestureStart.current = {
             yaw: controls.current.targetYaw,
             pitch: controls.current.targetPitch,
+            zoom: controls.current.targetZoom,
+            pinch: pinchSpan(event.nativeEvent.touches),
+            panX: controls.current.targetPanX,
+            panY: controls.current.targetPanY,
           };
         },
-        onPanResponderMove: (_event, gesture) => {
+        onPanResponderMove: (event, gesture) => {
+          const touches = event.nativeEvent.touches;
+
+          if (touches.length >= 2) {
+            const span = pinchSpan(touches);
+            const start = gestureStart.current.pinch || span;
+            controls.current.targetZoom = clamp(
+              gestureStart.current.zoom * (span / start),
+              ZOOM_RANGE.min,
+              ZOOM_RANGE.max,
+            );
+            return;
+          }
+
+          // Drag moves the room under the finger. Orbit used to own this
+          // gesture, but it is clamped to a quarter radian — fine as a parallax
+          // flourish, useless for reaching an item once zoomed in.
+          const scale = controls.current.worldPerPx;
+          panTo(
+            controls.current,
+            gestureStart.current.panX + gesture.dx * scale,
+            gestureStart.current.panY - gesture.dy * scale,
+          );
+
+          // A touch of yaw rides along so the room still feels dimensional.
           controls.current.targetYaw = clamp(
-            gestureStart.current.yaw + gesture.dx * 0.0025,
-            -0.24,
-            0.24,
+            gestureStart.current.yaw + gesture.dx * 0.0004,
+            -0.18,
+            0.18,
           );
-          controls.current.targetPitch = clamp(
-            gestureStart.current.pitch + gesture.dy * 0.0015,
-            -0.08,
-            0.08,
-          );
-          controls.current.velocityYaw = gesture.vx * 0.3;
+          controls.current.velocityYaw = 0;
         },
-        onPanResponderRelease: (_event, gesture) => {
+        onPanResponderRelease: (event, gesture) => {
           controls.current.dragging = false;
-          controls.current.velocityYaw = gesture.vx * 0.3;
+          // A pinch has no meaningful fling; only a one-finger orbit coasts.
+          controls.current.velocityYaw =
+            event.nativeEvent.touches.length > 1 ? 0 : gesture.vx * 0.3;
         },
         onPanResponderTerminate: () => {
           controls.current.dragging = false;
@@ -160,8 +219,50 @@ export function ImmersiveRoom3D({
     [],
   );
 
+  /**
+   * Desktop web has no pinch, so the wheel drives the same zoom. Attached
+   * imperatively because RN Web's View does not forward onWheel, and passive:
+   * false so the page does not scroll behind the room.
+   */
+  useEffect(() => {
+    const node = viewport.current as unknown as HTMLElement | null;
+    if (!node || typeof node.addEventListener !== 'function') return;
+    const onWheel = (event: Event) => {
+      const wheel = event as WheelEvent;
+      wheel.preventDefault();
+
+      // macOS reports a trackpad pinch as a wheel event with ctrlKey set — the
+      // same shape as ctrl+scroll. Everything else is a two-finger scroll, which
+      // should pan, not zoom. Treating all wheel as zoom made pinch do nothing
+      // and made scrolling zoom by accident.
+      if (wheel.ctrlKey || wheel.metaKey) {
+        controls.current.targetZoom = clamp(
+          controls.current.targetZoom * (1 - wheel.deltaY * 0.01),
+          ZOOM_RANGE.min,
+          ZOOM_RANGE.max,
+        );
+        return;
+      }
+
+      const scale = controls.current.worldPerPx;
+      panTo(
+        controls.current,
+        controls.current.targetPanX - wheel.deltaX * scale,
+        controls.current.targetPanY + wheel.deltaY * scale,
+      );
+    };
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return () => node.removeEventListener('wheel', onWheel);
+  }, []);
+
+  /**
+   * Reset is the way out. It used to clear only the orbit, which left a focused
+   * item pinned — and tapping that item opens the inspector rather than
+   * unfocusing, so there was no route back to the wide shot at all.
+   */
   function resetView() {
     controls.current = { ...INITIAL_CONTROLS };
+    if (room.settings.focusedSlotId !== null) onSlotPress?.(focusedEntry?.slot ?? room.slots[0]!);
   }
 
   function select(entry: GalleryPlacement) {
@@ -175,6 +276,7 @@ export function ImmersiveRoom3D({
   return (
     <View
       accessibilityLabel="Interactive 3D collection room"
+      ref={viewport}
       style={[styles.viewport, immersive && styles.viewportImmersive, { width, height }]}
       {...pan.panHandlers}
     >
@@ -291,10 +393,26 @@ function Gallery({
     // zooming and re-centring on it. This transition is the immersion."
     // The room moves rather than the camera — same result on screen, and it
     // keeps the backdrop image, which is a DOM layer behind the canvas, still.
+    // Zoom and pan are eased here rather than written directly by the gesture,
+    // so a flick settles instead of snapping.
+    control.zoom = MathUtils.damp(control.zoom, control.targetZoom, 8, delta);
+    control.panX = MathUtils.damp(control.panX, control.targetPanX, 10, delta);
+    control.panY = MathUtils.damp(control.panY, control.targetPanY, 10, delta);
+
     const [tx, ty] = focusTarget ?? [0, 0];
-    const zoom = (focusTarget ? 1.32 : 1) * spread;
-    group.position.x = MathUtils.damp(group.position.x, -tx * zoom, 6, delta);
-    group.position.y = MathUtils.damp(group.position.y, 0.1 - ty * zoom, 6, delta);
+    const zoom = (focusTarget ? 1.32 : 1) * spread * control.zoom;
+    group.position.x = MathUtils.damp(
+      group.position.x,
+      -tx * zoom + control.panX,
+      6,
+      delta,
+    );
+    group.position.y = MathUtils.damp(
+      group.position.y,
+      0.1 - ty * zoom + control.panY,
+      6,
+      delta,
+    );
     const scale = MathUtils.damp(group.scale.x, zoom, 6, delta);
     group.scale.setScalar(scale);
   });
@@ -371,10 +489,16 @@ function GalleryCollectible({
           }
         >
           {mesh ? (
-            <CollectibleGLTF module={mesh} accent={accent} size={Math.max(size.width, size.height) * 0.92} />
+            <CollectibleGLTF
+              module={mesh}
+              texture={art}
+              accent={accent}
+              size={Math.max(size.width, size.height) * 0.92}
+            />
           ) : art ? (
             <ArtworkRelief3D
               source={art}
+              depthSource={itemDepth(entry.item)}
               accent={accent}
               width={artWidth}
               height={artHeight}
@@ -432,6 +556,25 @@ function modelKind(item: Item): 'rifle' | 'blade' | 'hero' {
     return 'blade';
   }
   return item.title === 'mlbb' ? 'hero' : 'rifle';
+}
+
+/**
+ * Pan, bounded so the room cannot be dragged off screen entirely.
+ *
+ * The reachable area grows with zoom: at the fit scale everything is already
+ * visible and there is nothing to pan to, so the clamp collapses to zero.
+ */
+function panTo(control: GalleryControls, x: number, y: number) {
+  const reach = Math.max(0, control.targetZoom - 1) * 6;
+  control.targetPanX = clamp(x, -reach, reach);
+  control.targetPanY = clamp(y, -reach * 0.6, reach * 0.6);
+}
+
+/** Distance between the first two touches, for pinch. */
+function pinchSpan(touches: readonly { pageX: number; pageY: number }[]): number {
+  const [a, b] = touches;
+  if (!a || !b) return 0;
+  return Math.hypot(a.pageX - b.pageX, a.pageY - b.pageY);
 }
 
 function clamp(value: number, min: number, max: number): number {
