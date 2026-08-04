@@ -53,4 +53,10 @@ export {
   type ReviewQueueEntry,
   type ReviewPreview,
 } from './socialService';
+export {
+  threadService,
+  type ThreadService,
+  type ThreadSummary,
+  type ThreadView,
+} from './threadService';
 export { delay, delayWithProgress, LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT } from './latency';

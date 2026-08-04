@@ -118,7 +118,7 @@ export default function ExploreScreen() {
             <Text style={styles.headerLink}>Verify</Text>
           </Pressable>
           <Pressable onPress={() => router.push('/moderation')} hitSlop={8}>
-            <Text style={styles.headerLink}>Queue</Text>
+            <Text style={styles.headerLink}>Reports</Text>
           </Pressable>
         </View>
       </View>

@@ -14,6 +14,9 @@
 import { assertRoomValid } from '../src/domain/room';
 import { assertScanConsistent, countScan } from '../src/domain/scan';
 import { RARITY_LABELS } from '../src/domain/rarity';
+import { CONTENT_REPORT_THRESHOLD } from '../src/domain/trust';
+import { THREADS, THREAD_REPLIES } from '../src/fixtures/threads';
+import type { Flag } from '../src/types';
 import { ALL_ITEMS, ALL_SETS, ITEMS_BY_ID } from '../src/fixtures/catalogue';
 import { COLLECTIONS, ROOMS, POSTS } from '../src/fixtures/collections';
 import { OWNED_ITEMS } from '../src/fixtures/owned-items';
@@ -206,11 +209,76 @@ for (const comment of COMMENTS) {
   }
 }
 
-for (const flag of FLAGS) {
+/**
+ * Widened deliberately. `as const satisfies` narrows FLAGS to the target types
+ * that happen to be seeded today, which makes a check for any other kind look
+ * unreachable to the compiler. These checks exist for the fixture someone adds
+ * tomorrow, so they are written against the full `Flag` shape.
+ */
+const ALL_FLAGS: readonly Flag[] = FLAGS;
+
+for (const flag of ALL_FLAGS) {
   check(userIds.has(flag.reporterId), `Flag ${flag.id}: unknown reporter`);
   if (flag.targetType === 'item') {
     check(ownedIds.has(flag.targetId), `Flag ${flag.id}: unknown OwnedItem "${flag.targetId}"`);
   }
+  if (flag.targetType === 'comment') {
+    const known =
+      COMMENTS.some((c) => c.id === flag.targetId) ||
+      THREAD_REPLIES.some((r) => r.id === flag.targetId);
+    check(known, `Flag ${flag.id}: unknown comment "${flag.targetId}"`);
+  }
+  if (flag.targetType === 'user') {
+    check(userIds.has(flag.targetId), `Flag ${flag.id}: unknown user "${flag.targetId}"`);
+  }
+}
+
+// ── Community threads (§11 F5) ─────────────────────────────────────────
+const communityIds = new Set<string>(COMMUNITIES.map((c) => c.id));
+const threadIds = new Set<string>(THREADS.map((t) => t.id));
+check(threadIds.size === THREADS.length, 'Duplicate thread id');
+
+for (const thread of THREADS) {
+  check(communityIds.has(thread.communityId), `Thread ${thread.id}: unknown community`);
+  check(userIds.has(thread.userId), `Thread ${thread.id}: unknown author`);
+  check(thread.title.trim().length > 0, `Thread ${thread.id}: empty title`);
+}
+
+const replyIds = new Set<string>(THREAD_REPLIES.map((r) => r.id));
+for (const reply of THREAD_REPLIES) {
+  check(reply.targetType === 'thread', `Reply ${reply.id}: targetType must be 'thread'`);
+  check(threadIds.has(reply.targetId), `Reply ${reply.id}: unknown thread "${reply.targetId}"`);
+  check(userIds.has(reply.userId), `Reply ${reply.id}: unknown author`);
+  if (reply.parentId !== null) {
+    check(replyIds.has(reply.parentId), `Reply ${reply.id}: unknown parent "${reply.parentId}"`);
+    // domain/threads flattens depth > 1 rather than rendering it, but a fixture
+    // that seeds depth 2 is a mistake, not a case to exercise.
+    const parent = THREAD_REPLIES.find((r) => r.id === reply.parentId);
+    check(
+      parent?.parentId === null,
+      `Reply ${reply.id}: nests two levels deep under "${reply.parentId}" — one level only (§11 F5)`,
+    );
+  }
+}
+
+// §8.2 — the seeded moderation case must actually be over its threshold, or the
+// review queue is empty on the one screen that answers the judging theme.
+const reportedReplies = ALL_FLAGS.filter(
+  (f) => f.targetType === 'comment' && replyIds.has(f.targetId),
+);
+const reportedReplyIds = new Set(reportedReplies.map((f) => f.targetId));
+check(
+  reportedReplyIds.size > 0,
+  '§8.2: seed at least one reported thread reply so the review queue is not empty',
+);
+for (const targetId of reportedReplyIds) {
+  const reporters = new Set(
+    reportedReplies.filter((f) => f.targetId === targetId).map((f) => f.reporterId),
+  );
+  check(
+    reporters.size >= CONTENT_REPORT_THRESHOLD,
+    `Reported reply "${targetId}" has ${reporters.size} distinct reporters; CONTENT_REPORT_THRESHOLD is ${CONTENT_REPORT_THRESHOLD} — it would sit below the threshold and never reach the queue`,
+  );
 }
 
 for (const notification of NOTIFICATIONS) {
@@ -237,5 +305,6 @@ if (errors.length > 0) {
 console.log(
   `Fixtures OK — ${ALL_ITEMS.length} items, ${ALL_SETS.length} sets, ${USERS.length} users, ` +
     `${OWNED_ITEMS.length} owned, ${COLLECTIONS.length} collections, ${ROOMS.length} rooms, ` +
-    `${ROOM_THEMES.length} themes, ${ARTICLES.length} articles, ${SCAN_RESULTS.length} scans.`,
+    `${ROOM_THEMES.length} themes, ${ARTICLES.length} articles, ${SCAN_RESULTS.length} scans, ` +
+    `${THREADS.length} threads, ${THREAD_REPLIES.length} replies.`,
 );
