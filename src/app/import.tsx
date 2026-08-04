@@ -325,10 +325,17 @@ export default function ImportScreen() {
               }}
               style={[styles.gameCard, option === title && styles.gameCardActive]}
             >
-              {/* Seeded with a real item from that catalogue — a game title is
-                  not an item id, so seeding with `option` only ever resolved to
-                  the colour block. */}
-              <ItemArt seed={GAME_COVERS[option]} tier="legendary" style={styles.gameArt} />
+              {/* The game's own cover, not an item render: this card is asking
+                  which title you are importing FROM, so it has to read as the
+                  game rather than as something in your inventory. */}
+              <View style={styles.gameArt}>
+                <Image
+                  source={GAME_COVERS[option]}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                  accessibilityIgnoresInvertColors
+                />
+              </View>
               <View style={styles.rowBody}>
                 <Text style={styles.rowTitle}>{GAME_LABELS[option]}</Text>
                 <Text style={styles.supported}>✓ Scanner supported</Text>
@@ -1168,7 +1175,13 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   gameCardActive: { borderColor: colors.accent },
-  gameArt: { width: 64, height: 64 },
+  gameArt: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.card,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSunken,
+  },
   supported: { ...typography.meta, color: colors.accent },
   selectedGame: {
     flexDirection: 'row',

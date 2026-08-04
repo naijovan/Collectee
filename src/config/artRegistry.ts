@@ -473,20 +473,23 @@ export const ART_PLACEMENTS = {
 } as const satisfies Record<string, readonly ArtItemId[]>;
 
 /**
- * Title → the render that stands in for the game itself.
+ * Title → its cover image, for the Import landing cards.
  *
- * Nothing in any art pack is a game cover or logo, and drawing a real one would
- * be publisher branding, which §15 rules out. So the Import landing card uses
- * the most striking owned item from that catalogue instead — a real render the
- * user might actually own, rather than a colour block or someone's trademark.
+ * Supplied cover art rather than anything from the generated packs, so unlike
+ * everything else in this file these are NOT original prototype renders — they
+ * are the real games' artwork, used to identify the title being imported from.
+ * Keep that distinction in mind if the deck or the build is ever published; the
+ * art policy above covers `ART` and `ROOM_BACKDROPS`, not this map.
+ *
+ * Square sources, drawn into a square thumb, so `cover` never crops anything.
  *
  * ⚠️ Hand-written. The `ART` map above is generated; this and `ART_PLACEMENTS`
  * are not, so preserve them if the generator is ever re-run.
  */
-export const GAME_COVERS: Record<GameTitle, ArtItemId> = {
-  codm: 'codm-dlq33-lightbringer',
-  valorant: 'val-elderflame-vandal',
-  mlbb: 'mlbb-void-empress',
+export const GAME_COVERS: Record<GameTitle, ImageSourcePropType> = {
+  codm: require('../../assets/collectee/games/codm.webp'),
+  valorant: require('../../assets/collectee/games/valorant.webp'),
+  mlbb: require('../../assets/collectee/games/mlbb.png'),
 };
 
 /**
