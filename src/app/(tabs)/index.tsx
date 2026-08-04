@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -34,7 +34,7 @@ import {
   PrimaryButton,
   SectionHeader,
 } from '@/components';
-import { ART_PLACEMENTS } from '@/config/artRegistry';
+import { ART_PLACEMENTS, backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { headlineItem } from '@/domain/collections';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
@@ -339,7 +339,9 @@ export default function HomeScreen() {
                   }
                   style={styles.roomRow}
                 >
-                  <ItemArt seed={entry.room.themeId} tier="mythic" style={styles.roomThumb} />
+                  {/* A theme id is not an item id, so `ItemArt` only ever gave
+                      these rows a colour block. Rooms have their own backdrop. */}
+                  <RoomThumb themeId={entry.room.themeId} />
                   <View style={styles.roomMeta}>
                     <Text style={styles.roomName}>{entry.collectionName}</Text>
                     <Text style={styles.muted}>
@@ -361,6 +363,28 @@ export default function HomeScreen() {
 }
 
 /** §13.4 shows "Good evening" in the Figma; the greeting follows the clock. */
+/**
+ * A published room's thumbnail: its theme backdrop, cropped.
+ *
+ * `ItemArt` resolves by catalogue item id and a room has no item, so these rows
+ * fell through to the colour block. Backdrops live in the same registry keyed by
+ * theme id, and the palette wash stays as the fallback for a theme without art.
+ */
+function RoomThumb({ themeId }: { themeId: string }) {
+  const backdrop = backdropFor(themeId);
+  if (!backdrop) return <ItemArt seed={themeId} tier="mythic" style={styles.roomThumb} />;
+  return (
+    <View style={[styles.roomThumb, styles.roomThumbClip]}>
+      <Image
+        source={backdrop}
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+      />
+    </View>
+  );
+}
+
 function greeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return 'Good morning';
@@ -429,6 +453,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   roomThumb: { width: 64, height: 46 },
+  roomThumbClip: { overflow: 'hidden', borderRadius: radius.sm, backgroundColor: colors.surfaceSunken },
   roomMeta: { flex: 1, gap: 2 },
   roomName: { ...typography.cardTitle, color: colors.textPrimary },
   muted: { ...typography.meta, color: colors.textSecondary },

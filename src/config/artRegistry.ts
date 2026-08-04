@@ -32,6 +32,8 @@
 
 import type { ImageSourcePropType } from 'react-native';
 
+import type { GameTitle } from '@/types';
+
 /**
  * A render plus how it should sit in its box.
  *
@@ -469,6 +471,23 @@ export const ART_PLACEMENTS = {
     'mlbb-neon-encore',
   ],
 } as const satisfies Record<string, readonly ArtItemId[]>;
+
+/**
+ * Title → the render that stands in for the game itself.
+ *
+ * Nothing in any art pack is a game cover or logo, and drawing a real one would
+ * be publisher branding, which §15 rules out. So the Import landing card uses
+ * the most striking owned item from that catalogue instead — a real render the
+ * user might actually own, rather than a colour block or someone's trademark.
+ *
+ * ⚠️ Hand-written. The `ART` map above is generated; this and `ART_PLACEMENTS`
+ * are not, so preserve them if the generator is ever re-run.
+ */
+export const GAME_COVERS: Record<GameTitle, ArtItemId> = {
+  codm: 'codm-dlq33-lightbringer',
+  valorant: 'val-elderflame-vandal',
+  mlbb: 'mlbb-void-empress',
+};
 
 /**
  * Room theme id → backdrop. J3's `RoomScene` is Jovan's file, so these are

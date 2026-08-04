@@ -58,7 +58,7 @@ import {
   RarityBadge,
   SecondaryButton,
 } from '@/components';
-import { ART_PLACEMENTS } from '@/config/artRegistry';
+import { ART_PLACEMENTS, GAME_COVERS } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import type { CollectionSuggestion } from '@/domain/collections';
 import { groupByRarity, rarityLabelFor } from '@/domain/rarity';
@@ -325,7 +325,10 @@ export default function ImportScreen() {
               }}
               style={[styles.gameCard, option === title && styles.gameCardActive]}
             >
-              <ItemArt seed={option} tier="legendary" style={styles.gameArt} />
+              {/* Seeded with a real item from that catalogue — a game title is
+                  not an item id, so seeding with `option` only ever resolved to
+                  the colour block. */}
+              <ItemArt seed={GAME_COVERS[option]} tier="legendary" style={styles.gameArt} />
               <View style={styles.rowBody}>
                 <Text style={styles.rowTitle}>{GAME_LABELS[option]}</Text>
                 <Text style={styles.supported}>✓ Scanner supported</Text>
@@ -863,7 +866,17 @@ function ScanPreview() {
         </View>
       ))}
 
+      {/*
+        Sits ON TOP of the screenshots, not between them. The stacked shots
+        carry zIndex 1–2, so without one of its own the beam was painted under
+        the centre shot and read as a seam rather than a scan line.
+
+        Four stacked layers give the neon falloff — wide dim bloom, halo, glow,
+        then a thin near-white core. One translucent bar cannot do it: a real
+        neon tube is a hot centre with colour bleeding outwards.
+      */}
       <Animated.View style={[styles.beam, { opacity, transform: [{ translateY }, { scaleX }] }]}>
+        <View style={styles.beamBloom} />
         <View style={styles.beamHalo} />
         <View style={styles.beamGlow} />
         <View style={styles.beamCore} />
@@ -1197,31 +1210,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'none',
+    // Above the stacked screenshots (zIndex 1–2), so it sweeps across them.
+    zIndex: 10,
   },
   beamCore: {
     position: 'absolute',
     left: '4%',
     right: '4%',
-    height: 2,
+    height: 3,
     borderRadius: radius.pill,
     backgroundColor: colors.textPrimary,
+    // The hot centre of the tube. Native needs shadow*, web reads boxShadow;
+    // both are set so the bloom survives either renderer.
+    shadowColor: colors.accent,
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
   beamGlow: {
     position: 'absolute',
     left: '2%',
     right: '2%',
-    height: 10,
+    height: 12,
     borderRadius: radius.pill,
     backgroundColor: colors.accent,
-    opacity: 0.4,
+    opacity: 0.75,
   },
   beamHalo: {
+    position: 'absolute',
     left: 0,
     right: 0,
-    height: 34,
+    height: 30,
     borderRadius: radius.pill,
     backgroundColor: colors.accent,
-    opacity: 0.14,
+    opacity: 0.3,
+  },
+  /** Widest, faintest layer — the light spilling onto the screenshots. */
+  beamBloom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 64,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    opacity: 0.12,
   },
   percent: { ...typography.screenTitle, fontSize: 40, color: colors.accent, textAlign: 'center' },
   scanHead: { ...typography.screenTitle, fontSize: 22, color: colors.textPrimary, textAlign: 'center' },

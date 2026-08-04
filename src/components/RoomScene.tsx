@@ -26,11 +26,15 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ViewStyle } from 'react-native';
 
+import { backdropFor } from '@/config/artRegistry';
 import { cameraTargetFor, parallaxOffset } from '@/domain/room';
 import { rarityLabelFor } from '@/domain/rarity';
 import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
+
+import { ItemArt } from './primitives';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Item, Room, RoomTheme, Slot } from '@/types';
 
@@ -128,6 +132,7 @@ export function RoomScene({
   );
 
   const palette = theme?.palette ?? [];
+  const backdrop = theme ? backdropFor(theme.id) : null;
 
   return (
     <View
@@ -142,27 +147,40 @@ export function RoomScene({
           ]}
         >
           {/*
-            Backdrop stand-in. §16 Q6 is still open and the generated art is not
-            in the repo — fixtures reference `room-backdrops/<theme>.png`. The
-            theme palette is the cache key for the real backdrop (§11 F4), so
-            painting it here keeps every theme visually distinct without
-            inventing a colour. Swap for <Image source={...}> when art lands.
+            The backdrop. Art has landed, so this is the real 1920x1080 render
+            for the theme; the palette wash below is kept as the fallback for
+            any theme that has none yet, which is what every theme used to get.
+
+            `cover` at 50% 50% per the pack manifest. Item slots stay a separate
+            overlay drawn after this — the backdrop is always empty scenery, so
+            placements composite on top rather than being baked in.
           */}
           <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceSunken }]} />
-          {palette.map((tone, index) => (
-            <View
-              key={tone}
-              style={[
-                styles.wash,
-                {
-                  backgroundColor: tone,
-                  opacity: index === 0 ? 0.9 : 0.28,
-                  top: `${index * 26}%`,
-                },
-              ]}
+          {backdrop ? (
+            <Image
+              source={backdrop}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+              accessibilityIgnoresInvertColors
             />
-          ))}
-          <View style={styles.floor} />
+          ) : (
+            <>
+              {palette.map((tone, index) => (
+                <View
+                  key={tone}
+                  style={[
+                    styles.wash,
+                    {
+                      backgroundColor: tone,
+                      opacity: index === 0 ? 0.9 : 0.28,
+                      top: `${index * 26}%`,
+                    },
+                  ]}
+                />
+              ))}
+              <View style={styles.floor} />
+            </>
+          )}
 
           {room.slots.map((slot) => {
             const placement = room.placements.find((p) => p.slotId === slot.id);
@@ -222,9 +240,17 @@ export function RoomScene({
                       </View>
                     ) : (
                       <View style={styles.face}>
+                        {/* The item's own render fills the card; the rarity glow
+                            and name sit over it so both stay readable. */}
+                        <ItemArt
+                          seed={item.id}
+                          tier={item.rarityTier}
+                          style={StyleSheet.absoluteFill as ViewStyle}
+                        />
                         <View
                           style={[styles.faceGlow, { backgroundColor: rarityColors[item.rarityTier] }]}
                         />
+                        <View style={styles.faceScrim} />
                         <Text style={styles.faceName} numberOfLines={2}>
                           {item.name}
                         </Text>
@@ -288,7 +314,9 @@ const styles = StyleSheet.create({
   cardFocused: { borderWidth: 3 },
   cardSelected: { borderColor: colors.accent, borderWidth: 3 },
 
-  face: { alignItems: 'center', justifyContent: 'center', gap: 2 },
+  face: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 2, overflow: 'hidden' },
+  /** Keeps the name legible over a bright render without hiding the art. */
+  faceScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: 'rgba(0,0,0,0.55)' },
   faceGlow: {
     position: 'absolute',
     width: '80%',
