@@ -14,6 +14,7 @@ import { modelFor } from '@/config/modelRegistry';
 
 import { ArtworkRelief3D, itemTexture } from './ArtworkRelief3D';
 import { CollectibleGLTF } from './CollectibleGLTF';
+import { RoomAtmosphere } from './RoomAtmosphere';
 import { CollectibleModel3D } from './Collectible3DViewer';
 import { resolveBackdrop } from './backdrops';
 
@@ -55,6 +56,8 @@ export function ImmersiveRoom3D({
   onSlotPress,
   onInspect3D,
   width,
+  height: heightProp,
+  immersive = false,
 }: {
   room: Room;
   theme?: RoomTheme | null;
@@ -62,10 +65,19 @@ export function ImmersiveRoom3D({
   onSlotPress?: (slot: Slot) => void;
   onInspect3D?: (item: Item) => void;
   width: number;
+  /** Explicit height. Defaults to the 0.68 card ratio used inline on a page. */
+  height?: number;
+  /** Full-screen mode: no card chrome, wider field of view, richer atmosphere. */
+  immersive?: boolean;
 }) {
   const controls = useRef<GalleryControls>({ ...INITIAL_CONTROLS });
   const gestureStart = useRef({ yaw: 0, pitch: 0 });
-  const height = width * 0.68;
+  // Inline on a page this is a card at a fixed ratio. Full-screen it takes the
+  // height it is given, and the camera has to widen or the gallery crops.
+  const height = heightProp ?? width * 0.68;
+  const aspect = width / Math.max(height, 1);
+  const fov = immersive ? (aspect < 1 ? 62 : 50) : 42;
+  const cameraZ = immersive ? (aspect < 1 ? 10.5 : 8.2) : 8.6;
   // Same precedence as RoomScene: the theme's 1920x1080 render, then the
   // path-keyed fallback, then a flat wash. The 3D scene sits over this.
   const backdrop = (theme ? backdropFor(theme.id) : null) ?? resolveBackdrop(room.backdropUrl);
@@ -136,7 +148,7 @@ export function ImmersiveRoom3D({
   return (
     <View
       accessibilityLabel="Interactive 3D collection room"
-      style={[styles.viewport, { width, height }]}
+      style={[styles.viewport, immersive && styles.viewportImmersive, { width, height }]}
       {...pan.panHandlers}
     >
       {backdrop ? (
@@ -151,7 +163,7 @@ export function ImmersiveRoom3D({
       <View pointerEvents="none" style={styles.backdropShade} />
 
       <Canvas
-        camera={{ position: [0, 0.55, 8.6], fov: 42, near: 0.1, far: 80 }}
+        camera={{ position: [0, 0.55, cameraZ], fov, near: 0.1, far: 80 }}
         gl={{ alpha: true }}
         style={StyleSheet.absoluteFill}
       >
@@ -169,6 +181,11 @@ export function ImmersiveRoom3D({
           intensity={7}
           distance={13}
           color={theme?.palette[2] ?? colors.warning}
+        />
+        <RoomAtmosphere
+          palette={theme?.palette ?? []}
+          intensity={immersive ? 1 : 0.55}
+          focused={room.settings.focusedSlotId !== null}
         />
         <Gallery
           controls={controls}
@@ -371,6 +388,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surfaceSunken,
   },
+  /** Full-screen: the card border and radius would frame it as a widget. */
+  viewportImmersive: { borderRadius: 0, borderWidth: 0 },
   backdropFallback: { backgroundColor: colors.surfaceSunken },
   backdropShade: {
     position: 'absolute',

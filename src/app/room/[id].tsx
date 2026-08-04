@@ -185,6 +185,16 @@ export default function RoomScreen() {
         width={sceneWidth}
       />
 
+      {/* The scene above is a preview at page width. This is the room itself. */}
+      <Pressable
+        style={styles.enterCta}
+        onPress={() =>
+          router.push({ pathname: '/room/immersive/[id]', params: { id: room.id } })
+        }
+      >
+        <Text style={styles.enterCtaText}>⛶  Enter the room</Text>
+      </Pressable>
+
       {collection ? (
         <Pressable
           style={styles.sourceCta}
@@ -330,6 +340,15 @@ const styles = StyleSheet.create({
   muted: { ...typography.meta, color: colors.textSecondary },
   footnote: { ...typography.meta, color: colors.textTertiary },
   link: { ...typography.meta, color: colors.accent, marginTop: spacing.xs },
+  enterCta: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
+  },
+  enterCtaText: { ...typography.cardTitle, color: colors.accent },
   inspect3DButton: {
     alignSelf: 'flex-start',
     marginTop: spacing.sm,

@@ -190,11 +190,15 @@ function RoomCta({
 }) {
   const router = useRouter();
 
+  // A published room opens full-screen. An unpublished one goes to the page,
+  // where the build flow and its status live — there is nothing to walk into yet.
   if (status?.published) {
     return (
       <Pressable
         style={styles.roomCta}
-        onPress={() => router.push({ pathname: '/room/[id]', params: { id: status.room.id } })}
+        onPress={() =>
+          router.push({ pathname: '/room/immersive/[id]', params: { id: status.room.id } })
+        }
       >
         <Text style={styles.roomCtaText}>View room →</Text>
       </Pressable>
