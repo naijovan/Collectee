@@ -86,6 +86,17 @@ export default function ImmersiveRoomScreen() {
 
   const items = useMemo(() => [...itemsByOwnedId.values()], [itemsByOwnedId]);
 
+  // A shared room link opens this route cold, so there is nothing to pop. Fall
+  // back to the room's own page rather than leaving the control dead — the
+  // dev-time "GO_BACK was not handled by any navigator" is a real dead end.
+  const leave = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace({ pathname: '/room/[id]', params: { id } });
+  }, [router, id]);
+
   const focus = useCallback(
     async (slotId: string | null) => {
       if (!room) return;
@@ -106,7 +117,7 @@ export default function ImmersiveRoomScreen() {
     return (
       <View style={styles.missing}>
         <Text style={styles.missingText}>That room is not available.</Text>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={leave} hitSlop={8}>
           <Text style={styles.link}>Go back</Text>
         </Pressable>
       </View>
@@ -138,18 +149,26 @@ export default function ImmersiveRoomScreen() {
 
       {/* `box-none` so drags fall through to the scene; only the controls take
           touches. Without it the whole room becomes unlookable. */}
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        <View pointerEvents="box-none" style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]}>
+      <View style={[StyleSheet.absoluteFill, styles.passThrough]}>
+        <View
+          style={[
+            styles.topBar,
+            styles.passThrough,
+            // Web reports no safe-area inset, which would pin the controls to
+            // y=0 hard against the top edge. Floor it.
+            { paddingTop: Math.max(insets.top, spacing.md) + spacing.sm },
+          ]}
+        >
           <Pressable
             accessibilityLabel="Leave the room"
             hitSlop={12}
-            onPress={() => router.back()}
+            onPress={leave}
             style={styles.iconButton}
           >
             <Text style={styles.iconText}>‹</Text>
           </Pressable>
 
-          <View style={styles.titleBlock} pointerEvents="none">
+          <View style={[styles.titleBlock, styles.noTouch]}>
             <Text style={styles.title} numberOfLines={1}>
               {room.title}
             </Text>
@@ -168,8 +187,8 @@ export default function ImmersiveRoomScreen() {
           </Pressable>
         </View>
 
-        <View pointerEvents="box-none" style={styles.bottom}>
-          <Text style={styles.hint} pointerEvents="none">
+        <View style={[styles.bottom, styles.passThrough]}>
+          <Text style={[styles.hint, styles.noTouch]}>
             {focusedItem
               ? `${focusedItem.name} · tap again to inspect`
               : 'Drag to look around · tap an item to focus it'}
@@ -178,14 +197,15 @@ export default function ImmersiveRoomScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.stripWrap}
             contentContainerStyle={[styles.strip, { paddingBottom: insets.bottom + spacing.md }]}
           >
             {items.map((item) => (
               <ItemCard
                 key={item.id}
                 item={item}
-                width={64}
-                artHeight={46}
+                width={92}
+                artHeight={62}
                 onPress={() => setInspecting(item)}
               />
             ))}
@@ -198,6 +218,11 @@ export default function ImmersiveRoomScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+
+  /** Drags fall through to the scene; only the controls themselves take touches.
+      Without this the whole room becomes unlookable. */
+  passThrough: { pointerEvents: 'box-none' },
+  noTouch: { pointerEvents: 'none' },
 
   topBar: {
     flexDirection: 'row',
@@ -234,6 +259,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     overflow: 'hidden',
   },
+  stripWrap: { backgroundColor: colors.surfaceSunken, opacity: 0.92 },
   strip: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
 
   missing: {

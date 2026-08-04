@@ -41,13 +41,40 @@ const INITIAL_CONTROLS: GalleryControls = {
   dragging: false,
 };
 
-const DISPLAY_POSITIONS = [
-  [0, -0.05, 0.9],
-  [-2.55, 0.52, 0.1],
-  [2.55, 0.52, 0.1],
-  [-4.05, 0.08, -0.25],
-  [4.05, 0.08, -0.25],
-] as const;
+/**
+ * The world-space box the fractional slot map is projected into, in three.js
+ * units. Chosen so the full 0..1 slot range sits inside the camera frustum at
+ * the immersive fov without the outer wall slots clipping.
+ */
+const ROOM = { width: 10.5, height: 6.2, depthStep: 1.35 };
+
+/**
+ * Slot → world position. §12.3 defines slots as fractions of the backdrop:
+ * `x`/`y` are the top-left corner, `w`/`h` the size, `depth` the parallax layer
+ * (0 back, 2 front). This is the whole reason those coordinates are fractional
+ * — the same map has to work at any backdrop resolution, and now in 3D too.
+ *
+ * `y` is flipped because slot space runs top-down like a screen while three.js
+ * runs bottom-up, and the centre of the slot is used rather than its corner so
+ * an item sits in its box rather than hanging off the top-left of it.
+ */
+function slotToWorld(slot: Slot): [number, number, number] {
+  const cx = slot.x + slot.w / 2;
+  const cy = slot.y + slot.h / 2;
+  return [
+    (cx - 0.5) * ROOM.width,
+    (0.5 - cy) * ROOM.height,
+    (slot.depth - 1) * ROOM.depthStep,
+  ];
+}
+
+/** Slot → display size, so a hero pedestal reads bigger than a wall panel. */
+function slotToSize(slot: Slot): { width: number; height: number } {
+  // 0.82, not 1: slot boxes tile the backdrop with no gutter, so a display at
+  // full slot size touches its neighbour. This is the gutter.
+  const INSET = 0.82;
+  return { width: slot.w * ROOM.width * INSET, height: slot.h * ROOM.height * INSET };
+}
 
 export function ImmersiveRoom3D({
   room,
@@ -88,12 +115,12 @@ export function ImmersiveRoom3D({
       return item && slot ? { item, slot } : null;
     })
     .filter((entry): entry is GalleryPlacement => entry !== null)
-    .sort((a, b) => {
-      const aFocused = a.slot.id === room.settings.focusedSlotId ? 1 : 0;
-      const bFocused = b.slot.id === room.settings.focusedSlotId ? 1 : 0;
-      return bFocused - aFocused;
-    })
-    .slice(0, DISPLAY_POSITIONS.length);
+    // Back layer first so nearer displays draw over further ones. No cap: the
+    // room shows what the user arranged, and Weapon Vault has eleven slots.
+    .sort((a, b) => a.slot.depth - b.slot.depth);
+
+  const focusedEntry =
+    placements.find((entry) => entry.slot.id === room.settings.focusedSlotId) ?? null;
 
   const pan = useMemo(
     () =>
@@ -190,7 +217,9 @@ export function ImmersiveRoom3D({
         <Gallery
           controls={controls}
           focusedSlotId={room.settings.focusedSlotId}
+          focusTarget={focusedEntry ? slotToWorld(focusedEntry.slot) : null}
           placements={placements}
+          spread={aspect < 1 ? 0.62 : 1}
           onSelect={select}
         />
       </Canvas>
@@ -216,12 +245,25 @@ export function ImmersiveRoom3D({
 function Gallery({
   controls,
   focusedSlotId,
+  focusTarget,
   placements,
+  spread,
   onSelect,
 }: {
   controls: MutableRefObject<GalleryControls>;
   focusedSlotId: string | null;
+  /** World position of the focal slot, or null when the camera is pulled back. */
+  focusTarget: readonly [number, number, number] | null;
   placements: GalleryPlacement[];
+  /**
+   * Uniform fit scale. The slot map spans the full backdrop, which overflows a
+   * portrait frustum, so the whole gallery shrinks to fit.
+   *
+   * It has to be uniform. Squeezing x while leaving each display at its slot
+   * size closes the gaps between them but not the displays themselves, and they
+   * overlap — which is exactly what happened when this scaled positions only.
+   */
+  spread: number;
   onSelect: (entry: GalleryPlacement) => void;
 }) {
   const room = useRef<Group>(null);
@@ -244,19 +286,30 @@ function Gallery({
     control.pitch = MathUtils.damp(control.pitch, control.targetPitch, 9, delta);
     group.rotation.y = control.yaw;
     group.rotation.x = control.pitch;
+
+    // Look-at focus (§11 F4): "tapping a different item transitions the camera,
+    // zooming and re-centring on it. This transition is the immersion."
+    // The room moves rather than the camera — same result on screen, and it
+    // keeps the backdrop image, which is a DOM layer behind the canvas, still.
+    const [tx, ty] = focusTarget ?? [0, 0];
+    const zoom = (focusTarget ? 1.32 : 1) * spread;
+    group.position.x = MathUtils.damp(group.position.x, -tx * zoom, 6, delta);
+    group.position.y = MathUtils.damp(group.position.y, 0.1 - ty * zoom, 6, delta);
+    const scale = MathUtils.damp(group.scale.x, zoom, 6, delta);
+    group.scale.setScalar(scale);
   });
 
   return (
     <group ref={room} position={[0, 0.1, 0]}>
       {placements.map((entry, index) => {
-        const position = DISPLAY_POSITIONS[index] ?? DISPLAY_POSITIONS[2];
         return (
           <GalleryCollectible
             key={entry.slot.id}
             entry={entry}
             focused={focusedSlotId === entry.slot.id}
             index={index}
-            position={position}
+            position={slotToWorld(entry.slot)}
+            size={slotToSize(entry.slot)}
             onSelect={onSelect}
           />
         );
@@ -270,12 +323,15 @@ function GalleryCollectible({
   focused,
   index,
   position,
+  size,
   onSelect,
 }: {
   entry: GalleryPlacement;
   focused: boolean;
   index: number;
   position: readonly [number, number, number];
+  /** Display size in world units, derived from the slot's fractional w/h. */
+  size: { width: number; height: number };
   onSelect: (entry: GalleryPlacement) => void;
 }) {
   const holder = useRef<Group>(null);
@@ -283,10 +339,12 @@ function GalleryCollectible({
   const mesh = modelFor(entry.item.id);
   const art = itemTexture(entry.item);
   const kind = modelKind(entry.item);
-  const featured = index === 0;
-  const artWidth = featured ? 3.05 : 1.72;
-  const artHeight = artWidth / 1.5;
-  const fallbackScale = kind === 'rifle' ? 0.32 : kind === 'blade' ? 0.46 : 0.5;
+  // "Featured" is now a property of the slot, not of array order — a pedestal
+  // is bigger than a wall panel because the theme says so.
+  const featured = entry.slot.kind === 'pedestal';
+  const artWidth = size.width;
+  const artHeight = size.height;
+  const fallbackScale = (kind === 'rifle' ? 0.32 : kind === 'blade' ? 0.46 : 0.5) * (size.width / 1.72);
 
   useFrame(({ clock }) => {
     if (!holder.current) return;
@@ -301,7 +359,7 @@ function GalleryCollectible({
   return (
     <group position={position}>
       <DisplayPlinth accent={accent} focused={focused} compact={!featured} />
-      <group ref={holder} position={[0, featured ? 0.55 : 0.48, 0]}>
+      <group ref={holder} position={[0, 0, 0]}>
         {/* Tier order per config/modelRegistry.ts: real mesh, then relief, then
             procedural. Suspense catches the async tiers and shows the synchronous
             procedural one meanwhile, so a slot is never empty. */}
@@ -313,7 +371,7 @@ function GalleryCollectible({
           }
         >
           {mesh ? (
-            <CollectibleGLTF module={mesh} accent={accent} size={featured ? 2.6 : 1.6} />
+            <CollectibleGLTF module={mesh} accent={accent} size={Math.max(size.width, size.height) * 0.92} />
           ) : art ? (
             <ArtworkRelief3D
               source={art}
@@ -330,7 +388,7 @@ function GalleryCollectible({
         </Suspense>
       </group>
       <mesh
-        position={[0, featured ? 0.55 : 0.48, 0.1]}
+        position={[0, 0, 0.1]}
         onClick={(event) => {
           event.stopPropagation();
           onSelect(entry);
@@ -355,7 +413,7 @@ function DisplayPlinth({
   const radius = compact ? 0.48 : 0.72;
 
   return (
-    <group position={[0, compact ? -0.35 : -0.72, 0]}>
+    <group position={[0, compact ? -0.55 : -0.85, 0]}>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[radius, focused ? 0.055 : 0.03, 8, 32]} />
         <meshStandardMaterial

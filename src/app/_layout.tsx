@@ -52,7 +52,10 @@ export default function RootLayout() {
         <Stack.Screen name="room/[id]" options={{ title: 'Room' }} />
         {/* The immersive room draws its own overlay controls edge to edge, so a
             stack header would sit on top of the scene. */}
-        <Stack.Screen name="room/immersive/[id]" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="room/immersive/[id]"
+          options={{ title: 'Room', headerShown: false }}
+        />
         <Stack.Screen name="collector/[id]" options={{ title: 'Collector' }} />
         <Stack.Screen name="community/[id]" options={{ title: 'Community' }} />
         <Stack.Screen name="article/[id]" options={{ title: 'Article' }} />
