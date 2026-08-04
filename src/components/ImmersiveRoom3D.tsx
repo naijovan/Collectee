@@ -10,8 +10,10 @@ import { colors, radius, rarityColors, spacing } from '@/theme/theme';
 import type { Item, Room, RoomTheme, Slot } from '@/types';
 
 import { backdropFor } from '@/config/artRegistry';
+import { modelFor } from '@/config/modelRegistry';
 
 import { ArtworkRelief3D, itemTexture } from './ArtworkRelief3D';
+import { CollectibleGLTF } from './CollectibleGLTF';
 import { CollectibleModel3D } from './Collectible3DViewer';
 import { resolveBackdrop } from './backdrops';
 
@@ -259,8 +261,9 @@ function GalleryCollectible({
   position: readonly [number, number, number];
   onSelect: (entry: GalleryPlacement) => void;
 }) {
-  const model = useRef<Group>(null);
+  const holder = useRef<Group>(null);
   const accent = rarityColors[entry.item.rarityTier];
+  const mesh = modelFor(entry.item.id);
   const art = itemTexture(entry.item);
   const kind = modelKind(entry.item);
   const featured = index === 0;
@@ -269,16 +272,22 @@ function GalleryCollectible({
   const fallbackScale = kind === 'rifle' ? 0.32 : kind === 'blade' ? 0.46 : 0.5;
 
   useFrame(({ clock }) => {
-    if (!model.current) return;
-    model.current.rotation.y =
-      Math.sin(clock.elapsedTime * 0.72 + index) * (focused ? 0.1 : 0.045);
-    model.current.position.y = Math.sin(clock.elapsedTime * 1.25 + index) * 0.05;
+    if (!holder.current) return;
+    // Real geometry turns all the way round because it has a back. A relief is
+    // a plane, so it only ever sways — past about 0.1rad you see its edge.
+    holder.current.rotation.y = mesh
+      ? clock.elapsedTime * (focused ? 0.35 : 0.22) + index
+      : Math.sin(clock.elapsedTime * 0.72 + index) * (focused ? 0.1 : 0.045);
+    holder.current.position.y = Math.sin(clock.elapsedTime * 1.25 + index) * 0.05;
   });
 
   return (
     <group position={position}>
       <DisplayPlinth accent={accent} focused={focused} compact={!featured} />
-      <group ref={model} position={[0, featured ? 0.55 : 0.48, 0]}>
+      <group ref={holder} position={[0, featured ? 0.55 : 0.48, 0]}>
+        {/* Tier order per config/modelRegistry.ts: real mesh, then relief, then
+            procedural. Suspense catches the async tiers and shows the synchronous
+            procedural one meanwhile, so a slot is never empty. */}
         <Suspense
           fallback={
             <group scale={fallbackScale}>
@@ -286,7 +295,9 @@ function GalleryCollectible({
             </group>
           }
         >
-          {art ? (
+          {mesh ? (
+            <CollectibleGLTF module={mesh} accent={accent} size={featured ? 2.6 : 1.6} />
+          ) : art ? (
             <ArtworkRelief3D
               source={art}
               accent={accent}

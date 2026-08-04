@@ -16,7 +16,10 @@ import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Item } from '@/types';
 
+import { modelFor } from '@/config/modelRegistry';
+
 import { ArtworkRelief3D, itemTexture } from './ArtworkRelief3D';
+import { CollectibleGLTF } from './CollectibleGLTF';
 
 interface ViewerControls {
   yaw: number;
@@ -205,9 +208,13 @@ export function Collectible3DViewer({
           <View>
             <Text style={styles.footerLabel}>MODEL TYPE</Text>
             <Text style={styles.footerValue}>
-              {item && itemTexture(item)
-                ? '3D artwork relief'
-                : labelForKind(kindFor(item))}
+              {!item
+                ? '—'
+                : modelFor(item.id)
+                  ? 'Generated 3D model'
+                  : itemTexture(item)
+                    ? '3D artwork relief'
+                    : labelForKind(kindFor(item))}
             </Text>
           </View>
           <View style={styles.footerDivider} />
@@ -238,10 +245,15 @@ function CollectibleRig({
   const group = useRef<Group>(null);
   const kind = kindFor(item);
   const accent = rarityColors[item.rarityTier];
-  const art = preferArtwork ? itemTexture(item) : null;
+  const mesh = preferArtwork ? modelFor(item.id) : null;
+  const art = preferArtwork && mesh === null ? itemTexture(item) : null;
   const { size } = useThree();
   const portrait = size.width / size.height < 0.8;
-  const baseScale = art
+  const baseScale = mesh
+    ? portrait
+      ? 0.85
+      : 1
+    : art
     ? portrait
       ? 0.66
       : 0.9
@@ -260,6 +272,9 @@ function CollectibleRig({
     const control = controls.current;
     if (!control.dragging) {
       if (control.autoRotate) {
+        // A relief is a plane — swing it past ~0.34rad and the illusion dies, so
+        // it sways. Real geometry and the procedural meshes have backs, so they
+        // get the continuous turntable this screen is actually for.
         control.targetYaw = art
           ? Math.sin(clock.elapsedTime * 0.55) * 0.34
           : control.targetYaw + delta * 0.36;
@@ -282,7 +297,9 @@ function CollectibleRig({
       ref={group}
       position={[0, art ? 0.45 : kind === 'hero' ? 0.25 : 0.65, 0]}
     >
-      {art ? (
+      {mesh ? (
+        <CollectibleGLTF module={mesh} accent={accent} size={4.6} />
+      ) : art ? (
         <ArtworkRelief3D
           source={art}
           accent={accent}
