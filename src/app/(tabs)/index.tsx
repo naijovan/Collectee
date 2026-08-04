@@ -377,7 +377,7 @@ function RoomThumb({ themeId }: { themeId: string }) {
     <View style={[styles.roomThumb, styles.roomThumbClip]}>
       <Image
         source={backdrop}
-        style={StyleSheet.absoluteFill}
+        style={styles.roomThumbImage}
         resizeMode="cover"
         accessibilityIgnoresInvertColors
       />
@@ -454,6 +454,7 @@ const styles = StyleSheet.create({
   },
   roomThumb: { width: 64, height: 46 },
   roomThumbClip: { overflow: 'hidden', borderRadius: radius.sm, backgroundColor: colors.surfaceSunken },
+  roomThumbImage: { width: '100%', height: '100%' },
   roomMeta: { flex: 1, gap: 2 },
   roomName: { ...typography.cardTitle, color: colors.textPrimary },
   muted: { ...typography.meta, color: colors.textSecondary },

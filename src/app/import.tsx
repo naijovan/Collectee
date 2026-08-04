@@ -329,10 +329,21 @@ export default function ImportScreen() {
                   which title you are importing FROM, so it has to read as the
                   game rather than as something in your inventory. */}
               <View style={styles.gameArt}>
+                {/*
+                  Explicit 100%/100%, not absoluteFill. absoluteFill only sets
+                  the four edges; a renderer that sizes an image from its
+                  intrinsic pixels then draws a 1200px cover at full size and
+                  lets the parent clip it, so the tile showed the top-left
+                  corner instead of the whole cover.
+
+                  `contain` so nothing is ever cut. The covers are square and so
+                  is the tile, so today it fills edge to edge regardless — but a
+                  future cover that is not square still arrives whole.
+                */}
                 <Image
                   source={GAME_COVERS[option]}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
+                  style={styles.gameArtImage}
+                  resizeMode="contain"
                   accessibilityIgnoresInvertColors
                 />
               </View>
@@ -1182,6 +1193,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.surfaceSunken,
   },
+  gameArtImage: { width: '100%', height: '100%' },
   supported: { ...typography.meta, color: colors.accent },
   selectedGame: {
     flexDirection: 'row',

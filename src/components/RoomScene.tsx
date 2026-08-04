@@ -159,7 +159,9 @@ export function RoomScene({
           {backdrop ? (
             <Image
               source={backdrop}
-              style={StyleSheet.absoluteFill}
+              // Explicit size, not absoluteFill — see ItemArt's artFill. Edges
+              // alone let a renderer draw the 1920px backdrop at full size.
+              style={styles.backdrop}
               resizeMode="cover"
               accessibilityIgnoresInvertColors
             />
@@ -287,6 +289,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  backdrop: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   wash: { position: 'absolute', left: 0, right: 0, height: '40%' },
   floor: {
     position: 'absolute',
