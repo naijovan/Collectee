@@ -78,7 +78,7 @@ export default function ModerationScreen() {
 
       {queue.length === 0 ? (
         <EmptyState
-          title="Nothing in the queue"
+          title="Nothing to review"
           body="No report has crossed its threshold. Flags below the threshold stay invisible here on purpose — that is the guard working."
         />
       ) : null}
