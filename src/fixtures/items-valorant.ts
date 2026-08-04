@@ -299,7 +299,7 @@ export const VALORANT_ITEMS = [
   // Valorant slot they fit — the rest of this catalogue is gun skins. Real art
   // lives in `assets/collectee/items/`, resolved via `config/artRegistry.ts`.
   {
-    id: 'valorant-voidglass-blade',
+    id: 'val-voidglass-blade',
     title: 'valorant',
     name: 'Voidglass Blade',
     rarityTier: 'mythic',
@@ -309,7 +309,7 @@ export const VALORANT_ITEMS = [
     popularityScore: 0.038,
   },
   {
-    id: 'valorant-riftblade-katana',
+    id: 'val-riftblade-katana',
     title: 'valorant',
     name: 'Riftblade Katana',
     rarityTier: 'legendary',

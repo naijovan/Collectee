@@ -38,10 +38,11 @@ yarn-error.*
 
 example
 
-# raw art-pack source dump (47MB, generic export filenames) — the processed,
-# identified, correctly-named renders actually used by the app live in
-# assets/collectee/ and are tracked. This folder is just working material.
-assets/Heroes\ &\ Items/
+# Art-pack source material — raw generator dumps and vendor packs, ~90MB.
+# Working input only: the renders the app actually bundles are copied into
+# assets/collectee/ under their catalogue-item ids and ARE tracked. Keeping the
+# sources out means assets/ contains exactly what ships and nothing else.
+art-source/
 
 # Same reasoning for the app-ready delivery: its PNGs are copied verbatim into
 # assets/collectee/{subjects,items}/ and tracked there, so keeping the originals

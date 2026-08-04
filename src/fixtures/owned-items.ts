@@ -92,8 +92,8 @@ const JOVAN = ownAll('user-jovan', [
   { itemId: 'mlbb-valentine-sweetheart', source: 'manual', acquiredAt: '2026-07-20T11:32:00.000Z' },
   { itemId: 'mlbb-zodiac-aquarius', confidence: 0.93, acquiredAt: '2026-07-14T19:05:00.000Z' },
   { itemId: 'mlbb-neon-encore', confidence: 0.9, acquiredAt: '2026-07-14T19:05:00.000Z' },
-  { itemId: 'valorant-voidglass-blade', trust: 'verified', source: 'linked-account', acquiredAt: '2026-07-05T16:44:00.000Z' },
-  { itemId: 'valorant-riftblade-katana', confidence: 0.94, acquiredAt: '2026-07-18T14:20:00.000Z' },
+  { itemId: 'val-voidglass-blade', trust: 'verified', source: 'linked-account', acquiredAt: '2026-07-05T16:44:00.000Z' },
+  { itemId: 'val-riftblade-katana', confidence: 0.94, acquiredAt: '2026-07-18T14:20:00.000Z' },
   { itemId: 'codm-charm-chronoseal', trust: 'verified', source: 'linked-account', acquiredAt: '2026-07-05T16:44:00.000Z' },
   { itemId: 'codm-charm-sweetheart-prism', confidence: 0.92, acquiredAt: '2026-07-18T14:20:00.000Z' },
 ]);

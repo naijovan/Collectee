@@ -53,7 +53,7 @@ export const COLLECTIONS = [
     // The two art-pack blades sit here as well as in Neon Legends — the one
     // place the seeded data demonstrates §11 F3's "an item can belong to more
     // than one collection", which the Select-items screen claims in copy.
-    itemIds: ['val-prime-karambit', 'valorant-riftblade-katana', 'valorant-voidglass-blade'],
+    itemIds: ['val-prime-karambit', 'val-riftblade-katana', 'val-voidglass-blade'],
     visibility: 'private',
     allowComments: false,
     showOnProfile: false,
@@ -78,8 +78,8 @@ export const COLLECTIONS = [
       'mlbb-cyber-breacher',
       'mlbb-neon-encore',
       'mlbb-shadow-protocol',
-      'valorant-riftblade-katana',
-      'valorant-voidglass-blade',
+      'val-riftblade-katana',
+      'val-voidglass-blade',
     ],
     visibility: 'public',
     allowComments: true,
