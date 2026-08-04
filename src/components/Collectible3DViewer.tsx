@@ -16,8 +16,7 @@ import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Item } from '@/types';
 
-import { ArtworkRelief3D } from './ArtworkRelief3D';
-import { resolveItemArt } from './item-art';
+import { ArtworkRelief3D, itemTexture } from './ArtworkRelief3D';
 
 interface ViewerControls {
   yaw: number;
@@ -206,7 +205,7 @@ export function Collectible3DViewer({
           <View>
             <Text style={styles.footerLabel}>MODEL TYPE</Text>
             <Text style={styles.footerValue}>
-              {item && resolveItemArt(item.renderUrl)
+              {item && itemTexture(item)
                 ? '3D artwork relief'
                 : labelForKind(kindFor(item))}
             </Text>
@@ -239,7 +238,7 @@ function CollectibleRig({
   const group = useRef<Group>(null);
   const kind = kindFor(item);
   const accent = rarityColors[item.rarityTier];
-  const art = preferArtwork ? resolveItemArt(item.renderUrl) : null;
+  const art = preferArtwork ? itemTexture(item) : null;
   const { size } = useThree();
   const portrait = size.width / size.height < 0.8;
   const baseScale = art

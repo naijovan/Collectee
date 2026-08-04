@@ -9,10 +9,11 @@ import type { Group } from 'three';
 import { colors, radius, rarityColors, spacing } from '@/theme/theme';
 import type { Item, Room, RoomTheme, Slot } from '@/types';
 
-import { ArtworkRelief3D } from './ArtworkRelief3D';
+import { backdropFor } from '@/config/artRegistry';
+
+import { ArtworkRelief3D, itemTexture } from './ArtworkRelief3D';
 import { CollectibleModel3D } from './Collectible3DViewer';
 import { resolveBackdrop } from './backdrops';
-import { resolveItemArt } from './item-art';
 
 interface GalleryControls {
   yaw: number;
@@ -63,7 +64,9 @@ export function ImmersiveRoom3D({
   const controls = useRef<GalleryControls>({ ...INITIAL_CONTROLS });
   const gestureStart = useRef({ yaw: 0, pitch: 0 });
   const height = width * 0.68;
-  const backdrop = resolveBackdrop(room.backdropUrl);
+  // Same precedence as RoomScene: the theme's 1920x1080 render, then the
+  // path-keyed fallback, then a flat wash. The 3D scene sits over this.
+  const backdrop = (theme ? backdropFor(theme.id) : null) ?? resolveBackdrop(room.backdropUrl);
   const placements = room.placements
     .map((placement) => {
       const item = itemsByOwnedId.get(placement.ownedItemId);
@@ -258,7 +261,7 @@ function GalleryCollectible({
 }) {
   const model = useRef<Group>(null);
   const accent = rarityColors[entry.item.rarityTier];
-  const art = resolveItemArt(entry.item.renderUrl);
+  const art = itemTexture(entry.item);
   const kind = modelKind(entry.item);
   const featured = index === 0;
   const artWidth = featured ? 3.05 : 1.72;

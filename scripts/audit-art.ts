@@ -221,9 +221,13 @@ for (const surface of SURFACES) {
 }
 
 // Non-item art, which the same generation pass should cover.
-const themesMissing = ROOM_THEMES.filter(
-  (t) => !registrySource.includes(t.backdropUrl.split('/').pop() ?? '\u0000'),
-);
+// Keyed on `theme.id`, not on the `backdropUrl` filename, because `backdropFor`
+// is what `RoomScene` actually calls — and those two drifted apart once already.
+// The art pack shipped `theme-neon-vault` / `theme-ancient-dojo` while the
+// fixtures had been renamed to `theme-weapon-vault` / `theme-anime-dojo`, so two
+// themes fell through to a bare palette wash. A filename substring test misses
+// that, because `theme-weapon-vault.png` happens to contain `weapon-vault.png`.
+const themesMissing = ROOM_THEMES.filter((t) => !registrySource.includes(`'${t.id}':`));
 console.log(`── Room backdrops · ${themesMissing.length}/${ROOM_THEMES.length} missing`);
 for (const theme of themesMissing) console.log(`   ${theme.name.padEnd(30)} ${theme.backdropUrl}`);
 console.log('');

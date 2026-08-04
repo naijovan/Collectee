@@ -6,7 +6,28 @@ import {
   TextureLoader,
 } from 'three';
 
+import { artFor } from '@/config/artRegistry';
 import { colors } from '@/theme/theme';
+import type { Item } from '@/types';
+
+import { resolveItemArt } from './item-art';
+
+/**
+ * The bundled texture for an item, or null when it has no render.
+ *
+ * Same precedence as `ItemArt` (primitives.tsx): the id-keyed `artRegistry`
+ * first, then the `renderUrl`-keyed map. Both 3D surfaces go through here so
+ * the room and the inspector cannot disagree about what an item looks like.
+ *
+ * The registry pack is also the better source for relief specifically — its
+ * objects sit on empty backgrounds, so the displacement map raises the item
+ * rather than embossing a whole background scene along with it.
+ */
+export function itemTexture(item: Item): number | null {
+  const entry = artFor(item.id);
+  if (entry !== null) return entry.source as number;
+  return resolveItemArt(item.renderUrl);
+}
 
 export function ArtworkRelief3D({
   source,

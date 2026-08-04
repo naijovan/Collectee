@@ -27,12 +27,6 @@
  */
 
 export const BACKDROPS: Record<string, number> = {
-  'room-backdrops/weapon-vault.png': require('@/assets/room-backdrops/weapon-vault.png'),
-  'room-backdrops/anime-dojo.png': require('@/assets/room-backdrops/anime-dojo.png'),
-  'room-backdrops/fantasy-armoury.png': require('@/assets/room-backdrops/fantasy-armoury.png'),
-  'room-backdrops/esports-locker.png': require('@/assets/room-backdrops/esports-locker.png'),
-  'room-backdrops/cyber-shrine.png': require('@/assets/room-backdrops/cyber-shrine.png'),
-  'room-backdrops/collectors-study.png': require('@/assets/room-backdrops/collectors-study.png'),
 };
 
 /** The bundled asset for a fixture backdrop path, or null if art has not landed. */

@@ -50,6 +50,7 @@ import {
   StepperHeader,
   resolveBackdrop,
 } from '@/components';
+import { backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { ROOM_STEPS, VISIBILITY_DESCRIPTIONS, VISIBILITY_LABELS } from '@/domain/collections';
 import {
@@ -397,11 +398,13 @@ export default function CreateRoomScreen() {
           {previewTheme ? (
             <View style={styles.previewCard}>
               <View style={styles.previewImageWrap}>
-                <Image
-                  source={resolveBackdrop(previewTheme.backdropUrl)}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="cover"
-                />
+                {themeBackdrop(previewTheme) ? (
+                  <Image
+                    source={themeBackdrop(previewTheme)!}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                  />
+                ) : null}
                 <Pressable
                   accessibilityLabel="Close room design preview"
                   hitSlop={12}
@@ -459,7 +462,7 @@ export default function CreateRoomScreen() {
           {themes.map((theme) => {
             const isBest = recommended?.theme.id === theme.id;
             const selected = themeId === theme.id;
-            const backdrop = resolveBackdrop(theme.backdropUrl);
+            const backdrop = themeBackdrop(theme);
             return (
               <Pressable
                 key={theme.id}
@@ -970,6 +973,16 @@ function Toggle({
       </View>
     </Pressable>
   );
+}
+
+/**
+ * A theme's backdrop, on the same precedence every other surface uses: the
+ * id-keyed registry render first, then the path-keyed fallback. The picker
+ * shows these six side by side, so a theme that resolved differently here than
+ * in the room itself would advertise art the room does not render.
+ */
+function themeBackdrop(theme: RoomTheme) {
+  return backdropFor(theme.id) ?? resolveBackdrop(theme.backdropUrl);
 }
 
 const styles = StyleSheet.create({

@@ -498,12 +498,12 @@ export const GAME_COVERS: Record<GameTitle, ImageSourcePropType> = {
  * Backdrops are `cover` at 50% 50%; item slots stay a separate runtime overlay.
  */
 export const ROOM_BACKDROPS: Record<string, ImageSourcePropType> = {
-  'theme-ancient-dojo': require('../../assets/collectee/backdrops/theme-ancient-dojo.png'),
+  'theme-anime-dojo': require('../../assets/collectee/backdrops/theme-anime-dojo.png'),
   'theme-collectors-study': require('../../assets/collectee/backdrops/theme-collectors-study.png'),
   'theme-cyber-shrine': require('../../assets/collectee/backdrops/theme-cyber-shrine.png'),
   'theme-esports-locker': require('../../assets/collectee/backdrops/theme-esports-locker.png'),
   'theme-fantasy-armoury': require('../../assets/collectee/backdrops/theme-fantasy-armoury.png'),
-  'theme-neon-vault': require('../../assets/collectee/backdrops/theme-neon-vault.png'),
+  'theme-weapon-vault': require('../../assets/collectee/backdrops/theme-weapon-vault.png'),
 };
 
 /** The bundled render for an item, or null when it has none yet. */

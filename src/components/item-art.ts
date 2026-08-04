@@ -25,17 +25,6 @@
  */
 
 export const ITEM_ART: Record<string, number> = {
-  'item-art/codm/dlq33-lightbringer.png': require('@/assets/item-art/codm/dlq33-lightbringer.png'),
-  'item-art/codm/fennec-ascended.png': require('@/assets/item-art/codm/fennec-ascended.png'),
-  'item-art/codm/drh-cerberus.png': require('@/assets/item-art/codm/drh-cerberus.png'),
-  'item-art/codm/qq9-diavolo.png': require('@/assets/item-art/codm/qq9-diavolo.png'),
-  'item-art/codm/ghost-nightfall.png': require('@/assets/item-art/codm/ghost-nightfall.png'),
-  'item-art/valorant/elderflame-vandal.png': require('@/assets/item-art/valorant/elderflame-vandal.png'),
-  'item-art/valorant/prime-vandal.png': require('@/assets/item-art/valorant/prime-vandal.png'),
-  'item-art/valorant/prime-karambit.png': require('@/assets/item-art/valorant/prime-karambit.png'),
-  'item-art/mlbb/gusion-cyber-faust.png': require('@/assets/item-art/mlbb/gusion-cyber-faust.png'),
-  'item-art/mlbb/hayabusa-shadow-vanguard.png': require('@/assets/item-art/mlbb/hayabusa-shadow-vanguard.png'),
-  'item-art/mlbb/layla-malefic-gunner.png': require('@/assets/item-art/mlbb/layla-malefic-gunner.png'),
 };
 
 /** The bundled asset for an item's `renderUrl`, or null if art has not landed. */
