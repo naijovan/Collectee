@@ -130,6 +130,7 @@ export default function CollectionScreen() {
       <ItemArt
         seed={collection.id}
         tier={items[0]?.rarityTier ?? 'epic'}
+        renderUrl={items[0]?.renderUrl}
         style={styles.cover}
       />
 

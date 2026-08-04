@@ -1,28 +1,11 @@
 /**
- * RoomScene — the 2.5D parallax room from PRD §11 F4. Flow owner: Jovan (J3).
+ * RoomScene owns both Collection Room renderers.
  *
- * ┌─────────────────────────────────────────────────────────────────────┐
- * │  SCOPE GUARD (§11 F4). This is NOT navigable 3D and NOT a turntable │
- * │  of the in-game model — that needs publisher assets we do not have  │
- * │  and will not have. The Figma frames render richer than this spec.  │
- * │  Build to the spec, not to the frames.                              │
- * └─────────────────────────────────────────────────────────────────────┘
- *
- * What the spec asks for, and what this renders:
- *   - a themed backdrop with fixed placement slots, items composited in
- *   - look-at focus: tapping an item TRANSITIONS THE CAMERA to it — "this
- *     transition is the immersion, and it costs a fraction of a navigable 3D
- *     environment"
- *   - the focused card flips in place to show reverse-side metadata — reads as
- *     "spin" without a 3D model
- *   - parallax on drag, by depth layer
- *
- * Slot coordinates are fractional (§12.3), so the same slot map works at any
- * size. All geometry comes from the theme; generation only ever produces the
- * backdrop image. Everything here is pure presentation over `domain/room.ts` —
- * no camera or parallax maths is reinvented in this file.
- *
- * [ROADMAP] brightness and animated lighting (`FEATURES.roomLightingControls`).
+ * Published and preview rooms use a procedural WebGL gallery so the space and
+ * collectibles respond in three dimensions. Edit mode keeps the slot-based
+ * 2.5D renderer below because its precise drag/drop coordinates are part of the
+ * room data contract. Publisher models can replace the procedural collectibles
+ * later without changing either interaction surface.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -40,6 +23,7 @@ import { GAME_SHORT_LABELS } from '@/types';
 import type { Item, Room, RoomTheme, Slot } from '@/types';
 
 import { resolveBackdrop } from './backdrops';
+import { ImmersiveRoom3D } from './ImmersiveRoom3D';
 
 /** How far a drag can shift the front layer, in px. Deliberately small. */
 const MAX_TILT = 14;
@@ -50,6 +34,7 @@ export function RoomScene({
   itemsByOwnedId,
   selectedSlotId,
   onSlotPress,
+  onInspect3D,
   onDropItem,
   draggable = false,
   showEmptySlots = false,
@@ -62,6 +47,8 @@ export function RoomScene({
   itemsByOwnedId: ReadonlyMap<string, Item>;
   selectedSlotId?: string | null;
   onSlotPress?: (slot: Slot) => void;
+  /** Opens the focused collectible in the full 3D inspection surface. */
+  onInspect3D?: (item: Item) => void;
   /** Drag ended over another slot. Empty target moves, occupied target swaps. */
   onDropItem?: (fromSlotId: string, toSlotId: string) => void;
   /** Edit mode — placed items can be dragged between slots. */
@@ -254,6 +241,19 @@ export function RoomScene({
   // Brighter setting = thinner darkening veil. Not a light model, a wash.
   const veilOpacity = FEATURES.roomLightingControls ? (1 - room.settings.brightness) * 0.55 : 0.2;
 
+  if (cameraEnabled && !draggable && !showEmptySlots && onInspect3D) {
+    return (
+      <ImmersiveRoom3D
+        room={room}
+        theme={theme}
+        itemsByOwnedId={itemsByOwnedId}
+        onSlotPress={onSlotPress}
+        onInspect3D={onInspect3D}
+        width={width}
+      />
+    );
+  }
+
   return (
     <View
       style={[styles.viewport, { width, height }]}
@@ -369,7 +369,13 @@ export function RoomScene({
                 ]}
               >
                 <Pressable
-                  onPress={() => onSlotPress?.(slot)}
+                  onPress={() => {
+                    if (item && focused && onInspect3D) {
+                      onInspect3D(item);
+                      return;
+                    }
+                    onSlotPress?.(slot);
+                  }}
                   onLongPress={() => focused && setFlipped((prev) => !prev)}
                   // Claims the drag before the responder sees movement, so the
                   // gesture knows which card it is carrying.
@@ -499,7 +505,17 @@ const styles = StyleSheet.create({
   cardFocused: { borderWidth: 3 },
   cardSelected: { borderColor: colors.accent, borderWidth: 3 },
 
-  face: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 2, overflow: 'hidden' },
+  // `width` is not decoration: the card centres its children on the cross axis,
+  // so without it the face collapses to the width of the name and the
+  // absolutely-filled ItemArt renders into a sliver.
+  face: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
+    overflow: 'hidden',
+  },
   /** Keeps the name legible over a bright render without hiding the art. */
   faceScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: 'rgba(0,0,0,0.55)' },
   faceGlow: {

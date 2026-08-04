@@ -23,6 +23,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import {
   Avatar,
+  Collectible3DViewer,
   ItemCard,
   LoadingState,
   PrimaryButton,
@@ -63,6 +64,7 @@ export default function RoomScreen() {
   const [draft, setDraft] = useState('');
   const [liked, setLiked] = useState(false);
   const [shared, setShared] = useState(false);
+  const [inspecting3D, setInspecting3D] = useState<Item | null>(null);
   const [busy, setBusy] = useState(true);
 
   const load = useCallback(async () => {
@@ -144,6 +146,9 @@ export default function RoomScreen() {
 
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
+      <Collectible3DViewer item={inspecting3D} onClose={() => setInspecting3D(null)} />
+
+
       <Text style={styles.title}>{room.title}</Text>
       <Text style={styles.muted}>{theme?.name ?? 'Room'}</Text>
 
@@ -176,6 +181,7 @@ export default function RoomScreen() {
         onSlotPress={(slot) =>
           void focus(room.settings.focusedSlotId === slot.id ? null : slot.id)
         }
+        onInspect3D={setInspecting3D}
         width={sceneWidth}
       />
 
@@ -203,6 +209,12 @@ export default function RoomScreen() {
           <Pressable onPress={() => void focus(null)} hitSlop={8}>
             <Text style={styles.link}>Pull the camera back</Text>
           </Pressable>
+          <Pressable
+            onPress={() => setInspecting3D(focusedItem)}
+            style={styles.inspect3DButton}
+          >
+            <Text style={styles.inspect3DText}>View in 3D</Text>
+          </Pressable>
         </View>
       ) : (
         <Text style={styles.muted}>
@@ -213,7 +225,13 @@ export default function RoomScreen() {
       {/* Item strip — the frames cap it and show a +N overflow chip. */}
       <View style={styles.strip}>
         {items.slice(0, 5).map((item) => (
-          <ItemCard key={item.id} item={item} width={72} artHeight={52} />
+          <ItemCard
+            key={item.id}
+            item={item}
+            width={72}
+            artHeight={52}
+            onPress={() => setInspecting3D(item)}
+          />
         ))}
         {items.length > 5 ? (
           <View style={styles.overflowChip}>
@@ -295,7 +313,13 @@ export default function RoomScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, gap: spacing.md },
+  content: {
+    width: '100%',
+    maxWidth: 552,
+    alignSelf: 'center',
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
   block: { gap: spacing.md },
 
   title: { ...typography.screenTitle, color: colors.textPrimary },
@@ -306,6 +330,16 @@ const styles = StyleSheet.create({
   muted: { ...typography.meta, color: colors.textSecondary },
   footnote: { ...typography.meta, color: colors.textTertiary },
   link: { ...typography.meta, color: colors.accent, marginTop: spacing.xs },
+  inspect3DButton: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  inspect3DText: { ...typography.meta, color: colors.accent },
 
   creditRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
   credit: { flex: 1, gap: 2 },

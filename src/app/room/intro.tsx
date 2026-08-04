@@ -77,6 +77,7 @@ export default function RoomIntroScreen() {
         <ItemArt
           seed={collection.id}
           tier={headline?.rarityTier ?? 'epic'}
+          renderUrl={headline?.renderUrl}
           style={styles.summaryArt}
         />
         <View style={styles.summaryBody}>

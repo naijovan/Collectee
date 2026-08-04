@@ -24,11 +24,22 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 
 import {
   Avatar,
+  Collectible3DViewer,
   EmptyState,
   ItemCard,
   LoadingState,
@@ -37,6 +48,7 @@ import {
   SecondaryButton,
   SectionHeader,
   StepperHeader,
+  resolveBackdrop,
 } from '@/components';
 import { FEATURES } from '@/config/features';
 import { ROOM_STEPS, VISIBILITY_DESCRIPTIONS, VISIBILITY_LABELS } from '@/domain/collections';
@@ -89,6 +101,7 @@ export default function CreateRoomScreen() {
   const [themes, setThemes] = useState<RoomTheme[]>([]);
   const [recommended, setRecommended] = useState<{ theme: RoomTheme; reason: string } | null>(null);
   const [themeId, setThemeId] = useState<string | null>(null);
+  const [previewThemeId, setPreviewThemeId] = useState<string | null>(null);
 
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
@@ -99,6 +112,7 @@ export default function CreateRoomScreen() {
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [heldOwnedItemId, setHeldOwnedItemId] = useState<string | null>(null);
   const [inspecting, setInspecting] = useState<Item | null>(null);
+  const [threeDItem, setThreeDItem] = useState<Item | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -110,6 +124,7 @@ export default function CreateRoomScreen() {
   const [published, setPublished] = useState<Room | null>(null);
   const [invites, setInvites] = useState<CollectorRecommendation[]>([]);
   const [busy, setBusy] = useState(true);
+  const previewTheme = themes.find((theme) => theme.id === previewThemeId) ?? null;
 
   // ── Load ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -271,6 +286,8 @@ export default function CreateRoomScreen() {
   if (published) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <Collectible3DViewer item={threeDItem} onClose={() => setThreeDItem(null)} />
+
         <Text style={styles.done}>✓</Text>
         <Text style={styles.title}>Your room is live</Text>
         <Text style={styles.body}>
@@ -282,6 +299,7 @@ export default function CreateRoomScreen() {
           room={published}
           theme={themes.find((t) => t.id === published.themeId)}
           itemsByOwnedId={itemsByOwnedId}
+          onInspect3D={setThreeDItem}
           width={sceneWidth}
         />
 
@@ -367,9 +385,69 @@ export default function CreateRoomScreen() {
         onBack={step === 0 ? () => router.back() : () => setStep(step - 1)}
       />
 
+      <Collectible3DViewer item={threeDItem} onClose={() => setThreeDItem(null)} />
+
+      <Modal
+        visible={previewTheme !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setPreviewThemeId(null)}
+      >
+        <View style={styles.previewBackdrop}>
+          {previewTheme ? (
+            <View style={styles.previewCard}>
+              <View style={styles.previewImageWrap}>
+                <Image
+                  source={resolveBackdrop(previewTheme.backdropUrl)}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                />
+                <Pressable
+                  accessibilityLabel="Close room design preview"
+                  hitSlop={12}
+                  onPress={() => setPreviewThemeId(null)}
+                  style={styles.previewClose}
+                >
+                  <Text style={styles.previewCloseText}>×</Text>
+                </Pressable>
+              </View>
+              <View style={styles.previewDetails}>
+                <View style={styles.previewTitleRow}>
+                  <View style={styles.rowBody}>
+                    <Text style={styles.previewTitle}>{previewTheme.name}</Text>
+                    <Text style={styles.body}>{previewTheme.description}</Text>
+                  </View>
+                  <View style={styles.paletteRow}>
+                    {previewTheme.palette.map((tone) => (
+                      <View key={tone} style={[styles.paletteSwatch, { backgroundColor: tone }]} />
+                    ))}
+                  </View>
+                </View>
+                <PrimaryButton
+                  label={themeId === previewTheme.id ? 'Selected design' : 'Use this design'}
+                  onPress={() => {
+                    setThemeId(previewTheme.id);
+                    setPreviewThemeId(null);
+                  }}
+                />
+                <SecondaryButton label="Keep browsing" onPress={() => setPreviewThemeId(null)} />
+              </View>
+            </View>
+          ) : null}
+        </View>
+      </Modal>
+
       {/* ── 0 Style ─────────────────────────────────────────────────── */}
       {step === 0 ? (
         <View style={styles.block}>
+          <View style={styles.styleHeading}>
+            <View style={styles.rowBody}>
+              <Text style={styles.title}>Choose room style</Text>
+              <Text style={styles.body}>Select the design that best fits your collection.</Text>
+            </View>
+            <Text style={styles.designCount}>{themes.length} designs</Text>
+          </View>
+
           {recommended ? (
             <Text style={styles.recommendLine}>
               ✦ Recommended from the colours and items in {collection?.name}
@@ -381,31 +459,69 @@ export default function CreateRoomScreen() {
           {themes.map((theme) => {
             const isBest = recommended?.theme.id === theme.id;
             const selected = themeId === theme.id;
+            const backdrop = resolveBackdrop(theme.backdropUrl);
             return (
               <Pressable
                 key={theme.id}
                 onPress={() => setThemeId(theme.id)}
-                style={[styles.option, selected && styles.optionActive]}
+                style={[
+                  styles.themeOption,
+                  (selected || isBest) && styles.themeOptionFeatured,
+                  selected && styles.themeOptionActive,
+                ]}
               >
-                {isBest ? <Text style={styles.bestMatch}>✦ Best match</Text> : null}
-                <View style={styles.themeRow}>
-                  <View style={styles.swatches}>
-                    {theme.palette.map((tone) => (
-                      <View key={tone} style={[styles.swatch, { backgroundColor: tone }]} />
-                    ))}
+                {backdrop ? (
+                  <Image source={backdrop} style={StyleSheet.absoluteFill} contentFit="cover" />
+                ) : null}
+                <View style={styles.themeScrim} />
+                <View style={styles.themeLowerScrim} />
+                <View style={styles.themeContent}>
+                  <View style={styles.themeTopRow}>
+                    {isBest ? <Text style={styles.bestMatch}>✦ Best match</Text> : <View />}
+                    <Pressable
+                      accessibilityLabel={`Preview ${theme.name} full screen`}
+                      hitSlop={8}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        setPreviewThemeId(theme.id);
+                      }}
+                      style={styles.previewAction}
+                    >
+                      <Text style={styles.previewActionIcon}>⛶</Text>
+                    </Pressable>
                   </View>
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle}>{theme.name}</Text>
-                    <Text style={styles.muted}>
-                      {isBest && recommended ? recommended.reason : theme.description}
-                    </Text>
-                    <Text style={styles.footnote}>{theme.slots.length} placement slots</Text>
+                  <View style={styles.themeRow}>
+                    <View style={styles.swatches}>
+                      {theme.palette.map((tone) => (
+                        <View key={tone} style={[styles.swatch, { backgroundColor: tone }]} />
+                      ))}
+                    </View>
+                    <View style={styles.rowBody}>
+                      <Text style={styles.rowTitle}>{theme.name}</Text>
+                      <Text style={styles.themeMuted}>
+                        {isBest && recommended ? recommended.reason : theme.description}
+                      </Text>
+                      <Text style={styles.themeFootnote}>{theme.slots.length} placement slots</Text>
+                    </View>
+                    {selected ? (
+                      <View style={styles.selectedMark}>
+                        <Text style={styles.tick}>✓</Text>
+                      </View>
+                    ) : null}
                   </View>
-                  {selected ? <Text style={styles.tick}>✓</Text> : null}
                 </View>
               </Pressable>
             );
           })}
+
+          {themes.find((theme) => theme.id === themeId) ? (
+            <View style={styles.selectedSummary}>
+              <Text style={styles.muted}>Selected design</Text>
+              <Text style={styles.rowTitle}>
+                {themes.find((theme) => theme.id === themeId)?.name}
+              </Text>
+            </View>
+          ) : null}
 
           <PrimaryButton
             label="Generate my room"
@@ -468,6 +584,7 @@ export default function CreateRoomScreen() {
                 room={room}
                 theme={themes.find((t) => t.id === room.themeId)}
                 itemsByOwnedId={itemsByOwnedId}
+                onInspect3D={setThreeDItem}
                 width={sceneWidth}
               />
               <Text style={styles.recommendLine}>
@@ -506,6 +623,7 @@ export default function CreateRoomScreen() {
             itemsByOwnedId={itemsByOwnedId}
             selectedSlotId={selectedSlotId}
             onSlotPress={(slot) => void onSlotPress(slot)}
+            onInspect3D={setThreeDItem}
             onDropItem={(from, to) => void onDropItem(from, to)}
             draggable={editTab === 'Items'}
             showEmptySlots
@@ -708,22 +826,26 @@ export default function CreateRoomScreen() {
             theme={themes.find((t) => t.id === room.themeId)}
             itemsByOwnedId={itemsByOwnedId}
             onSlotPress={(slot) => void onSlotPress(slot)}
+            onInspect3D={setThreeDItem}
             width={sceneWidth}
           />
           <Text style={styles.footnote}>Drag to explore · tap an item to inspect it</Text>
 
           {inspecting ? (
-            <View style={styles.inspect}>
-              <ItemCard item={inspecting} width={72} artHeight={52} />
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle}>{inspecting.name}</Text>
-                <Text style={styles.muted}>
-                  {GAME_SHORT_LABELS[inspecting.title]} · {inspecting.rarityLabel}
-                </Text>
+            <View style={styles.block}>
+              <View style={styles.inspect}>
+                <ItemCard item={inspecting} width={72} artHeight={52} />
+                <View style={styles.rowBody}>
+                  <Text style={styles.rowTitle}>{inspecting.name}</Text>
+                  <Text style={styles.muted}>
+                    {GAME_SHORT_LABELS[inspecting.title]} · {inspecting.rarityLabel}
+                  </Text>
+                </View>
+                <Pressable onPress={() => setInspecting(null)} hitSlop={8}>
+                  <Text style={styles.close}>✕</Text>
+                </Pressable>
               </View>
-              <Pressable onPress={() => setInspecting(null)} hitSlop={8}>
-                <Text style={styles.close}>✕</Text>
-              </Pressable>
+              <SecondaryButton label="View in 3D" onPress={() => setThreeDItem(inspecting)} />
             </View>
           ) : null}
 
@@ -852,22 +974,28 @@ function Toggle({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, gap: spacing.md },
+  content: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
   block: { gap: spacing.md },
 
   title: { ...typography.screenTitle, color: colors.textPrimary },
   sectionLabel: { ...typography.cardTitle, color: colors.textPrimary, marginTop: spacing.sm },
   body: { ...typography.body, color: colors.textSecondary },
   rowTitle: { ...typography.cardTitle, color: colors.textPrimary },
-  rowBody: { flex: 1, gap: 2 },
+  rowBody: { flex: 1, minWidth: 0, gap: 2 },
   muted: { ...typography.meta, color: colors.textSecondary },
   footnote: { ...typography.meta, color: colors.textTertiary },
   warn: { ...typography.meta, color: colors.warning },
   link: { ...typography.meta, color: colors.accent },
   signalDetail: { ...typography.meta, color: colors.textSecondary },
   recommendLine: { ...typography.meta, color: colors.accent },
-  bestMatch: { ...typography.meta, color: colors.accent, marginBottom: spacing.xs },
-  tick: { color: colors.accent, fontSize: 18 },
+  bestMatch: { ...typography.meta, color: colors.textOnAccent },
+  tick: { color: colors.textOnAccent, fontSize: 16, lineHeight: 18 },
 
   option: {
     backgroundColor: colors.surface,
@@ -879,9 +1007,145 @@ const styles = StyleSheet.create({
   },
   optionActive: { borderColor: colors.accent },
 
+  themeOption: {
+    minHeight: 190,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  themeOptionFeatured: { minHeight: 238 },
+  themeOptionActive: { borderColor: colors.accent, borderWidth: 2 },
+  themeScrim: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: colors.surfaceSunken,
+    opacity: 0.2,
+  },
+  themeLowerScrim: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    left: 0,
+    height: '70%',
+    backgroundColor: colors.surfaceSunken,
+    opacity: 0.74,
+  },
+  themeContent: { gap: spacing.sm },
+  themeTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   themeRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
-  swatches: { width: 44, height: 44, borderRadius: radius.sm, overflow: 'hidden' },
+  swatches: {
+    width: 12,
+    height: 48,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   swatch: { flex: 1 },
+  themeMuted: { ...typography.meta, color: colors.textPrimary },
+  themeFootnote: { ...typography.meta, color: colors.textSecondary },
+  selectedMark: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+  },
+  previewAction: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  previewActionIcon: { color: colors.textPrimary, fontSize: 18, lineHeight: 20 },
+  styleHeading: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  designCount: {
+    ...typography.meta,
+    color: colors.textSecondary,
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  selectedSummary: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    gap: 2,
+  },
+  previewBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    backgroundColor: colors.background,
+  },
+  previewCard: {
+    width: '100%',
+    maxWidth: 720,
+    overflow: 'hidden',
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  previewImageWrap: {
+    width: '100%',
+    aspectRatio: 1.45,
+    backgroundColor: colors.surfaceSunken,
+  },
+  previewClose: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    width: 38,
+    height: 38,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  previewCloseText: { color: colors.textPrimary, fontSize: 26, lineHeight: 28 },
+  previewDetails: { padding: spacing.lg, gap: spacing.md },
+  previewTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  previewTitle: { ...typography.screenTitle, color: colors.textPrimary },
+  paletteRow: { flexDirection: 'row', gap: spacing.xs, paddingTop: spacing.xs },
+  paletteSwatch: {
+    width: 14,
+    height: 28,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
 
   stage: { ...typography.sectionHeader, color: colors.textPrimary },
   track: { height: 8, borderRadius: radius.pill, backgroundColor: colors.surface },

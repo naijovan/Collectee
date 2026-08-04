@@ -29,6 +29,9 @@ export { TabBar } from './TabBar';
 
 /** J3-specific rather than one of the 14, but shared by the build flow and the live room. */
 export { RoomScene } from './RoomScene';
+export { Collectible3DViewer } from './Collectible3DViewer';
+export { ArtworkRelief3D } from './ArtworkRelief3D';
+export { ImmersiveRoom3D } from './ImmersiveRoom3D';
 
 /**
  * Art seams. Adding artwork means adding files and a line to one of these maps

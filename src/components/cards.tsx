@@ -7,8 +7,8 @@
  * Jovan owns every component in src/components/. Changes go via PR announced in
  * chat — this is where merge conflicts will otherwise happen.
  *
- * No new dependencies (§13.1), so icons stay unicode glyphs and art stays the
- * deterministic colour block from `ItemArt`.
+ * No new dependencies (§13.1), so icons stay unicode glyphs and item imagery
+ * flows through the existing `ItemArt` seam.
  */
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';

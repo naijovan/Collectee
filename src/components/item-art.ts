@@ -1,5 +1,5 @@
 /**
- * Bundled item art — the §16 open item ("item art is not in the repo").
+ * Bundled item art — the explicit Metro require map for generated item renders.
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
  * │  THIS IS THE SEAM FOR ART. Adding artwork should never require      │
@@ -14,9 +14,9 @@
  *      slot, tray and strip in the app picks it up at once.
  *
  * Until a key is present, `ItemArt` draws its deterministic rarity-tinted block,
- * so a half-finished art pass renders as a mix rather than a wall of broken
- * images. `require()` cannot take a runtime string in Metro, which is why this
- * is an explicit map.
+ * so a partial art pass renders as a mix rather than a wall of broken images.
+ * `require()` cannot take a runtime string in Metro, which is why this is an
+ * explicit map.
  *
  * Two constraints worth keeping in mind when generating (§15, §11 F4):
  *   - Square or 4:3 reads best; cards, room slots and the tray all crop to fit.
@@ -25,7 +25,17 @@
  */
 
 export const ITEM_ART: Record<string, number> = {
-  // 'item-art/codm/codm-dlq33-lightbringer.png': require('@/assets/item-art/codm/codm-dlq33-lightbringer.png'),
+  'item-art/codm/dlq33-lightbringer.png': require('@/assets/item-art/codm/dlq33-lightbringer.png'),
+  'item-art/codm/fennec-ascended.png': require('@/assets/item-art/codm/fennec-ascended.png'),
+  'item-art/codm/drh-cerberus.png': require('@/assets/item-art/codm/drh-cerberus.png'),
+  'item-art/codm/qq9-diavolo.png': require('@/assets/item-art/codm/qq9-diavolo.png'),
+  'item-art/codm/ghost-nightfall.png': require('@/assets/item-art/codm/ghost-nightfall.png'),
+  'item-art/valorant/elderflame-vandal.png': require('@/assets/item-art/valorant/elderflame-vandal.png'),
+  'item-art/valorant/prime-vandal.png': require('@/assets/item-art/valorant/prime-vandal.png'),
+  'item-art/valorant/prime-karambit.png': require('@/assets/item-art/valorant/prime-karambit.png'),
+  'item-art/mlbb/gusion-cyber-faust.png': require('@/assets/item-art/mlbb/gusion-cyber-faust.png'),
+  'item-art/mlbb/hayabusa-shadow-vanguard.png': require('@/assets/item-art/mlbb/hayabusa-shadow-vanguard.png'),
+  'item-art/mlbb/layla-malefic-gunner.png': require('@/assets/item-art/mlbb/layla-malefic-gunner.png'),
 };
 
 /** The bundled asset for an item's `renderUrl`, or null if art has not landed. */

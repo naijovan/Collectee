@@ -1,19 +1,11 @@
 /**
  * Collection Room logic — PRD §11 F4. Owner: Jovan.
  *
- * Interaction model, decided by the team and NOT negotiable against the Figma
- * frames (§11 F4 scope guard):
- *   - A themed room rendered as a 2.5D parallax scene, not navigable 3D.
- *   - Items composited into FIXED slots as cards / framed artwork.
- *   - Look-at focus: tapping an item transitions the camera to it.
- *   - Card flip for reverse-side detail — reads as "spin" without a 3D model.
- *
- * A true turntable of the actual in-game 3D model is not possible: it requires
- * direct access to publisher game assets we do not have and will not have.
- * Do not promise it.
- *
- * Generation only ever produces the BACKDROP IMAGE, never the geometry. Every
- * theme ships a fixed slot map. That is what "template-conditioned" means.
+ * Slots remain the durable arrangement contract for both renderers: the 2.5D
+ * editor maps them to precise drag/drop regions, while the immersive renderer
+ * maps the same placements onto procedural 3D displays. Exact publisher models
+ * still require licensed glTF assets; the current geometry is original concept
+ * art and can be swapped without changing this domain layer.
  */
 
 import type { Item, OwnedItem, Placement, Room, RoomTheme, Slot } from '@/types';
