@@ -22,6 +22,7 @@ import {
   SectionHeader,
 } from '@/components';
 import { rarityLabelFor } from '@/domain/rarity';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { collectionService, inventoryService, roomService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
@@ -31,6 +32,8 @@ export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory, resetOnboardingGate } = useApp();
+
+  const scrollRef = useTopOnFocus();
 
   const [groups, setGroups] = useState<{ tier: RarityTier; items: Item[] }[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -68,6 +71,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >

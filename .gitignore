@@ -38,6 +38,18 @@ yarn-error.*
 
 example
 
+# Art-pack source material — raw generator dumps and vendor packs, ~90MB.
+# Working input only: the renders the app actually bundles are copied into
+# assets/collectee/ under their catalogue-item ids and ARE tracked. Keeping the
+# sources out means assets/ contains exactly what ships and nothing else.
+art-source/
+
+# Same reasoning for the app-ready delivery: its PNGs are copied verbatim into
+# assets/collectee/{subjects,items}/ and tracked there, so keeping the originals
+# too would double the repo's art weight for no benefit. The pack's docs and
+# manifest ARE tracked — they are the provenance record for who each render is.
+assets/collectee/collectee-app-ready/images/
+
 # generated native folders
 /ios
 /android

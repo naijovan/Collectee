@@ -32,6 +32,7 @@ import {
 } from '@/components';
 import { VISIBILITY_LABELS } from '@/domain/collections';
 import { rarityLabelFor } from '@/domain/rarity';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
   catalogueService,
   collectionService,
@@ -49,6 +50,8 @@ export default function RoomScreen() {
   const { width } = useWindowDimensions();
   const { viewerId } = useApp();
   const sceneWidth = Math.min(width, 520) - spacing.lg * 2;
+
+  const scrollRef = useTopOnFocus();
 
   const [room, setRoom] = useState<Room | null>(null);
   const [theme, setTheme] = useState<RoomTheme | null>(null);
@@ -140,7 +143,7 @@ export default function RoomScreen() {
   const items = [...itemsByOwnedId.values()];
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.title}>{room.title}</Text>
       <Text style={styles.muted}>{theme?.name ?? 'Room'}</Text>
 

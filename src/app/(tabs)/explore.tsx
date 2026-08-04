@@ -23,6 +23,7 @@ import {
 } from '@/components';
 import { FEATURES } from '@/config/features';
 import { VIEWER_UNVERIFIED_REASON } from '@/domain/matching';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { matchService, socialService } from '@/services';
 import type {
   CollectorRecommendation,
@@ -40,6 +41,8 @@ export default function ExploreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { viewerId } = useApp();
+
+  const scrollRef = useTopOnFocus();
 
   const [tab, setTab] = useState<Tab>('Collectors');
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
@@ -99,6 +102,7 @@ export default function ExploreScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >

@@ -5,20 +5,26 @@
  * an identity. AI does the tedious part, the player does the expressive part.
  */
 
-import type { Collection, Item, ItemSet, OwnedItem, Visibility } from '@/types';
+import type { Collection, GameTitle, Item, ItemSet, OwnedItem, RarityTier, Visibility } from '@/types';
+import { GAME_LABELS } from '@/types';
 import { RARITY_RANK } from './rarity';
 
 /**
  * Canonical stepper counts — PRD §11 F3.
  *
- * The Figma shows a 4-step bar but labels three screens Step 3 (Select Theme,
- * Arrange, Preview Details "3.5"), and the Room flow has the same problem with
- * two screens labelled Step 3 in a 5-step bar. "Pick canonical counts once, in
- * code, and let both flows import them." This is that place.
+ * "Pick canonical counts once, in code, and let both flows import them." This
+ * is that place, so the count on screen cannot drift from the count in code.
  *
- * Preview Details and Preview are modal/confirm screens OUTSIDE the numbered bar.
+ * These four match the bar drawn on every Create & Publish frame in the Figma
+ * (Details · Select items · Arrange · Publish). The Figma's problem was never
+ * the bar — it was that three *screens* were labelled Step 3 (Select Theme,
+ * Arrange, Preview Details "3.5"). The fix is to keep the four-step bar and be
+ * explicit about where those screens sit:
+ *   - Select Theme and Arrange are two sub-views of the SAME step 3. The bar
+ *     reads "3 of 4" on both, which is what the Figma actually draws.
+ *   - Preview Details and Preview are confirm screens OUTSIDE the numbered bar.
  */
-export const COLLECTION_STEPS = ['Details', 'Select items', 'Theme', 'Arrange', 'Publish'] as const;
+export const COLLECTION_STEPS = ['Details', 'Select items', 'Arrange', 'Publish'] as const;
 
 /**
  * J3 canonical steps, matching the design frames (3 Aug): the collection is
@@ -140,4 +146,153 @@ export function suggestCollections(
   }
 
   return suggestions;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Step 3 of J2 — "Suggestions for your collection".
+ *
+ * Reads the items the user has already picked and proposes (a) a theme and
+ * (b) further owned items that fit it. Deterministic, because the demo is
+ * mocked (§12.1); the shape is what a model call would fill.
+ *
+ * Every fit carries a human-readable `reason`. §11 F5: "a percentage without
+ * its reason is a broken feature, not a styling choice" — the same standard
+ * applies here, which is why `reason` is non-optional and the scorer refuses
+ * to emit a fit it cannot explain.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface ThemeSuggestion {
+  name: string;
+  description: string;
+  tags: string[];
+}
+
+export interface ItemFit {
+  item: Item;
+  reason: string;
+}
+
+/** Signal weights, strongest first. Named so the ordering is arguable in review. */
+const FIT_SAME_SET = 4;
+const FIT_SAME_TITLE = 2;
+const FIT_SAME_TIER = 2;
+const FIT_SCARCE = 1;
+
+/** Below this share of players, an item is worth calling out on its own (§11 F5). */
+const SCARCE_POPULARITY = 0.15;
+
+/** The tier the user is leaning towards. Ties break towards the rarer tier. */
+function dominantTier(items: readonly Item[]): RarityTier | null {
+  if (items.length === 0) return null;
+  const counts = new Map<RarityTier, number>();
+  for (const item of items) {
+    counts.set(item.rarityTier, (counts.get(item.rarityTier) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort(
+    (a, b) => b[1] - a[1] || RARITY_RANK[b[0]] - RARITY_RANK[a[0]],
+  )[0]![0];
+}
+
+/** Distinct titles in selection order — drives the cross-game framing. */
+function titlesIn(items: readonly Item[]): GameTitle[] {
+  return [...new Set(items.map((i) => i.title))];
+}
+
+/**
+ * A theme for the current selection: a name the user can accept as-is, a
+ * one-line description, and tags drawn from the vocabulary the seeded
+ * collections already use, so generated and seeded data stay consistent.
+ */
+export function suggestTheme(selected: readonly Item[]): ThemeSuggestion | null {
+  if (selected.length === 0) return null;
+
+  const tier = dominantTier(selected)!;
+  const titles = titlesIn(selected);
+  const crossGame = titles.length > 1;
+
+  // Print the native in-game label, never a normalised tier string (§12.2).
+  const label = selected.find((i) => i.rarityTier === tier)!.rarityLabel;
+
+  const sharedSetId = mostCommonSetId(selected);
+  const tags: string[] = [];
+  if (crossGame) tags.push('cross-game');
+  for (const title of titles) tags.push(title);
+  if (RARITY_RANK[tier] === RARITY_RANK.mythic) tags.push(tier);
+  if (sharedSetId !== null) tags.push('set-completion');
+
+  const name = crossGame ? `${label} Across Games` : `${GAME_LABELS[titles[0]!]} ${label}`;
+
+  const description = crossGame
+    ? `Your ${label} items from ${titles.map((t) => GAME_LABELS[t]).join(' and ')}.`
+    : `A ${label} run through your ${GAME_LABELS[titles[0]!]} inventory.`;
+
+  return { name, description, tags };
+}
+
+/** The set id shared by the most selected items, or null if none repeats. */
+function mostCommonSetId(items: readonly Item[]): string | null {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    if (item.setId === null) continue;
+    counts.set(item.setId, (counts.get(item.setId) ?? 0) + 1);
+  }
+  const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return best && best[1] >= 2 ? best[0] : null;
+}
+
+/**
+ * Owned items that would extend the current selection, each with the reason it
+ * was chosen. Candidates already selected are excluded by the caller passing a
+ * filtered list; anything scoring zero is dropped rather than shown unexplained.
+ */
+export function suggestItemsThatFit(
+  selected: readonly Item[],
+  candidates: readonly Item[],
+  limit = 6,
+): ItemFit[] {
+  if (selected.length === 0) return [];
+
+  const tier = dominantTier(selected)!;
+  const titles = new Set(titlesIn(selected));
+  const setIds = new Set(selected.map((i) => i.setId).filter((id): id is string => id !== null));
+  const tierLabel = selected.find((i) => i.rarityTier === tier)!.rarityLabel;
+
+  const scored = candidates
+    .map((item) => {
+      let score = 0;
+      let reason = '';
+
+      // Strongest signal first — whichever fires highest owns the explanation.
+      if (item.setId !== null && setIds.has(item.setId)) {
+        score += FIT_SAME_SET;
+        reason = 'Completes a set you have already started';
+      }
+      if (titles.has(item.title)) {
+        score += FIT_SAME_TITLE;
+        if (reason === '') reason = `Another ${GAME_LABELS[item.title]} pick`;
+      }
+      if (item.rarityTier === tier) {
+        score += FIT_SAME_TIER;
+        if (reason === '') reason = `Matches the ${tierLabel} tier you are collecting`;
+      }
+      if (item.popularityScore <= SCARCE_POPULARITY) {
+        score += FIT_SCARCE;
+        if (reason === '') {
+          reason = `Only ${Math.round(item.popularityScore * 100)}% of players own it`;
+        }
+      }
+
+      return { item, reason, score };
+    })
+    .filter((entry) => entry.score > 0 && entry.reason !== '');
+
+  return scored
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        a.item.popularityScore - b.item.popularityScore ||
+        a.item.name.localeCompare(b.item.name),
+    )
+    .slice(0, limit)
+    .map(({ item, reason }) => ({ item, reason }));
 }

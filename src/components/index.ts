@@ -11,6 +11,7 @@
  */
 
 export { ArticleCard, CollectionCard, CollectorCard, ItemCard, timeAgo } from './cards';
+export { CollectionCoverMosaic } from './CollectionCoverMosaic';
 export {
   Avatar,
   EmptyState,

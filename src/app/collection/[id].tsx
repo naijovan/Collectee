@@ -36,6 +36,7 @@ import {
   FLAG_THRESHOLD,
   OWNERSHIP_FLAG_REASONS,
 } from '@/domain/trust';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, roomService, socialService } from '@/services';
 import type { RoomStatus } from '@/services';
 import { useApp } from '@/state/AppContext';
@@ -46,6 +47,8 @@ export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { viewerId } = useApp();
+
+  const scrollRef = useTopOnFocus();
 
   const [collection, setCollection] = useState<Collection | null>(null);
   const [owner, setOwner] = useState<User | null>(null);
@@ -123,7 +126,7 @@ export default function CollectionScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <ItemArt
         seed={collection.id}
         tier={items[0]?.rarityTier ?? 'epic'}

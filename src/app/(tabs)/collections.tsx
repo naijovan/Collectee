@@ -25,6 +25,7 @@ import {
 } from '@/components';
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, inventoryService, roomService } from '@/services';
 import type { RoomStatus } from '@/services';
 import { useApp } from '@/state/AppContext';
@@ -44,6 +45,8 @@ export default function CollectionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory } = useApp();
+
+  const scrollRef = useTopOnFocus();
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [rooms, setRooms] = useState<ReadonlyMap<string, RoomStatus>>(new Map());
@@ -80,6 +83,7 @@ export default function CollectionsScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >

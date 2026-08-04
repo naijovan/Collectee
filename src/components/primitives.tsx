@@ -9,12 +9,12 @@
  * rather than an icon font or an image library.
  */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Image } from 'expo-image';
 
 import { resolveItemArt } from './item-art';
 
+import { artFor } from '@/config/artRegistry';
 import { rarityLabelFor } from '@/domain/rarity';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { GameTitle, RarityTier } from '@/types';
@@ -28,15 +28,19 @@ function hash(seed: string): number {
 }
 
 /**
- * Item art, with a placeholder that never breaks.
+ * Item art — the real render when the art pack has one, a deterministic colour
+ * block when it does not.
  *
- * Pass `renderUrl` and this draws the bundled image if `./item-art.ts` has a
- * key for it. Without one — which is every item today — it falls back to a
- * deterministic rarity-tinted block, so the same item always looks the same and
- * layout stays honest.
+ * Two seams feed this, tried in order. `artRegistry` is keyed on the catalogue
+ * `Item.id`, which is what `seed` is at every item call site. `item-art.ts` is
+ * keyed on `Item.renderUrl` and covers art that ships as a bundled asset rather
+ * than a registry entry. Other call sites pass a collection id, a theme id or a
+ * game title; those miss both and get the colour block, so no caller has to
+ * know whether art exists.
  *
- * Adding art is a change to `item-art.ts` and the `assets/` folder. It is
- * deliberately not a change to this component.
+ * The fallback stays. It is what lets the app run with a partly-populated art
+ * pack instead of showing broken images, and 73 catalogue items will not all
+ * have renders for a while.
  */
 export function ItemArt({
   seed,
@@ -50,16 +54,45 @@ export function ItemArt({
   renderUrl?: string;
   style?: StyleProp<ViewStyle>;
 }) {
-  const tint = rarityColors[tier];
-  const art = renderUrl ? resolveItemArt(renderUrl) : null;
-
-  if (art) {
+  const art = artFor(seed);
+  if (art !== null) {
+    // The image sits inside the same container the colour block uses, so the
+    // caller's ViewStyle (size, radius) still applies and `overflow: hidden`
+    // does the clipping. Styling the Image directly does not typecheck —
+    // callers pass ViewStyle, and ImageStyle has no `overflow: 'scroll'`.
+    //
+    // Objects get inset rather than bleeding to the edge: they are rendered on
+    // empty space, so a little breathing room reads as a display case instead
+    // of a cropped photo.
     return (
-      <View style={[styles.art, style]}>
-        <Image source={art} style={StyleSheet.absoluteFill} contentFit="cover" />
+      <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
+        <Image
+          source={art.source}
+          style={art.fit === 'contain' ? styles.artInset : styles.artFill}
+          resizeMode={art.fit}
+          accessible
+          accessibilityLabel={art.alt}
+          accessibilityIgnoresInvertColors
+        />
       </View>
     );
   }
+
+  const bundled = renderUrl ? resolveItemArt(renderUrl) : null;
+  if (bundled !== null) {
+    return (
+      <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
+        <Image
+          source={bundled}
+          style={styles.artFill}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
+        />
+      </View>
+    );
+  }
+
+  const tint = rarityColors[tier];
   const angle = hash(seed) % 3;
   return (
     <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
@@ -252,6 +285,16 @@ export function LoadingState({ height = 120 }: { height?: number }) {
 
 const styles = StyleSheet.create({
   art: { overflow: 'hidden', borderRadius: radius.card },
+  /**
+   * Width and height are explicit on both. Inset alone (`absoluteFill`, or
+   * top/right/bottom/left) does not size an Image on web: react-native-web
+   * writes the source's intrinsic pixel size onto the element, which wins over
+   * the stretch and leaves a 660x440 render overflowing a 78x58 tile — you then
+   * see its top-left corner at 8x zoom instead of the picture.
+   */
+  artFill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
+  /** Small inset for `contain` renders; the PNGs already carry ~10% margin. */
+  artInset: { position: 'absolute', top: '4%', left: '4%', width: '92%', height: '92%' },
   artStripe: { position: 'absolute', width: '160%', height: 26, left: '-30%', top: '42%' },
   artGlow: {
     position: 'absolute',

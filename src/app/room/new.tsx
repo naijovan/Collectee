@@ -49,6 +49,7 @@ import {
   roomService,
 } from '@/services';
 import type { CollectorRecommendation } from '@/services';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { useApp } from '@/state/AppContext';
 import { colors, lightingPresets, radius, spacing, typography } from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
@@ -76,6 +77,9 @@ export default function CreateRoomScreen() {
   const { width } = useWindowDimensions();
   const sceneWidth = Math.min(width, 520) - spacing.lg * 2;
 
+  const [step, setStep] = useState(param ? 1 : 0);
+  /** Every step opens at the top — the flow is one route, so nothing remounts. */
+  const scrollRef = useTopOnFocus(step);
   const [collectionId, setCollectionId] = useState<string | null>(param ?? null);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collection, setCollection] = useState<Collection | null>(null);
@@ -86,7 +90,6 @@ export default function CreateRoomScreen() {
   const [recommended, setRecommended] = useState<{ theme: RoomTheme; reason: string } | null>(null);
   const [themeId, setThemeId] = useState<string | null>(null);
 
-  const [step, setStep] = useState(0);
   const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
   const [room, setRoom] = useState<Room | null>(null);
@@ -357,7 +360,7 @@ export default function CreateRoomScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <StepperHeader
         steps={ROOM_STEPS}
         current={step}

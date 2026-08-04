@@ -26,18 +26,20 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Image } from 'expo-image';
+import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ViewStyle } from 'react-native';
 
+import { backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { cameraTargetFor, parallaxOffset } from '@/domain/room';
 import { rarityLabelFor } from '@/domain/rarity';
 import { colors, lightingPresets, radius, rarityColors, spacing, typography } from '@/theme/theme';
+
+import { ItemArt } from './primitives';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Item, Room, RoomTheme, Slot } from '@/types';
 
 import { resolveBackdrop } from './backdrops';
-import { resolveItemArt } from './item-art';
 
 /** How far a drag can shift the front layer, in px. Deliberately small. */
 const MAX_TILT = 14;
@@ -247,7 +249,7 @@ export function RoomScene({
   );
 
   const palette = theme?.palette ?? [];
-  const backdrop = resolveBackdrop(room.backdropUrl);
+  const backdrop = (theme ? backdropFor(theme.id) : null) ?? resolveBackdrop(room.backdropUrl);
   const lighting = lightingPresets[room.settings.lightingPreset];
   // Brighter setting = thinner darkening veil. Not a light model, a wash.
   const veilOpacity = FEATURES.roomLightingControls ? (1 - room.settings.brightness) * 0.55 : 0.2;
@@ -270,16 +272,28 @@ export function RoomScene({
           ]}
         >
           {/*
-            Backdrop art is pre-generated and bundled (§16 Q6, decided 3 Aug).
-            Until the six files land in assets/, `resolveBackdrop` returns null
-            and the theme palette paints the scene instead — every theme still
-            reads differently and nothing renders broken. See ./backdrops.ts.
+            The backdrop. The theme art pack has landed, so this is normally the
+            real 1920x1080 render for the theme; `resolveBackdrop` is the second
+            seam for themes whose art ships as a bundled asset instead. The
+            palette wash below stays as the fallback for any theme with neither,
+            which is what every theme used to get.
+
+            `cover` at 50% 50% per the pack manifest. Item slots stay a separate
+            overlay drawn after this — the backdrop is always empty scenery, so
+            placements composite on top rather than being baked in.
           */}
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceSunken }]} />
           {backdrop ? (
-            <Image source={backdrop} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <Image
+              source={backdrop}
+              // Explicit size, not absoluteFill — see ItemArt's artFill. Edges
+              // alone let a renderer draw the 1920px backdrop at full size.
+              style={styles.backdrop}
+              resizeMode="cover"
+              accessibilityIgnoresInvertColors
+            />
           ) : (
             <>
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceSunken }]} />
               {palette.map((tone, index) => (
                 <View
                   key={tone}
@@ -406,30 +420,22 @@ export function RoomScene({
                       </View>
                     ) : (
                       <View style={styles.face}>
-                        {/*
-                          Same seam as ItemArt: bundled render if it exists,
-                          rarity glow plus the name if it does not. A room half
-                          covered by art still reads as a room.
-                        */}
-                        {resolveItemArt(item.renderUrl) ? (
-                          <Image
-                            source={resolveItemArt(item.renderUrl)!}
-                            style={StyleSheet.absoluteFill}
-                            contentFit="cover"
-                          />
-                        ) : (
-                          <>
-                            <View
-                              style={[
-                                styles.faceGlow,
-                                { backgroundColor: rarityColors[item.rarityTier] },
-                              ]}
-                            />
-                            <Text style={styles.faceName} numberOfLines={2}>
-                              {item.name}
-                            </Text>
-                          </>
-                        )}
+                        {/* ItemArt owns both art seams and the colour-block
+                            fallback; the rarity glow and name sit over it so
+                            both stay readable whichever it renders. */}
+                        <ItemArt
+                          seed={item.id}
+                          tier={item.rarityTier}
+                          renderUrl={item.renderUrl}
+                          style={StyleSheet.absoluteFill as ViewStyle}
+                        />
+                        <View
+                          style={[styles.faceGlow, { backgroundColor: rarityColors[item.rarityTier] }]}
+                        />
+                        <View style={styles.faceScrim} />
+                        <Text style={styles.faceName} numberOfLines={2}>
+                          {item.name}
+                        </Text>
                       </View>
                     )
                   ) : (
@@ -463,6 +469,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  backdrop: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   wash: { position: 'absolute', left: 0, right: 0, height: '40%' },
   floor: {
     position: 'absolute',
@@ -492,7 +499,9 @@ const styles = StyleSheet.create({
   cardFocused: { borderWidth: 3 },
   cardSelected: { borderColor: colors.accent, borderWidth: 3 },
 
-  face: { alignItems: 'center', justifyContent: 'center', gap: 2 },
+  face: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 2, overflow: 'hidden' },
+  /** Keeps the name legible over a bright render without hiding the art. */
+  faceScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: 'rgba(0,0,0,0.55)' },
   faceGlow: {
     position: 'absolute',
     width: '80%',

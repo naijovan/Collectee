@@ -28,6 +28,7 @@ import {
 import { headlineItem } from '@/domain/collections';
 import { compareByDerivedTrust } from '@/domain/trust';
 import type { DerivedTrust } from '@/domain/trust';
+import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
   catalogueService,
   collectionService,
@@ -45,6 +46,8 @@ export default function CollectorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { viewerId } = useApp();
+
+  const scrollRef = useTopOnFocus();
 
   const [user, setUser] = useState<User | null>(null);
   const [match, setMatch] = useState<CollectorRecommendation | null>(null);
@@ -114,7 +117,7 @@ export default function CollectorScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.identity}>
         <Avatar name={user.displayName} verified={user.isAccountVerified} size={72} />
         <Text style={styles.title}>{user.displayName}</Text>
