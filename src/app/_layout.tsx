@@ -86,6 +86,8 @@ export default function RootLayout() {
             the flow chrome wins because it carries the step state. */}
         <Stack.Screen name="import" options={{ title: 'Import inventory', headerShown: false }} />
         <Stack.Screen name="news" options={{ title: 'Gaming updates' }} />
+        <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+        <Stack.Screen name="following" options={{ title: 'Following' }} />
         <Stack.Screen name="link-account" options={{ title: 'Connect account' }} />
         {/* Header matches the "Reports" link that leads here — a viewer should
             not have to learn that "queue" and "reports" are the same place. */}
