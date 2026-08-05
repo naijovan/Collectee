@@ -27,14 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoadingState } from '@/components';
 import { SUGGESTED_QUESTIONS } from '@/domain/assistant';
 import type { AssistantContext } from '@/domain/assistant';
-import {
-  assistantService,
-  catalogueService,
-  collectionService,
-  inventoryService,
-  roomService,
-  socialService,
-} from '@/services';
+import { assistantService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 
@@ -47,7 +40,7 @@ interface Turn {
 
 export default function AssistantScreen() {
   const insets = useSafeAreaInsets();
-  const { viewer, viewerId } = useApp();
+  const { viewerId } = useApp();
   const scroller = useRef<ScrollView>(null);
 
   const [context, setContext] = useState<AssistantContext | null>(null);
@@ -61,35 +54,16 @@ export default function AssistantScreen() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [owned, catalogue, collections, rooms, followers, following, themes] =
-        await Promise.all([
-          inventoryService.getOwnedItems(viewerId),
-          catalogueService.getCatalogueMap(),
-          collectionService.getCollectionsByUser(viewerId, true),
-          roomService.getRoomsOnProfile([]),
-          socialService.getFollowers(viewerId),
-          socialService.getFollowing(viewerId),
-          roomService.getThemes(),
-        ]);
+      // One call: the assembly moved into the service, where the seams are.
+      const context = await assistantService.snapshot(viewerId);
       if (cancelled) return;
-      setContext(
-        assistantService.buildContext({
-          viewer,
-          owned,
-          catalogue,
-          collections,
-          showroomCount: rooms.length,
-          followerCount: followers.length,
-          followingCount: following.length,
-          themes,
-        }),
-      );
+      setContext(context);
     }
     void load();
     return () => {
       cancelled = true;
     };
-  }, [viewer, viewerId]);
+  }, [viewerId]);
 
   const send = useCallback(
     async (question: string) => {

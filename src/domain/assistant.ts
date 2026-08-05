@@ -27,62 +27,174 @@ import { RARITY_RANK } from './rarity';
 /** Hard cap on a question. Longer inputs are prompt-stuffing, not questions. */
 export const MAX_QUESTION_LENGTH = 400;
 
-/** What the assistant is allowed to know. Everything here may leave the device. */
+/**
+ * What the assistant is allowed to know. Everything here may leave the device.
+ *
+ * ── Read this before adding a field ───────────────────────────────────────
+ * Two budgets, and they pull in opposite directions.
+ *
+ * PRIVACY. This object is the boundary. No ids, no emails, no tokens, no
+ * acquisition dates, and nothing about another user beyond what they already
+ * published — a handle, a display name, a member count. If an answer needs more,
+ * add the one field, never the whole record.
+ *
+ * PRECISION. Roughly 3 KB of JSON. Not a context limit — Haiku holds 200K — but
+ * every irrelevant field is one more thing for the model to confuse with the one
+ * fact the question needed. The catalogue, individual owned-item rows, thread
+ * bodies and article bodies are all deliberately absent; counts and titles carry
+ * every question we have seen asked.
+ *
+ * ⚠️ Some of these strings were typed by other people — collection and community
+ * names, thread and article titles. The proxy treats the whole snapshot as
+ * untrusted content for that reason (see CHAT_SYSTEM_PROMPT).
+ */
 export interface AssistantContext {
   handle: string;
   displayName: string;
+
+  // ── Inventory ──────────────────────────────────────────────────────────
   itemCount: number;
   verifiedCount: number;
   unverifiedCount: number;
-  titles: { title: string; count: number }[];
+  /** Per game: what is owned, what is verified, and whether an account is linked. */
+  titles: {
+    title: string;
+    label: string;
+    count: number;
+    verifiedCount: number;
+    accountLinked: boolean;
+  }[];
   rarity: { tier: string; count: number }[];
   topItems: string[];
-  collections: { name: string; itemCount: number; visibility: string }[];
+
+  // ── Collections and rooms ──────────────────────────────────────────────
+  collections: { name: string; itemCount: number; visibility: string; hasRoom: boolean }[];
+  showroomCount: number;
+  /** Collections holding enough verified items to build a Showroom (§9.4). */
+  roomEligibleCollections: number;
+  themes: string[];
+
+  // ── Social ─────────────────────────────────────────────────────────────
+  followerCount: number;
+  followingCount: number;
+
+  // ── Matching (§11 F5) ──────────────────────────────────────────────────
+  /** Why matching is in the state it is. 'unverified-only' is not a cold start. */
+  matchState: 'cold-start' | 'unverified-only' | 'ready';
+  /**
+   * The reason carried WITH the score, every time.
+   *
+   * §11 F5 is explicit that a percentage without its reason is a broken
+   * feature. The assistant is the one surface where a user asks the question
+   * outright — "why is Arya my top match?" — so the reason has to be in the
+   * snapshot, or the assistant either says nothing or makes one up.
+   */
+  matches: {
+    handle: string;
+    displayName: string;
+    percent: number;
+    reason: string;
+    sharedItemCount: number;
+  }[];
+
+  // ── Communities and threads ────────────────────────────────────────────
+  communities: { name: string; memberCount: number; joined: boolean }[];
+  /** Titles only. Bodies are user-authored prose and stay on the device. */
+  threads: { title: string; community: string; replyCount: number }[];
+
+  // ── News (§11 F6) ──────────────────────────────────────────────────────
+  digests: { game: string; bullets: string[] }[];
+  headlines: { title: string; game: string; reason: string | null }[];
+  savedArticleCount: number;
+
+  // ── Notifications ──────────────────────────────────────────────────────
+  unreadNotificationCount: number;
+}
+
+/** Caps on the list fields. Enough to answer with; short enough to stay legible. */
+const MAX_MATCHES = 5;
+const MAX_COMMUNITIES = 5;
+const MAX_THREADS = 5;
+const MAX_HEADLINES = 5;
+const MAX_TOP_ITEMS = 5;
+
+/**
+ * Everything the snapshot is built from, already read through the service
+ * seams by `assistantService.snapshot`.
+ *
+ * The mapping lives there and the shaping lives here: this file stays pure, and
+ * a field that must never leave the device cannot leave by accident, because
+ * there is no service handle in scope to reach it with.
+ */
+export interface AssistantContextInput {
+  viewer: User | null;
+  owned: readonly OwnedItem[];
+  catalogue: ReadonlyMap<string, Item>;
+  collections: readonly Collection[];
+  /** Collection ids that already have a room, so the snapshot can say which. */
+  collectionIdsWithRooms: readonly string[];
+  roomEligibleCollections: number;
   showroomCount: number;
   followerCount: number;
   followingCount: number;
-  themes: string[];
+  themes: readonly RoomTheme[];
+  linkedTitles: readonly string[];
+  titleLabels: Readonly<Record<string, string>>;
+  matchState: AssistantContext['matchState'];
+  matches: AssistantContext['matches'];
+  communities: AssistantContext['communities'];
+  threads: AssistantContext['threads'];
+  digests: AssistantContext['digests'];
+  headlines: AssistantContext['headlines'];
+  savedArticleCount: number;
+  unreadNotificationCount: number;
 }
 
 /**
  * Builds the snapshot.
  *
  * Note what is absent: `User.id`, any `OwnedItem.id`, emails, tokens, exact
- * acquisition dates. A question like "how many Mythics do I own" needs a count,
- * not a row — so it gets a count. If a future answer needs more, add the one
- * field, not the whole record.
+ * acquisition dates, thread bodies, article bodies, the item catalogue. A
+ * question like "how many Mythics do I own" needs a count, not a row — so it
+ * gets a count. If a future answer needs more, add the one field, not the whole
+ * record.
  */
-export function buildContext(input: {
-  viewer: User | null;
-  owned: readonly OwnedItem[];
-  catalogue: ReadonlyMap<string, Item>;
-  collections: readonly Collection[];
-  showroomCount: number;
-  followerCount: number;
-  followingCount: number;
-  themes: readonly RoomTheme[];
-}): AssistantContext {
+export function buildContext(input: AssistantContextInput): AssistantContext {
   const items = input.owned
     .map((entry) => input.catalogue.get(entry.itemId))
     .filter((item): item is Item => item !== undefined);
 
-  const byTitle = new Map<string, number>();
+  const byTitle = new Map<string, { count: number; verifiedCount: number }>();
   const byRarity = new Map<string, number>();
-  for (const item of items) {
-    byTitle.set(item.title, (byTitle.get(item.title) ?? 0) + 1);
+  for (const owned of input.owned) {
+    const item = input.catalogue.get(owned.itemId);
+    if (!item) continue;
+    const entry = byTitle.get(item.title) ?? { count: 0, verifiedCount: 0 };
+    entry.count += 1;
+    if (owned.trustLevel === 'verified') entry.verifiedCount += 1;
+    byTitle.set(item.title, entry);
     byRarity.set(item.rarityTier, (byRarity.get(item.rarityTier) ?? 0) + 1);
   }
 
   const verified = input.owned.filter((entry) => entry.trustLevel === 'verified').length;
+  const linked = new Set(input.linkedTitles);
+  const withRooms = new Set(input.collectionIdsWithRooms);
 
   return {
     handle: input.viewer?.handle ?? 'you',
     displayName: input.viewer?.displayName ?? 'Collector',
+
     itemCount: input.owned.length,
     verifiedCount: verified,
     unverifiedCount: input.owned.length - verified,
     titles: [...byTitle.entries()]
-      .map(([title, count]) => ({ title, count }))
+      .map(([title, entry]) => ({
+        title,
+        label: input.titleLabels[title] ?? title,
+        count: entry.count,
+        verifiedCount: entry.verifiedCount,
+        accountLinked: linked.has(title),
+      }))
       .sort((a, b) => b.count - a.count),
     rarity: [...byRarity.entries()]
       .map(([tier, count]) => ({ tier, count }))
@@ -90,17 +202,33 @@ export function buildContext(input: {
         (RARITY_RANK[a.tier as keyof typeof RARITY_RANK] ?? 0)),
     topItems: [...items]
       .sort((a, b) => RARITY_RANK[b.rarityTier] - RARITY_RANK[a.rarityTier])
-      .slice(0, 5)
+      .slice(0, MAX_TOP_ITEMS)
       .map((item) => item.name),
+
     collections: input.collections.map((collection) => ({
       name: collection.name,
       itemCount: collection.itemIds.length,
       visibility: collection.visibility,
+      hasRoom: withRooms.has(collection.id),
     })),
     showroomCount: input.showroomCount,
+    roomEligibleCollections: input.roomEligibleCollections,
+    themes: input.themes.map((theme) => theme.name),
+
     followerCount: input.followerCount,
     followingCount: input.followingCount,
-    themes: input.themes.map((theme) => theme.name),
+
+    matchState: input.matchState,
+    matches: input.matches.slice(0, MAX_MATCHES),
+
+    communities: input.communities.slice(0, MAX_COMMUNITIES),
+    threads: input.threads.slice(0, MAX_THREADS),
+
+    digests: input.digests,
+    headlines: input.headlines.slice(0, MAX_HEADLINES),
+    savedArticleCount: input.savedArticleCount,
+
+    unreadNotificationCount: input.unreadNotificationCount,
   };
 }
 
