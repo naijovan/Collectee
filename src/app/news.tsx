@@ -79,6 +79,9 @@ export default function NewsScreen() {
             Notifications{unreadNotifications > 0 ? ` (${unreadNotifications})` : ''}
           </Text>
         </Pressable>
+        <Pressable onPress={() => router.push('/following')} hitSlop={8}>
+          <Text style={styles.utilityLink}>Following</Text>
+        </Pressable>
       </View>
 
       <FilterChips options={FEEDS} value={feed} onChange={setFeed} />
