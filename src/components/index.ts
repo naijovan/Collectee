@@ -6,6 +6,9 @@
  * `StepperHeader` · `PrimaryButton` / `SecondaryButton` · `Avatar` ·
  * `EmptyState` · `LoadingState` · `TabBar`
  *
+ * Plus `FadeInView`, the one entrance animation — see its comment for why the
+ * stagger has to be shared rather than reimplemented per screen.
+ *
  * Jovan owns all of these. Changes go via PR announced in chat — §13.3 names
  * this as the place merge conflicts will otherwise happen.
  */
@@ -15,6 +18,7 @@ export { CollectionCoverMosaic } from './CollectionCoverMosaic';
 export {
   Avatar,
   EmptyState,
+  FadeInView,
   FilterChips,
   GameBadge,
   ItemArt,
@@ -24,6 +28,7 @@ export {
   SecondaryButton,
   SectionHeader,
 } from './primitives';
+export { KeyboardSafe } from './KeyboardSafe';
 export { StepperHeader } from './StepperHeader';
 export { TabBar } from './TabBar';
 

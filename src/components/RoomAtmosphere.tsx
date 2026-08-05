@@ -24,6 +24,8 @@ import { useFrame } from '@react-three/fiber/native';
 import { AdditiveBlending, BackSide } from 'three';
 import type { Group, Points } from 'three';
 
+import { atmosphereFallback } from '@/theme/theme';
+
 /** Dust motes. Enough to catch the light, few enough to stay cheap. */
 const MOTE_COUNT = 220;
 
@@ -42,8 +44,8 @@ export function RoomAtmosphere({
   /** Tightens and warms the room while an item is focused. */
   focused?: boolean;
 }) {
-  const primary = palette[1] ?? '#12E4F0';
-  const secondary = palette[2] ?? '#F022A8';
+  const primary = palette[1] ?? atmosphereFallback.primary;
+  const secondary = palette[2] ?? atmosphereFallback.secondary;
 
   return (
     <group>
@@ -52,7 +54,7 @@ export function RoomAtmosphere({
       <LightShaft position={[3.2, 4.2, -1]} colour={secondary} intensity={intensity} />
       <LightShaft position={[0, 4.6, 0.4]} colour={primary} intensity={intensity * 1.15} />
       <FloorGlow colour={primary} intensity={intensity} focused={focused} />
-      <Vignette colour={palette[0] ?? '#0A0E1A'} />
+      <Vignette colour={palette[0] ?? atmosphereFallback.base} />
     </group>
   );
 }

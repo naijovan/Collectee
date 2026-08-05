@@ -42,14 +42,17 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import type { StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   Avatar,
   EmptyState,
+  FadeInView,
   FilterChips,
   ItemArt,
   ItemCard,
@@ -63,7 +66,9 @@ import { FEATURES } from '@/config/features';
 import type { CollectionSuggestion } from '@/domain/collections';
 import { groupByRarity, rarityLabelFor } from '@/domain/rarity';
 import { CONFIDENCE_AUTO_ACCEPT, CONFIDENCE_REVIEW_FLOOR, isMatchIncluded } from '@/domain/scan';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
+import * as haptics from '@/lib/haptics';
 import {
   catalogueService,
   collectionService,
@@ -118,6 +123,7 @@ const PREVIEW_NEEDS_REVIEW = 2;
 
 export default function ImportScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { viewer, viewerId, refreshInventory } = useApp();
 
   const [stage, setStage] = useState<Stage>('landing');
@@ -274,6 +280,9 @@ export default function ImportScreen() {
     const imported = await inventoryService.importFromScan(viewerId, itemIds, confidence);
     await refreshInventory();
     setImportedCount(imported.length);
+    // One of exactly three success haptics in the app — the three rungs of the
+    // never-cut chain (§14). Firing it anywhere else dilutes what it means.
+    haptics.success();
     setStage('complete');
 
     // The bridge into J2. Suggestions are computed from what the user now owns,
@@ -294,7 +303,14 @@ export default function ImportScreen() {
   const focused = pending.find((d) => d.id === focusId) ?? pending[0];
 
   return (
-    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      ref={scrollRef}
+      style={styles.screen}
+      /* The native header is off for this route (§13.4 — the nav row below
+         carries the stage title, so a stack header duplicated it). That means
+         this screen owns its own top inset. */
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+    >
       <View style={styles.navRow}>
         <Pressable onPress={goBack} hitSlop={8}>
           <Text style={styles.back}>←</Text>
@@ -307,6 +323,15 @@ export default function ImportScreen() {
 
       <FlowStepper steps={IMPORT_STEPS} current={STAGE_STEP[stage]} />
 
+      {/* The whole stage body cross-fades on every stage change. `key={stage}`
+          is what does it — remounting is how you get an entrance out of a
+          conditional. The nav row and stepper stay put on purpose: they are the
+          fixed frame the stages move inside, and animating them too would read
+          as a page transition rather than a step.
+
+          `gap` is restored here because this wrapper otherwise swallows the
+          contentContainer's gap between the blocks below. */}
+      <FadeInView key={stage} style={styles.stageBody}>
       {stage === 'landing' ? (
         <View style={styles.block}>
           <Text style={styles.title}>Which game are you importing from?</Text>
@@ -769,6 +794,7 @@ export default function ImportScreen() {
           <SecondaryButton label="Back to home" onPress={() => router.replace('/')} />
         </View>
       ) : null}
+      </FadeInView>
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
@@ -817,94 +843,311 @@ function FlowStepper({ steps, current }: { steps: readonly string[]; current: nu
   );
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * The Scan frame's hero: inventory screenshots floating in depth, with a thin
+ * beam sweeping across them.
+ *
+ * Built as INDEPENDENT LAYERS rather than one graphic with a shadow on it —
+ * radial glow, five panels at three depths, the beam, a per-panel scan
+ * response, and drifting motes. That is what produces parallax and a beam that
+ * the cards visibly react to; a single scaled-up graphic cannot fake either.
+ *
+ * Two constraints shape every choice below, and both are project rules rather
+ * than preferences:
+ *
+ *   - STACKED TRANSLUCENT VIEWS, NOT GRADIENTS. `expo-linear-gradient` is now a
+ *     dependency (announced in chat) and is used for flat scrims elsewhere, but
+ *     this hero deliberately does not use it: every falloff here is *radial*
+ *     and animated, and `LinearGradient` is neither. Concentric rounded blocks
+ *     for the glow, four widths of accent for the beam. Read the beam bottom-up
+ *     and it is a hot core with colour bleeding outwards, which is what a real
+ *     tube does. Do not "simplify" this into a gradient — it loses the parallax.
+ *   - NO RAW HEX (CLAUDE.md). Translucency is `backgroundColor: colors.accent`
+ *     plus `opacity` on the view, never an rgba() literal.
+ *
+ * Plain `Animated`, not Reanimated. Reanimated is in package.json but nothing
+ * in `src/` uses it, and this is not the screen to be first — every animated
+ * property here is a transform or an opacity, which the native driver already
+ * handles off the JS thread. `useNativeDriver` is off on web, where
+ * react-native-web warns rather than using it.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
 /**
- * The Scan frame's hero: a fan of uploaded inventory screenshots with a beam
- * sweeping across them.
+ * The stack, back to front. A table rather than magic numbers inside JSX, so
+ * "add another panel at depth 2" is a row and not a rewrite.
  *
- * The beam oscillates about the centre rather than wrapping top-to-bottom,
- * because a scanner that restarts from the top every cycle reads as a progress
- * bar that keeps resetting — the opposite of what the percentage is saying. It
- * is brightest and widest as it crosses the middle, which is where the frame
- * draws it at rest.
- *
- * Plain `Animated`, not Reanimated: one interpolated transform does not need a
- * worklet, and this file should not add the dependency surface. `useNativeDriver`
- * is off on web, where react-native-web warns rather than using it.
+ * `x`/`y` are fractions of the stage width — everything scales off one measured
+ * number, which is what keeps the composition intact from a small phone to a
+ * tablet. `depth` drives both the parallax amplitude and the paint order.
  */
+const SCAN_PANELS = [
+  { depth: 2, x: -0.33, y: -0.20, scale: 0.56, opacity: 0.2, rotate: '-8deg', cards: 1 },
+  { depth: 2, x: 0.33, y: -0.16, scale: 0.56, opacity: 0.2, rotate: '8deg', cards: 1 },
+  { depth: 1, x: -0.19, y: 0.1, scale: 0.78, opacity: 0.5, rotate: '-4deg', cards: 2 },
+  { depth: 1, x: 0.19, y: 0.13, scale: 0.78, opacity: 0.5, rotate: '4deg', cards: 2 },
+  { depth: 0, x: 0, y: 0, scale: 1, opacity: 1, rotate: '0deg', cards: 3 },
+] as const;
+
+/** Portrait collectible card, w/h. Fixed so art is never vertically squashed. */
+const CARD_ASPECT = 0.72;
+
+/** One direction of the sweep. Slow enough to read as deliberate, not a spinner. */
+const SWEEP_MS = 2100;
+/** The mechanical beat at each end of the travel. */
+const SWEEP_HOLD_MS = 160;
+
 function ScanPreview() {
+  const { width } = useWindowDimensions();
   const sweep = useRef(new Animated.Value(0)).current;
+  const drift = useRef(new Animated.Value(0)).current;
+  /* Was a local listener here; it moved to a hook once the skeletons and list
+     entrances needed the same answer. Behaviour is unchanged. */
+  const reduceMotion = useReduceMotion();
+
+  // Every dimension derives from the stage width, so nothing is hard-coded to
+  // one handset. 520 matches the cap the Room flow uses on wide screens.
+  const geometry = useMemo(() => {
+    const stageW = Math.min(width, 520) - spacing.lg * 2;
+    const cardW = Math.round(stageW * 0.17);
+    const cardH = Math.round(cardW / CARD_ASPECT);
+    const pad = 6;
+    const gap = 4;
+    const panelH = cardH + pad * 2;
+    return {
+      stageW,
+      stageH: panelH + 96,
+      cardW,
+      cardH,
+      pad,
+      gap,
+      panelH,
+      /** Travel stays inside the card stack — the beam never leaves the artwork. */
+      travel: Math.round(panelH * 0.52),
+      widthFor: (cards: number) => cards * cardW + (cards - 1) * gap + pad * 2,
+    };
+  }, [width]);
 
   useEffect(() => {
-    const cycle = Animated.sequence([
-      Animated.timing(sweep, {
-        toValue: 1,
-        duration: 1500,
-        easing: Easing.inOut(Easing.sin),
-        useNativeDriver: Platform.OS !== 'web',
-      }),
-      Animated.timing(sweep, {
-        toValue: 0,
-        duration: 1500,
-        easing: Easing.inOut(Easing.sin),
-        useNativeDriver: Platform.OS !== 'web',
-      }),
-    ]);
-    const loop = Animated.loop(cycle);
-    loop.start();
-    return () => loop.stop();
-  }, [sweep]);
+    // Reduced motion keeps the scene — glow, depth, beam — and stops only the
+    // repeated travel. `0.5` parks the beam on the centre line, which is where
+    // the composition is designed to rest.
+    if (reduceMotion) {
+      sweep.setValue(0.5);
+      drift.setValue(0.5);
+      return;
+    }
 
-  const translateY = sweep.interpolate({ inputRange: [0, 1], outputRange: [-BEAM_TRAVEL, BEAM_TRAVEL] });
-  // Peaks at the centre of the travel, in both directions.
-  const opacity = sweep.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.35, 1, 0.35] });
-  const scaleX = sweep.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.82, 1, 0.82] });
+    const native = Platform.OS !== 'web';
+    const leg = (toValue: number) =>
+      Animated.timing(sweep, {
+        toValue,
+        duration: SWEEP_MS,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: native,
+      });
 
-  const shots = ART_PLACEMENTS['import.scanPreview'];
+    const beam = Animated.loop(
+      Animated.sequence([leg(1), Animated.delay(SWEEP_HOLD_MS), leg(0), Animated.delay(SWEEP_HOLD_MS)]),
+    );
+    // Deliberately not a multiple of the sweep: when float and beam share a
+    // period the whole scene pulses in lockstep and reads as one animation.
+    const float = Animated.loop(
+      Animated.sequence([
+        Animated.timing(drift, {
+          toValue: 1,
+          duration: 3400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: native,
+        }),
+        Animated.timing(drift, {
+          toValue: 0,
+          duration: 3400,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: native,
+        }),
+      ]),
+    );
+
+    beam.start();
+    float.start();
+    return () => {
+      beam.stop();
+      float.stop();
+    };
+  }, [sweep, drift, reduceMotion]);
+
+  const { travel } = geometry;
+  const beamY = sweep.interpolate({ inputRange: [0, 1], outputRange: [-travel, travel] });
+  // Brightest across the middle, where it is crossing the hero panel.
+  const beamOpacity = sweep.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.55, 1, 0.55] });
+
+  const art = ART_PLACEMENTS['import.scanPreview'];
+  let artCursor = 0;
 
   return (
-    <View style={styles.scanStage}>
-      {/* Three offset "screenshots", each a grid of item tiles like an inventory. */}
-      {[0, 1, 2].map((layer) => (
-        <View
-          key={layer}
-          style={[
-            styles.shot,
-            {
-              transform: [{ translateX: (layer - 1) * 26 }, { scale: 1 - Math.abs(layer - 1) * 0.08 }],
-              opacity: layer === 1 ? 1 : 0.45,
-              zIndex: layer === 1 ? 2 : 1,
-            },
-          ]}
-        >
-          <View style={styles.shotGrid}>
-            {shots.slice(layer * 3, layer * 3 + 6).map((id) => (
-              <ItemArt key={id} seed={id} tier="mythic" style={styles.shotTile} />
-            ))}
-          </View>
-        </View>
-      ))}
+    <View style={[styles.scanStage, { height: geometry.stageH }]}>
+      {/*
+        Radial glow, faked with three concentric blocks. Sits behind everything
+        and is what stops the stack reading as artwork pasted onto a flat panel.
+      */}
+      <View pointerEvents="none" style={styles.glowWrap}>
+        <View style={[styles.glowRing, { width: geometry.stageW * 0.95, height: geometry.stageH * 0.9 }]} />
+        <View style={[styles.glowRing, styles.glowMid, { width: geometry.stageW * 0.66, height: geometry.stageH * 0.62 }]} />
+        <View style={[styles.glowRing, styles.glowHot, { width: geometry.stageW * 0.4, height: geometry.stageH * 0.34 }]} />
+      </View>
+
+      <ScanMotes drift={drift} stageW={geometry.stageW} stageH={geometry.stageH} />
+
+      {SCAN_PANELS.map((panel, index) => {
+        const panelW = geometry.widthFor(panel.cards);
+        const ids = art.slice(artCursor, artCursor + panel.cards);
+        artCursor += panel.cards;
+        const offsetY = panel.y * geometry.panelH;
+
+        // Rear panels travel further than the hero on the same value — that
+        // difference IS the parallax. Amplitude is tiny by design (§11 F4's
+        // "controlled, not bouncy" applies here too).
+        const floatY = drift.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, panel.depth === 0 ? -3 : panel.depth === 1 ? -5 : -7],
+        });
+
+        return (
+          <Animated.View
+            key={index}
+            pointerEvents="none"
+            style={[
+              styles.panel,
+              {
+                width: panelW,
+                height: geometry.panelH,
+                opacity: panel.opacity,
+                zIndex: 3 - panel.depth,
+                transform: [
+                  { translateX: panel.x * geometry.stageW },
+                  { translateY: offsetY },
+                  { translateY: floatY },
+                  { rotate: panel.rotate },
+                  { scale: panel.scale },
+                ],
+              },
+            ]}
+          >
+            <View style={[styles.panelRow, { padding: geometry.pad, gap: geometry.gap }]}>
+              {ids.map((id) => (
+                <ItemArt
+                  key={id}
+                  seed={id}
+                  tier="mythic"
+                  style={{ width: geometry.cardW, height: geometry.cardH, borderRadius: radius.sm }}
+                />
+              ))}
+            </View>
+
+            {/*
+              THE SCAN RESPONSE. A band riding the same value as the beam,
+              clipped by the panel's own `overflow: hidden`, so the cards
+              brighten exactly where the light crosses them and nowhere else.
+              This is the masked-highlight effect without a mask: the panel is
+              the mask.
+
+              `- offsetY` cancels the panel's own vertical offset, because this
+              band has to track the beam in STAGE space while living in PANEL
+              space. Drop it and each panel's highlight drifts off the beam by
+              its own offset.
+            */}
+            <Animated.View
+              style={[
+                styles.scanBand,
+                {
+                  transform: [
+                    {
+                      translateY: sweep.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-travel - offsetY, travel - offsetY],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.scanBandWash} />
+              <View style={styles.scanBandEdge} />
+            </Animated.View>
+          </Animated.View>
+        );
+      })}
 
       {/*
-        Sits ON TOP of the screenshots, not between them. The stacked shots
-        carry zIndex 1–2, so without one of its own the beam was painted under
-        the centre shot and read as a seam rather than a scan line.
+        The beam, above every panel (they hold zIndex 1–3).
 
-        Four stacked layers give the neon falloff — wide dim bloom, halo, glow,
-        then a thin near-white core. One translucent bar cannot do it: a real
-        neon tube is a hot centre with colour bleeding outwards.
+        Five widths of the same accent, none of them pill-shaped. The old
+        version rounded every layer, which is what made it read as a loading
+        capsule inside another capsule; a scanning beam is a straight line whose
+        light spills, so only the 2px core gets any radius at all. The outer
+        streak runs the full stage so the light continues past the cards.
       */}
-      <Animated.View style={[styles.beam, { opacity, transform: [{ translateY }, { scaleX }] }]}>
-        <View style={styles.beamBloom} />
-        <View style={styles.beamHalo} />
-        <View style={styles.beamGlow} />
-        <View style={styles.beamCore} />
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.beam, { opacity: beamOpacity, transform: [{ translateY: beamY }] }]}
+      >
+        <View style={[styles.beamBloom, { width: geometry.stageW }]} />
+        <View style={[styles.beamHalo, { width: geometry.stageW * 0.82 }]} />
+        <View style={[styles.beamStreak, { width: geometry.stageW }]} />
+        <View style={[styles.beamGlow, { width: geometry.stageW * 0.7 }]} />
+        <View style={[styles.beamCore, { width: geometry.stageW * 0.66 }]} />
       </Animated.View>
     </View>
   );
 }
 
-/** How far the beam travels either side of the centre line, in px. */
-const BEAM_TRAVEL = 52;
+/**
+ * Dust in the light. Eight views, one shared animated value, fixed positions —
+ * cheap enough that it costs nothing and the scene stops feeling like a still.
+ */
+const MOTES = [
+  { x: 0.12, y: 0.18, size: 3, rise: -14, opacity: 0.5 },
+  { x: 0.26, y: 0.72, size: 2, rise: -9, opacity: 0.35 },
+  { x: 0.44, y: 0.12, size: 2, rise: -18, opacity: 0.4 },
+  { x: 0.58, y: 0.82, size: 3, rise: -11, opacity: 0.45 },
+  { x: 0.71, y: 0.3, size: 2, rise: -16, opacity: 0.3 },
+  { x: 0.84, y: 0.66, size: 3, rise: -8, opacity: 0.5 },
+  { x: 0.92, y: 0.22, size: 2, rise: -13, opacity: 0.28 },
+  { x: 0.05, y: 0.55, size: 2, rise: -10, opacity: 0.32 },
+] as const;
+
+function ScanMotes({
+  drift,
+  stageW,
+  stageH,
+}: {
+  drift: Animated.Value;
+  stageW: number;
+  stageH: number;
+}) {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {MOTES.map((mote, index) => (
+        <Animated.View
+          key={index}
+          style={[
+            styles.mote,
+            {
+              left: mote.x * stageW,
+              top: mote.y * stageH,
+              width: mote.size,
+              height: mote.size,
+              opacity: mote.opacity,
+              transform: [
+                { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, mote.rise] }) },
+              ],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
 
 /** One column of the Review summary card. */
 function Stat({
@@ -1111,6 +1354,7 @@ function NeedsReviewCard({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.md },
+  stageBody: { gap: spacing.md },
   block: { gap: spacing.md },
 
   navRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -1208,79 +1452,116 @@ const styles = StyleSheet.create({
   change: { ...typography.meta, color: colors.accent },
 
   // Scan
+  /**
+   * Transparent and `overflow: visible` on purpose. The old stage was an opaque
+   * sunken rectangle, which is what made the scene read as "a small graphic in a
+   * big empty box" — and it clipped the glow that sells the depth. The panels
+   * now sit directly on the screen background and the light spills past them.
+   */
   scanStage: {
-    height: 190,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    borderRadius: radius.lg,
-    backgroundColor: colors.surfaceSunken,
+    overflow: 'visible',
     marginBottom: spacing.sm,
   },
-  shot: {
+
+  // Radial glow — three concentric blocks standing in for a gradient.
+  glowWrap: {
     position: 'absolute',
-    width: '62%',
-    padding: spacing.xs,
-    borderRadius: radius.sm,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glowRing: {
+    position: 'absolute',
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+    opacity: 0.05,
+  },
+  glowMid: { opacity: 0.07 },
+  glowHot: { opacity: 0.1 },
+
+  mote: { position: 'absolute', borderRadius: radius.pill, backgroundColor: colors.accent },
+
+  /** One floating inventory screenshot. Clips its own scan band — see below. */
+  panel: {
+    position: 'absolute',
+    overflow: 'hidden',
+    borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    // Lifts each panel off the background and off the panels behind it.
+    shadowColor: colors.background,
+    shadowOpacity: 0.9,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
   },
-  shotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
-  shotTile: { width: '31%', height: 34, borderRadius: 3 },
-  beam: {
+  panelRow: { flexDirection: 'row', alignItems: 'center' },
+
+  /** The beam's footprint on the cards. Clipped to the panel that owns it. */
+  scanBand: {
     position: 'absolute',
     left: 0,
     right: 0,
+    top: '50%',
+    height: 26,
+    marginTop: -13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanBandWash: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.accent,
+    opacity: 0.28,
+  },
+  scanBandEdge: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: colors.textPrimary,
+    opacity: 0.5,
+  },
+
+  beam: {
+    position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'none',
-    // Above the stacked screenshots (zIndex 1–2), so it sweeps across them.
+    // Above every panel (they carry zIndex 1–3).
     zIndex: 10,
   },
+  /**
+   * A 2px line. Square, not pill — the roundness is what made the old one read
+   * as a progress capsule. Native needs shadow*, web reads boxShadow; both are
+   * set so the bloom survives either renderer.
+   */
   beamCore: {
     position: 'absolute',
-    left: '4%',
-    right: '4%',
-    height: 3,
-    borderRadius: radius.pill,
+    height: 2,
+    borderRadius: 1,
     backgroundColor: colors.textPrimary,
-    // The hot centre of the tube. Native needs shadow*, web reads boxShadow;
-    // both are set so the bloom survives either renderer.
     shadowColor: colors.accent,
     shadowOpacity: 1,
-    shadowRadius: 12,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
     elevation: 8,
   },
-  beamGlow: {
-    position: 'absolute',
-    left: '2%',
-    right: '2%',
-    height: 12,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accent,
-    opacity: 0.75,
-  },
-  beamHalo: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 30,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accent,
-    opacity: 0.3,
-  },
+  beamGlow: { position: 'absolute', height: 6, backgroundColor: colors.accent, opacity: 0.8 },
+  /** Hairline running the full stage, so the light continues past the cards. */
+  beamStreak: { position: 'absolute', height: 1, backgroundColor: colors.accent, opacity: 0.55 },
+  beamHalo: { position: 'absolute', height: 22, backgroundColor: colors.accent, opacity: 0.22 },
   /** Widest, faintest layer — the light spilling onto the screenshots. */
-  beamBloom: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 64,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accent,
-    opacity: 0.12,
-  },
+  beamBloom: { position: 'absolute', height: 56, backgroundColor: colors.accent, opacity: 0.08 },
   percent: { ...typography.screenTitle, fontSize: 40, color: colors.accent, textAlign: 'center' },
   scanHead: { ...typography.screenTitle, fontSize: 22, color: colors.textPrimary, textAlign: 'center' },
 

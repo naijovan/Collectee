@@ -13,15 +13,25 @@
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DimensionValue } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { FEATURES } from '@/config/features';
 import { rarityLabelFor } from '@/domain/rarity';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Article, Collection, Item, TrustLevel, User } from '@/types';
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import {
+  colors,
+  fonts,
+  interaction,
+  radius,
+  rarityTreatments,
+  scrim,
+  spacing,
+  typography,
+} from '@/theme/theme';
 
 import { CollectionCoverMosaic } from './CollectionCoverMosaic';
-import { Avatar, GameBadge, ItemArt } from './primitives';
+import { Avatar, GameBadge, ItemArt, RarityBadge } from './primitives';
 
 /** Fixtures use absolute dates so nothing drifts at demo time (§12.3). */
 export function timeAgo(iso: string, now: number = Date.now()): string {
@@ -68,19 +78,51 @@ export function ItemCard({
   artHeight?: number;
   onPress?: () => void;
 }) {
+  /* Epic and up get the card itself tinted and lifted, not just the badge.
+     `ItemCard` is the most repeated element in the app, so this is where the
+     rarity ladder actually becomes legible — a wall of commons should look
+     calm and a legendary should pull the eye out of the grid. */
+  const treatment = rarityTreatments[item.rarityTier];
+  const showcase = treatment.sheen;
+
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [{ width }, pressed && styles.pressed]}>
-      <ItemArt
-        seed={item.id}
-        tier={item.rarityTier}
-        renderUrl={item.renderUrl}
-        style={{ height: artHeight }}
-      />
+    <Pressable
+      onPress={onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={`${item.name}, ${rarityLabelFor(item.rarityTier, item.title)}`}
+      style={({ pressed }) => [
+        styles.itemCard,
+        { width },
+        showcase && {
+          borderColor: treatment.base,
+          borderWidth: treatment.borderWidth,
+          shadowColor: treatment.base,
+          shadowOpacity: 0.45,
+          shadowRadius: treatment.elevation,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: treatment.elevation,
+        },
+        pressed && styles.pressed,
+      ]}
+    >
+      <View>
+        <ItemArt
+          seed={item.id}
+          tier={item.rarityTier}
+          renderUrl={item.renderUrl}
+          style={{ height: artHeight }}
+        />
+        {/* Compact — the full native label ("Legendary", "Epic Skin", …) does
+            not fit over 132px of art, and it is already printed below. */}
+        <View style={styles.rarityOverlay} pointerEvents="none">
+          <RarityBadge tier={item.rarityTier} title={item.title} compact />
+        </View>
+      </View>
       <View style={styles.itemBody}>
         <Text style={styles.itemName} numberOfLines={2}>
           {item.name}
         </Text>
-        <Text style={styles.itemMeta}>
+        <Text style={[styles.itemMeta, showcase && { color: treatment.base }]}>
           {GAME_SHORT_LABELS[item.title]} · {rarityLabelFor(item.rarityTier, item.title)}
         </Text>
         {trustLevel ? <TrustBadge level={trustLevel} /> : null}
@@ -119,6 +161,16 @@ export function CollectionCard({
           tier={headline?.rarityTier ?? 'epic'}
           fallbackSeed={collection.id}
           style={styles.collectionArt}
+        />
+        {/* A real gradient, not the stacked-view fake used elsewhere: the game
+            badge is white-on-translucent-black and was previously sitting on
+            raw artwork, so on a bright cover it disappeared. Top-down scrim
+            because the badge is top-left and the art's subject is usually
+            centre — darkening the top costs nothing and guarantees contrast. */}
+        <LinearGradient
+          colors={[scrim.medium, scrim.clear]}
+          style={styles.coverScrim}
+          pointerEvents="none"
         />
         {headline ? (
           <View style={styles.badgeOverlay}>
@@ -232,7 +284,12 @@ export function ArticleCard({
 }
 
 const styles = StyleSheet.create({
-  pressed: { opacity: 0.7 },
+  pressed: { opacity: interaction.pressedOpacity, transform: [{ scale: interaction.pressedScale }] },
+
+  /* Radius + overflow so an epic/legendary border clips the art corners rather
+     than drawing a square frame around a rounded image. */
+  itemCard: { borderRadius: radius.card, overflow: 'hidden' },
+  rarityOverlay: { position: 'absolute', top: spacing.xs, right: spacing.xs },
 
   itemBody: { paddingTop: spacing.sm, gap: 2 },
   itemName: { ...typography.cardTitle, color: colors.textPrimary },
@@ -259,6 +316,8 @@ const styles = StyleSheet.create({
   },
   collectionArt: { height: 104, borderRadius: 0 },
   badgeOverlay: { position: 'absolute', top: spacing.sm, left: spacing.sm },
+  /** Only the top third — a full-height scrim would grey out the artwork. */
+  coverScrim: { position: 'absolute', top: 0, left: 0, right: 0, height: '38%' },
   collectionBody: { padding: spacing.md, gap: spacing.xs },
   ownerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   ownerName: { ...typography.meta, color: colors.textSecondary, flexShrink: 1 },
@@ -276,7 +335,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   collectorName: { ...typography.cardTitle, color: colors.textPrimary, marginTop: spacing.sm },
-  matchPercent: { ...typography.meta, color: colors.accent, fontWeight: '700' },
+  /* Family-baked weight, not `fontWeight` — Android would synthesise a fake
+     bold over the loaded Inter cut and it reads muddy at 12px. */
+  matchPercent: {
+    ...typography.meta,
+    ...typography.numeric,
+    color: colors.accent,
+    fontFamily: fonts.bodySemiBold,
+  },
   collectorReason: { ...typography.meta, color: colors.textSecondary },
 
   articleCard: {

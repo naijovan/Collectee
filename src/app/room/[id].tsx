@@ -23,6 +23,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import {
   Avatar,
+  KeyboardSafe,
   Collectible3DViewer,
   ItemCard,
   LoadingState,
@@ -145,6 +146,9 @@ export default function RoomScreen() {
   const items = [...itemsByOwnedId.values()];
 
   return (
+    /* The comment composer sits at the bottom of this scroll view — without
+       this the iOS keyboard covers the field the user just tapped. */
+    <KeyboardSafe>
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <Collectible3DViewer item={inspecting3D} onClose={() => setInspecting3D(null)} />
 
@@ -318,6 +322,7 @@ export default function RoomScreen() {
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
+    </KeyboardSafe>
   );
 }
 

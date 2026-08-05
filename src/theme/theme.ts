@@ -42,13 +42,45 @@ export const colors = {
   danger: '#F04438',
 } as const;
 
-/** §12.2 — five tiers, five colour tokens. One `<RarityBadge tier label />`. */
+/**
+ * §12.2 — five tiers, five colour tokens. One `<RarityBadge tier label />`.
+ *
+ * `rare` is deliberately shifted green-ward from the Figma's #3B82F6: at that
+ * value it sat two points from `accent`, and a rare badge read as a tappable
+ * element. It still reads blue against `epic`.
+ */
 export const rarityColors = {
   common: '#8B94A6',
-  rare: '#3B82F6',
+  rare: '#38BDF8',
   epic: '#A855F7',
   legendary: '#F59E0B',
   mythic: '#EF4444',
+} as const;
+
+/**
+ * Rarity as a value ladder, not five hues (§12.2).
+ *
+ * A tier is not just a colour — it is how loud the item is allowed to be.
+ * Common gets a hairline and no glow; mythic gets a heavy border, a visible
+ * glow and a sheen. This is the whole reason a legendary drop feels like a
+ * drop. `glow` is an alpha of `base`, so it stays inside the no-raw-hex rule
+ * by living here.
+ */
+export const rarityTreatments = {
+  common: { base: rarityColors.common, glow: 'rgba(139,148,166,0)', borderWidth: 1, sheen: false, elevation: 0 },
+  rare: { base: rarityColors.rare, glow: 'rgba(56,189,248,0.28)', borderWidth: 1, sheen: false, elevation: 2 },
+  epic: { base: rarityColors.epic, glow: 'rgba(168,85,247,0.38)', borderWidth: 1.5, sheen: true, elevation: 4 },
+  legendary: { base: rarityColors.legendary, glow: 'rgba(245,165,36,0.45)', borderWidth: 2, sheen: true, elevation: 6 },
+  mythic: { base: rarityColors.mythic, glow: 'rgba(240,68,56,0.5)', borderWidth: 2, sheen: true, elevation: 8 },
+} as const;
+
+/** Tier marks — the badge glyph escalates with value. */
+export const rarityGlyphs = {
+  common: '◦',
+  rare: '◆',
+  epic: '✦',
+  legendary: '✧',
+  mythic: '✵',
 } as const;
 
 /**
@@ -63,6 +95,40 @@ export const lightingPresets = {
   'purple-glow': { label: 'Purple glow', tint: '#A855F7' },
   'warm-gold': { label: 'Warm gold', tint: '#F5A524' },
   'dark-cinematic': { label: 'Dark cinematic', tint: '#0B0D10' },
+} as const;
+
+/**
+ * Scrims — translucent black, for putting text or a badge over artwork.
+ *
+ * These are the only sanctioned `rgba()` literals in the app. They live here
+ * for the same reason the hexes do: a scrim is a colour decision, and the four
+ * separate `rgba(0,0,0,0.x)` literals previously scattered through components
+ * had drifted to four different alphas for the same job.
+ *
+ * `clear` is transparent *black*, not `'transparent'` — on Android a gradient
+ * to `transparent` fades through grey, which shows as a dirty band.
+ */
+export const scrim = {
+  clear: 'rgba(0,0,0,0)',
+  light: 'rgba(0,0,0,0.35)',
+  medium: 'rgba(0,0,0,0.55)',
+  heavy: 'rgba(0,0,0,0.75)',
+} as const;
+
+/**
+ * Fallback palette for `RoomAtmosphere` when a theme supplies fewer than three
+ * colours — [base, primary, secondary], matching the `RoomTheme.palette` shape.
+ *
+ * These were three raw hex literals inlined in the component, which is the one
+ * thing this file exists to prevent. They live here rather than in the room
+ * fixture because they are a *rendering* fallback, not a theme: no designer
+ * picked them for a room, they are what the shaft and mote shaders fall back to
+ * so the scene never renders black-on-black.
+ */
+export const atmosphereFallback = {
+  base: '#0A0E1A',
+  primary: '#12E4F0',
+  secondary: '#F022A8',
 } as const;
 
 export const spacing = {
@@ -82,15 +148,86 @@ export const radius = {
   pill: 999,
 } as const;
 
-/** Type scale from §13.2: screen title, section header, card title, meta. */
-export const typography = {
-  screenTitle: { fontSize: 28, fontWeight: '700', lineHeight: 34 },
-  sectionHeader: { fontSize: 18, fontWeight: '600', lineHeight: 24 },
-  cardTitle: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
-  body: { fontSize: 14, fontWeight: '400', lineHeight: 20 },
-  meta: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
+/**
+ * Font families. Loaded once in `src/app/_layout.tsx`; nothing renders until
+ * they resolve, so there is no swap flash.
+ *
+ * Space Grotesk on titles is what stops the app reading as a settings screen —
+ * it is technical rather than novelty, so it survives next to the 3D room.
+ * Inter carries everything else because it is legible at the 10–12px meta
+ * sizes this app leans on heavily.
+ *
+ * `fontWeight` is intentionally NOT set alongside these: on Android a weight
+ * plus a named family gives you a synthesised bold, not the real cut. The
+ * weight is baked into the family name instead.
+ */
+export const fonts = {
+  display: 'SpaceGrotesk_700Bold',
+  displayMedium: 'SpaceGrotesk_500Medium',
+  body: 'Inter_400Regular',
+  bodyMedium: 'Inter_500Medium',
+  bodySemiBold: 'Inter_600SemiBold',
 } as const;
 
-export const theme = { colors, rarityColors, spacing, radius, typography } as const;
+/** Type scale from §13.2: screen title, section header, card title, meta. */
+export const typography = {
+  screenTitle: { fontSize: 28, lineHeight: 34, fontFamily: fonts.display, letterSpacing: -0.5 },
+  sectionHeader: { fontSize: 18, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.2 },
+  cardTitle: { fontSize: 15, lineHeight: 20, fontFamily: fonts.bodySemiBold },
+  body: { fontSize: 14, lineHeight: 20, fontFamily: fonts.body },
+  meta: { fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium },
+  /**
+   * Tabular figures. Every live counter in J1 review and J2's `n/50` reflows
+   * as digits change width — this pins them. Spread it over another entry:
+   * `{ ...typography.meta, ...typography.numeric }`.
+   */
+  numeric: { fontVariant: ['tabular-nums'] as 'tabular-nums'[] },
+} as const;
+
+/** Was hardcoded as `0.5` in five files. Uppercase eyebrow text wants it. */
+export const letterSpacing = {
+  tight: -0.5,
+  normal: 0,
+  wide: 0.5,
+  wider: 1.2,
+} as const;
+
+/**
+ * Motion (§13.2 addendum). Durations were magic numbers inside `import.tsx`.
+ *
+ * Every one of these must degrade to an instant render under Reduce Motion —
+ * see `useReduceMotion` in `src/hooks/useReduceMotion.ts`.
+ */
+export const motion = {
+  fast: 140,
+  base: 220,
+  slow: 380,
+  /** Per-item delay for staggered list entrances. Above ~40ms it reads as lag. */
+  stagger: 30,
+  /** One spring, used everywhere, so nothing bounces differently to anything else. */
+  spring: { friction: 9, tension: 90 },
+} as const;
+
+/** Press feedback. Was a mix of `opacity: 0.7` here and `accentPressed` there. */
+export const interaction = {
+  pressedOpacity: 0.7,
+  pressedScale: 0.97,
+  disabledOpacity: 0.4,
+  hitSlop: 8,
+} as const;
+
+export const theme = {
+  colors,
+  rarityColors,
+  rarityTreatments,
+  rarityGlyphs,
+  spacing,
+  radius,
+  fonts,
+  typography,
+  letterSpacing,
+  motion,
+  interaction,
+} as const;
 
 export type Theme = typeof theme;

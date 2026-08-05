@@ -9,16 +9,32 @@
  * rather than an icon font or an image library.
  */
 
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 import { resolveItemArt } from './item-art';
+
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 
 import { artFor } from '@/config/artRegistry';
 import { rarityLabelFor } from '@/domain/rarity';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { GameTitle, RarityTier } from '@/types';
-import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
+import * as haptics from '@/lib/haptics';
+import {
+  colors,
+  interaction,
+  letterSpacing,
+  motion,
+  radius,
+  rarityColors,
+  rarityGlyphs,
+  rarityTreatments,
+  scrim,
+  spacing,
+  typography,
+} from '@/theme/theme';
 
 /** Stable per-string hue so the same item always gets the same placeholder. */
 function hash(seed: string): number {
@@ -112,12 +128,44 @@ export function ItemArt({
   );
 }
 
-/** §12.2 — one badge component, five colour tokens, native label printed. */
-export function RarityBadge({ tier, title }: { tier: RarityTier; title: GameTitle }) {
+/**
+ * §12.2 — one badge component, five colour tokens, native label printed.
+ *
+ * The badge is a value ladder, not a colour code: the border thickens, a glow
+ * appears and the leading glyph escalates as the tier climbs, so a mythic reads
+ * as rarer than a common at a glance rather than only "a different colour".
+ * All of that comes from `rarityTreatments`, so a tier's loudness is a token
+ * decision, not a per-call-site one.
+ *
+ * `compact` drops the label to just the glyph — for overlaying on card art,
+ * where the full native label would not fit.
+ */
+export function RarityBadge({
+  tier,
+  title,
+  compact = false,
+}: {
+  tier: RarityTier;
+  title: GameTitle;
+  compact?: boolean;
+}) {
+  const treatment = rarityTreatments[tier];
   return (
-    <View style={[styles.rarityBadge, { borderColor: rarityColors[tier] }]}>
-      <Text style={[styles.rarityText, { color: rarityColors[tier] }]}>
-        {rarityLabelFor(tier, title).toUpperCase()}
+    <View
+      style={[
+        styles.rarityBadge,
+        compact && styles.rarityBadgeCompact,
+        {
+          borderColor: treatment.base,
+          borderWidth: treatment.borderWidth,
+          backgroundColor: treatment.glow,
+        },
+      ]}
+    >
+      <Text style={[styles.rarityText, { color: treatment.base }]}>
+        {compact
+          ? rarityGlyphs[tier]
+          : `${rarityGlyphs[tier]} ${rarityLabelFor(tier, title).toUpperCase()}`}
       </Text>
     </View>
   );
@@ -184,7 +232,13 @@ export function SectionHeader({
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {onSeeAll ? (
-        <Pressable onPress={onSeeAll} hitSlop={8}>
+        <Pressable
+          onPress={onSeeAll}
+          hitSlop={interaction.hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel={`See all ${title}`}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
           <Text style={styles.seeAll}>See all</Text>
         </Pressable>
       ) : null}
@@ -203,14 +257,27 @@ export function FilterChips<T extends string>({
   onChange: (next: T) => void;
 }) {
   return (
-    <View style={styles.chipRow}>
+    <View style={styles.chipRow} accessibilityRole="tablist">
       {options.map((option) => {
         const active = option === value;
         return (
           <Pressable
             key={option}
-            onPress={() => onChange(option)}
-            style={[styles.chip, active && styles.chipActive]}
+            onPress={() => {
+              /* Re-tapping the active chip is a no-op; firing a tick for it
+                 would teach the hand that nothing happened. */
+              if (active) return;
+              haptics.selection();
+              onChange(option);
+            }}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={option}
+            style={({ pressed }) => [
+              styles.chip,
+              active && styles.chipActive,
+              pressed && !active && styles.pressed,
+            ]}
           >
             <Text style={[styles.chipText, active && styles.chipTextActive]}>{option}</Text>
           </Pressable>
@@ -231,12 +298,21 @@ export function PrimaryButton({
 }) {
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        haptics.tap();
+        onPress?.();
+      }}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      /* Not just visual: without this a screen reader reads a disabled CTA as
+         a normal button, and the whole point of the import gate is that you
+         can tell it is blocked. */
+      accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [
         styles.button,
         styles.buttonPrimary,
-        pressed && { backgroundColor: colors.accentPressed },
+        pressed && { backgroundColor: colors.accentPressed, transform: [{ scale: interaction.pressedScale }] },
         disabled && styles.buttonDisabled,
       ]}
     >
@@ -245,10 +321,35 @@ export function PrimaryButton({
   );
 }
 
-export function SecondaryButton({ label, onPress }: { label: string; onPress?: () => void }) {
+export function SecondaryButton({
+  label,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  onPress?: () => void;
+  disabled?: boolean;
+}) {
   return (
-    <Pressable onPress={onPress} style={[styles.button, styles.buttonSecondary]}>
-      <Text style={styles.buttonSecondaryText}>{label}</Text>
+    <Pressable
+      onPress={() => {
+        haptics.tap();
+        onPress?.();
+      }}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
+      style={({ pressed }) => [
+        styles.button,
+        styles.buttonSecondary,
+        disabled && styles.buttonDisabled,
+        pressed && styles.pressed,
+      ]}
+    >
+      <Text style={[styles.buttonSecondaryText, disabled && styles.buttonSecondaryTextDisabled]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -278,9 +379,107 @@ export function EmptyState({
   );
 }
 
-/** Skeleton block. Used instead of a spinner so layout does not jump on load. */
+/**
+ * Skeleton block. Used instead of a spinner so layout does not jump on load.
+ *
+ * The pulse is not decoration: a motionless grey rectangle is exactly what a
+ * *failed* load looks like, so a still skeleton was telling the user the app
+ * had hung. Breathing opacity is the cheapest way to say "still working".
+ *
+ * Under Reduce Motion it parks at the bright end rather than the dim one — a
+ * skeleton stuck at 40% opacity reads as disabled.
+ */
 export function LoadingState({ height = 120 }: { height?: number }) {
-  return <View style={[styles.skeleton, { height }]} />;
+  const reduceMotion = useReduceMotion();
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduceMotion) {
+      pulse.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: motion.slow * 2,
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: motion.slow * 2,
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse, reduceMotion]);
+
+  return (
+    <Animated.View
+      accessibilityRole="progressbar"
+      accessibilityLabel="Loading"
+      style={[
+        styles.skeleton,
+        { height, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) },
+      ]}
+    />
+  );
+}
+
+/**
+ * Entrance wrapper for grid and rail children: fade up, staggered by index.
+ *
+ * Why a wrapper and not a per-screen `Animated.View`: the stagger only reads as
+ * intentional if every list in the app uses the same delay and the same
+ * distance. Once two screens pick their own numbers it just looks like jank.
+ *
+ * `index` is capped so a 60-item grid does not spend two seconds arriving —
+ * past the first screenful nobody is watching the entrance anyway.
+ */
+export function FadeInView({
+  index = 0,
+  children,
+  style,
+}: {
+  index?: number;
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const reduceMotion = useReduceMotion();
+  const enter = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduceMotion) {
+      enter.setValue(1);
+      return;
+    }
+    const animation = Animated.timing(enter, {
+      toValue: 1,
+      duration: motion.base,
+      delay: Math.min(index, 8) * motion.stagger,
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [enter, index, reduceMotion]);
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity: enter,
+          transform: [
+            { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
+          ],
+        },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -312,11 +511,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
   },
-  rarityText: { ...typography.meta, fontSize: 10, letterSpacing: 0.5 },
+  /* The one press treatment. Was previously three different ones across the
+     component set, and half the pressables had none at all. */
+  pressed: {
+    opacity: interaction.pressedOpacity,
+    transform: [{ scale: interaction.pressedScale }],
+  },
+
+  rarityBadgeCompact: { paddingHorizontal: spacing.xs, paddingVertical: 1 },
+  rarityText: { ...typography.meta, fontSize: 10, letterSpacing: letterSpacing.wide },
 
   gameBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: scrim.medium,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
@@ -367,9 +574,10 @@ const styles = StyleSheet.create({
   },
   buttonPrimary: { backgroundColor: colors.accent },
   buttonSecondary: { borderWidth: 1, borderColor: colors.border, backgroundColor: 'transparent' },
-  buttonDisabled: { opacity: 0.4 },
+  buttonDisabled: { opacity: interaction.disabledOpacity },
   buttonPrimaryText: { ...typography.cardTitle, color: colors.textOnAccent },
   buttonSecondaryText: { ...typography.cardTitle, color: colors.textPrimary },
+  buttonSecondaryTextDisabled: { color: colors.textTertiary },
 
   empty: {
     alignItems: 'center',
