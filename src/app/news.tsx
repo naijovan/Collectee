@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { ArticleCard, EmptyState, FilterChips, LoadingState } from '@/components';
@@ -33,7 +33,7 @@ type Feed = (typeof FEEDS)[number];
 
 export default function NewsScreen() {
   const router = useRouter();
-  const { viewerId } = useApp();
+  const { viewerId, unreadNotifications } = useApp();
 
   const [feed, setFeed] = useState<Feed>('For you');
   /** Switching feed replaces the whole list, so it reads as a new page. */
@@ -65,6 +65,22 @@ export default function NewsScreen() {
 
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
+      {/*
+        §11 F6 groups notifications and following management with the feeds, and
+        this is the only route to either.
+
+        TODO(Jovan): §13.4 puts the bell on Home and it currently opens /news.
+        One-line href change in src/app/(tabs)/index.tsx — the unread dot it
+        already renders is counting notifications nobody could open until now.
+      */}
+      <View style={styles.utilityRow}>
+        <Pressable onPress={() => router.push('/notifications')} hitSlop={8}>
+          <Text style={styles.utilityLink}>
+            Notifications{unreadNotifications > 0 ? ` (${unreadNotifications})` : ''}
+          </Text>
+        </Pressable>
+      </View>
+
       <FilterChips options={FEEDS} value={feed} onChange={setFeed} />
 
       {busy ? <LoadingState height={200} /> : null}
@@ -121,4 +137,6 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.lg },
   list: { gap: spacing.md },
   footnote: { ...typography.meta, color: colors.textTertiary },
+  utilityRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.lg },
+  utilityLink: { ...typography.meta, color: colors.accent },
 });
