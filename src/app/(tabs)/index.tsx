@@ -6,7 +6,7 @@
  *   3. Hero banner — sparkle eyebrow, headline, Explore button, game logos
  *   4. Gaming updates rail          (behind FEATURES.news — §14 rung 1)
  *   5. Explore collectibles — 2×2 grid
- *   6. Recently added — compact item rail
+ *   6. Your Inventory — compact item rail, See all → Profile
  *   7. Collectors you may like — match cards
  *   8. Tab bar (lives in the layout)
  *
@@ -272,7 +272,11 @@ export default function HomeScreen() {
       {/* 6 — Recently added */}
       {filter === 'All' ? (
         <View>
-          <SectionHeader title="Recently added" onSeeAll={() => router.navigate('/collections')} />
+          {/* "See all" goes to Profile, not Collections: this rail is the
+              viewer's own inventory, and Profile is where the full inventory
+              lives. Collections is curated groupings, which is a different
+              question from "everything I own". */}
+          <SectionHeader title="Your Inventory" onSeeAll={() => router.navigate('/profile')} />
           {inventory.length === 0 ? (
             <EmptyState
               title="No items yet"

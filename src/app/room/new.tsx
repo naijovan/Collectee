@@ -108,6 +108,7 @@ export default function CreateRoomScreen() {
   const [previewThemeId, setPreviewThemeId] = useState<string | null>(null);
 
   const [progress, setProgress] = useState(0);
+  const [generateError, setGenerateError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [room, setRoom] = useState<Room | null>(null);
   const [overflow, setOverflow] = useState<string[]>([]);
@@ -198,20 +199,30 @@ export default function CreateRoomScreen() {
     setStep(1);
     setReady(false);
     setProgress(0);
+    setGenerateError(null);
 
-    const created = await roomService.createRoom({
-      collectionId,
-      collectionName: collection?.name,
-      themeId,
-      ownedItems: owned,
-      onProgress: setProgress,
-    });
+    // Anything thrown in here used to reject silently, and the screen sat on
+    // "Designing your…" forever with no way back — the worst failure mode a
+    // progress screen has, because it is indistinguishable from slow.
+    try {
+      const created = await roomService.createRoom({
+        collectionId,
+        collectionName: collection?.name,
+        themeId,
+        ownedItems: owned,
+        onProgress: setProgress,
+      });
 
-    setOverflow(roomService.overflow(created, owned.map((o) => o.id)));
-    setRoom(created);
-    setTitle(created.title);
-    setDescription(created.description);
-    setReady(true);
+      setOverflow(roomService.overflow(created, owned.map((o) => o.id)));
+      setRoom(created);
+      setTitle(created.title);
+      setDescription(created.description);
+      setReady(true);
+    } catch (error) {
+      setGenerateError(
+        error instanceof Error ? error.message : 'Generation failed. Try again.',
+      );
+    }
   }, [collectionId, collection?.name, themeId, owned]);
 
   // ── Edit ────────────────────────────────────────────────────────────
@@ -575,7 +586,14 @@ export default function CreateRoomScreen() {
       {/* ── 1 Generate ──────────────────────────────────────────────── */}
       {step === 1 ? (
         <View style={styles.block}>
-          {!ready ? (
+          {generateError ? (
+            <View style={styles.gateCard}>
+              <Text style={styles.gateTitle}>Generation failed</Text>
+              <Text style={styles.body}>{generateError}</Text>
+              <PrimaryButton label="Try again" onPress={() => void generate()} />
+              <SecondaryButton label="Back to styles" onPress={() => setStep(0)} />
+            </View>
+          ) : !ready ? (
             <>
               <Text style={styles.stage}>
                 Designing your {themes.find((t) => t.id === themeId)?.name}

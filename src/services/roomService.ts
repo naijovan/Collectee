@@ -198,7 +198,14 @@ export const roomService = {
 
     const cacheKey = `${theme.id}:${theme.palette.join(',')}`;
     const cached = backdropCache.get(cacheKey);
-    if (cached) return delay(cached, LATENCY_INSTANT);
+    if (cached) {
+      // A cache hit still has to drive the progress callback to 1. Returning
+      // early without it left the caller's bar frozen at 0% while the room
+      // built behind it — the screen said nothing was happening when it was
+      // already done. Cheap, because a cached backdrop needs no wait.
+      onProgress?.(1);
+      return delay(cached, LATENCY_INSTANT);
+    }
 
     backdropCache.set(cacheKey, theme.backdropUrl);
     return delayWithProgress(theme.backdropUrl, GENERATION_MS, onProgress);
