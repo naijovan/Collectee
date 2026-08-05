@@ -17,7 +17,16 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,6 +36,7 @@ import {
   CollectionCard,
   CollectorCard,
   EmptyState,
+  FadeInView,
   FilterChips,
   ItemArt,
   ItemCard,
@@ -37,6 +47,7 @@ import {
 import { ART_PLACEMENTS, backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { headlineItem } from '@/domain/collections';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
   catalogueService,
@@ -143,6 +154,8 @@ export default function HomeScreen() {
     [router],
   );
 
+  const { refreshing, onRefresh } = usePullToRefresh(load);
+
   const show = (section: Filter) => filter === 'All' || filter === section;
 
   return (
@@ -150,6 +163,15 @@ export default function HomeScreen() {
       ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.textSecondary}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.surface}
+        />
+      }
     >
       {/* 1 — Header */}
       <View style={styles.header}>
@@ -254,15 +276,18 @@ export default function HomeScreen() {
             <LoadingState height={220} />
           ) : (
             <View style={styles.grid}>
-              {explore.slice(0, filter === 'All' ? 4 : explore.length).map((entry) => (
-                <CollectionCard
-                  key={entry.collection.id}
-                  collection={entry.collection}
-                  owner={entry.owner}
-                  headline={entry.headline}
-                  width="48%"
-                  onPress={() => openCollection(entry.collection.id)}
-                />
+              {explore.slice(0, filter === 'All' ? 4 : explore.length).map((entry, index) => (
+                /* The stagger is what turns "the data arrived" into "the grid
+                   dealt itself". Width lives on the wrapper, not the card,
+                   because the wrapper is what the flex row now measures. */
+                <FadeInView key={entry.collection.id} index={index} style={styles.gridCell}>
+                  <CollectionCard
+                    collection={entry.collection}
+                    owner={entry.owner}
+                    headline={entry.headline}
+                    onPress={() => openCollection(entry.collection.id)}
+                  />
+                </FadeInView>
               ))}
             </View>
           )}
@@ -440,6 +465,8 @@ const styles = StyleSheet.create({
 
   rail: { gap: spacing.md, paddingRight: spacing.lg },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
+  /** Was the card's own `width="48%"`; moved out when FadeInView wrapped it. */
+  gridCell: { width: '48%' },
 
   roomList: { gap: spacing.sm },
   roomRow: {

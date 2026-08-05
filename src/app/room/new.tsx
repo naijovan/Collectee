@@ -36,6 +36,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   Avatar,
@@ -64,7 +65,8 @@ import {
 import type { CollectorRecommendation } from '@/services';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { useApp } from '@/state/AppContext';
-import { colors, lightingPresets, radius, spacing, typography } from '@/theme/theme';
+import * as haptics from '@/lib/haptics';
+import { colors, interaction, lightingPresets, radius, spacing, typography } from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
 import type {
   Collection,
@@ -85,6 +87,7 @@ const DISPLAY_STYLES: readonly DisplayStyle[] = ['card', 'framed', 'hologram'];
 
 export default function CreateRoomScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { collectionId: param } = useLocalSearchParams<{ collectionId?: string }>();
   const { viewerId } = useApp();
   const { width } = useWindowDimensions();
@@ -278,15 +281,20 @@ export default function CreateRoomScreen() {
     });
     const live = await roomService.publish(room.id, visibility);
     if (!live) return;
+    haptics.success();
     setPublished(live);
     // Frame 11 — the room does not dead-end at publish; it hands off to J4.
     setInvites(await matchService.getRecommendedCollectors(viewerId, 3));
   }
 
+  /* The native header is off for this route — it sat on top of StepperHeader's
+     own back chevron. Every branch here owns its top inset instead. */
+  const topPad = [styles.content, { paddingTop: insets.top + spacing.md }];
+
   // ── Published (outside the numbered bar) ────────────────────────────
   if (published) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.screen} contentContainerStyle={topPad}>
         <Collectible3DViewer item={threeDItem} onClose={() => setThreeDItem(null)} />
 
         <Text style={styles.done}>✓</Text>
@@ -350,7 +358,17 @@ export default function CreateRoomScreen() {
   // ── Collection picker (outside the numbered bar) ────────────────────
   if (!collectionId) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.screen} contentContainerStyle={topPad}>
+        {/* This branch sits outside StepperHeader, so it needs its own way out —
+            without the native header there is otherwise nothing to press. */}
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={interaction.hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Text style={styles.pickerBack}>‹ Back</Text>
+        </Pressable>
         <Text style={styles.title}>Which collection?</Text>
         <Text style={styles.body}>A room is built from one collection.</Text>
         {busy ? <LoadingState height={160} /> : null}
@@ -379,7 +397,7 @@ export default function CreateRoomScreen() {
   }
 
   return (
-    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={topPad}>
       <StepperHeader
         steps={ROOM_STEPS}
         current={step}
@@ -997,6 +1015,7 @@ const styles = StyleSheet.create({
   block: { gap: spacing.md },
 
   title: { ...typography.screenTitle, color: colors.textPrimary },
+  pickerBack: { ...typography.body, color: colors.accent },
   sectionLabel: { ...typography.cardTitle, color: colors.textPrimary, marginTop: spacing.sm },
   body: { ...typography.body, color: colors.textSecondary },
   rowTitle: { ...typography.cardTitle, color: colors.textPrimary },

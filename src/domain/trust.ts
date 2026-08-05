@@ -33,13 +33,11 @@ export const FLAG_THRESHOLD = 3;
  * fixtures already document this (`src/fixtures/social.ts`) and every seeded
  * flag follows it.
  *
- * TODO(Bernard): `src/app/collection/[id].tsx` (currently line 103, inside
- * `raiseFlag`) passes `targetId: item.id`, a catalogue id, so those flags can
- * never match a target here and never reach the review queue at
- * `/moderation`. It needs the `OwnedItem.id` of the claim being disputed —
- * i.e. the collection owner's ownership record for that item, not the
- * catalogue entry. Until then the flag path works on seeded data only, and
- * every flag raised through the UI is silently inert.
+ * `src/app/collection/[id].tsx` resolves the collection owner's `OwnedItem` for
+ * each catalogue entry before it opens the flag panel, and flags that id — so a
+ * flag raised through the UI reaches `/moderation` exactly like a seeded one. An
+ * item with no ownership record shows no flag action at all, because there is no
+ * claim to dispute.
  */
 export const FLAG_TARGET_ID_SPACE = 'OwnedItem.id' as const;
 
@@ -222,6 +220,94 @@ export function deriveTrust(
     verifiedCount,
     totalCount: ownedItems.length,
   };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * ┌─────────────────────────────────────────────────────────────────────┐
+ * │  ONLY VERIFIED ITEMS MAY ENTER A COLLECTION ROOM (§9.4).            │
+ * └─────────────────────────────────────────────────────────────────────┘
+ *
+ * Team decision (5 Aug), and the thing that makes the trust model matter to a
+ * player rather than to a moderator. A 2D collection takes anything you own —
+ * that is the floor, and it is deliberately generous, because an unverified
+ * item is allowed and fully usable (§9.2). The interactive room is the perk on
+ * top, and it is what verification buys.
+ *
+ * The rule lives HERE, not in a screen, for two reasons. J2 (`collection/*`,
+ * Bernard) has to tell a user what their selection can become *before* they
+ * publish it, and J3 (`room/*`, Jovan) has to enforce it at the picker. Two
+ * copies of one rule is how the two flows end up disagreeing on merge day.
+ *
+ * Under-review claims are blocked alongside unverified ones. `discoveryWeight`
+ * already takes a flagged item's ranking to zero; a room is a published
+ * discovery surface, so showcasing a claim three eligible collectors are
+ * currently disputing would route around the flag rather than honour it. The
+ * reason string keeps the two cases distinct, because "get this verified" and
+ * "this is being reviewed" need different actions from the user.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface RoomEligibility {
+  eligible: boolean;
+  verifiedCount: number;
+  totalCount: number;
+  /** Claims that cannot be placed — unverified, under review, or both. */
+  blockedOwnedItemIds: string[];
+  /**
+   * Human-readable and ALWAYS populated, including on the happy path.
+   *
+   * §11 F5's standard for match scores applies here for the same reason: a
+   * blocked action without its reason is a broken feature. CLAUDE.md says it
+   * more bluntly — never render an empty room picker without telling the user
+   * why it is empty.
+   */
+  reason: string;
+}
+
+export function roomEligibility(
+  ownedItems: readonly OwnedItem[],
+  isTargetUnderReview: (ownedItemId: string) => boolean,
+): RoomEligibility {
+  const unverified: OwnedItem[] = [];
+  const underReview: OwnedItem[] = [];
+
+  for (const owned of ownedItems) {
+    // Order matters for the reason only: an item that is both unverified and
+    // under review is counted as under review, because that is the blocker the
+    // user cannot fix by linking an account.
+    if (isTargetUnderReview(owned.id)) underReview.push(owned);
+    else if (owned.trustLevel !== 'verified') unverified.push(owned);
+  }
+
+  const total = ownedItems.length;
+  const verifiedCount = ownedItems.filter((o) => o.trustLevel === 'verified').length;
+  const blocked = [...underReview, ...unverified];
+
+  return {
+    eligible: total > 0 && blocked.length === 0,
+    verifiedCount,
+    totalCount: total,
+    blockedOwnedItemIds: blocked.map((o) => o.id),
+    reason: roomEligibilityReason(total, verifiedCount, underReview.length, unverified.length),
+  };
+}
+
+function roomEligibilityReason(
+  total: number,
+  verifiedCount: number,
+  underReviewCount: number,
+  unverifiedCount: number,
+): string {
+  if (total === 0) {
+    return 'A room needs at least one verified item — link a game account to verify what you own';
+  }
+  if (underReviewCount > 0) {
+    const noun = underReviewCount === 1 ? 'item is' : 'items are';
+    return `${underReviewCount} ${noun} under review and cannot be placed in a room until that is resolved`;
+  }
+  if (unverifiedCount > 0) {
+    return `${unverifiedCount} of ${total} items are unverified — link a game account to verify them and unlock rooms`;
+  }
+  return `All ${verifiedCount} ${verifiedCount === 1 ? 'item is' : 'items are'} verified`;
 }
 
 /**

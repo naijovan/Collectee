@@ -31,15 +31,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   Avatar,
+  FadeInView,
   ItemArt,
   LoadingState,
   PrimaryButton,
   RarityBadge,
   SecondaryButton,
 } from '@/components';
+import { FEATURES } from '@/config/features';
 import {
   COLLECTION_STEPS,
   headlineItem,
@@ -48,13 +51,22 @@ import {
 } from '@/domain/collections';
 import type { ItemFit, ThemeSuggestion } from '@/domain/collections';
 import { byRarityDesc } from '@/domain/rarity';
+import { roomEligibility } from '@/domain/trust';
+import type { RoomEligibility } from '@/domain/trust';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
-import { collectionService, formatBytes, inventoryService, mediaService } from '@/services';
+import * as haptics from '@/lib/haptics';
+import {
+  collectionService,
+  formatBytes,
+  inventoryService,
+  mediaService,
+  socialService,
+} from '@/services';
 import type { OwnedItemView, PickedImage } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
-import type { Item, Visibility } from '@/types';
+import type { Item, OwnedItem, TrustLevel, Visibility } from '@/types';
 
 /**
  * Drawn from the vocabulary the seeded collections already use
@@ -106,6 +118,7 @@ type Stage = 'steps' | 'preview' | 'posted';
 
 export default function CreateCollectionScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory } = useApp();
 
   // J1's completion screen can hand us a suggestion to start from (§14 chain).
@@ -152,6 +165,40 @@ export default function CreateCollectionScreen() {
         .filter((item): item is Item => item !== undefined),
     [selected, inventory],
   );
+
+  /**
+   * §9.4 — can this selection become a Collection Room?
+   *
+   * A collection takes anything the user owns; the room is the verified perk on
+   * top. Answering it live, while they pick, is the difference between a feature
+   * they understand and one that silently refuses them two screens later.
+   *
+   * Derived from the ownership claims, not the catalogue entries — trust belongs
+   * to `OwnedItem`, and `deriveTrust`/`roomEligibility` both key off it.
+   */
+  const selectedOwned = useMemo(
+    () =>
+      selected
+        .map((id) => inventory.find((entry) => entry.item.id === id)?.owned)
+        .filter((owned): owned is OwnedItem => owned !== undefined),
+    [selected, inventory],
+  );
+
+  const eligibility = useMemo(
+    () => roomEligibility(selectedOwned, (ownedItemId) => socialService.isUnderReview(ownedItemId)),
+    [selectedOwned],
+  );
+
+  /** Drop every claim that cannot enter a room, leaving a room-ready selection. */
+  function keepRoomEligibleOnly() {
+    const blocked = new Set(eligibility.blockedOwnedItemIds);
+    setSelected((prev) =>
+      prev.filter((itemId) => {
+        const owned = inventory.find((entry) => entry.item.id === itemId)?.owned;
+        return owned !== undefined && !blocked.has(owned.id);
+      }),
+    );
+  }
 
   /** Cover defaults to the headline item — the rarest thing in the collection. */
   const chosenCover = coverItemId
@@ -252,11 +299,17 @@ export default function CreateCollectionScreen() {
         showOnProfile,
       });
       setPublishedId(collection.id);
+      haptics.success();
       setStage('posted');
     } finally {
       setPublishing(false);
     }
   }
+
+  /* The native header is off for this route — the nav row below carries the
+     step title, so a stack header duplicated it. This screen therefore owns
+     its own top inset, on every stage including `preview` and `posted`. */
+  const topPad = [styles.content, { paddingTop: insets.top + spacing.md }];
 
   const canAdvance = step === 0 ? name.trim().length > 0 : step === 1 ? selected.length > 0 : true;
 
@@ -274,7 +327,7 @@ export default function CreateCollectionScreen() {
   // ── Posted ────────────────────────────────────────────────────────────
   if (stage === 'posted' && publishedId) {
     return (
-      <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={topPad}>
         <Text style={styles.done}>✓</Text>
         <Text style={styles.title}>{name} is live</Text>
         <Text style={styles.muted}>
@@ -286,12 +339,28 @@ export default function CreateCollectionScreen() {
             : VISIBILITY_DESCRIPTIONS[visibility]}
         </Text>
 
-        <PrimaryButton
-          label="Build a room from this"
-          onPress={() =>
-            router.replace({ pathname: '/room/new', params: { collectionId: publishedId } })
-          }
-        />
+        {/*
+          §9.4 — offering "Build a room" on a selection that cannot become one
+          sends the user into a picker that will refuse them, with no way to
+          know why. Say it here, where the fix is one tap away.
+        */}
+        {eligibility.eligible ? (
+          <PrimaryButton
+            label="Build a room from this"
+            onPress={() =>
+              router.replace({ pathname: '/room/new', params: { collectionId: publishedId } })
+            }
+          />
+        ) : (
+          <View style={styles.gate}>
+            <Text style={styles.rowTitle}>🔒 Rooms are a verified perk</Text>
+            <Text style={styles.muted}>{eligibility.reason}</Text>
+            <SecondaryButton
+              label="Link a game account"
+              onPress={() => router.replace('/link-account')}
+            />
+          </View>
+        )}
         <SecondaryButton
           label="View collection"
           onPress={() =>
@@ -387,7 +456,7 @@ export default function CreateCollectionScreen() {
   }
 
   return (
-    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={topPad}>
       <View style={styles.navRow}>
         <Pressable
           hitSlop={8}
@@ -407,6 +476,12 @@ export default function CreateCollectionScreen() {
 
       <FlowStepper steps={COLLECTION_STEPS} current={step} />
 
+      {/* Cross-fades the step body on every step change, matching J1. The key
+          includes `arranging` because step 2 has two distinct bodies and the
+          switch between them is as much a step as the numbered ones. Nav row,
+          stepper and footer stay fixed — the footer especially, because its
+          label changes per step and animating it would hide that. */}
+      <FadeInView key={`${step}-${arranging}`} style={styles.stepBody}>
       {/* ── Step 1 — Details (frame 3:42) ───────────────────────────────── */}
       {step === 0 ? (
         <View style={styles.block}>
@@ -556,6 +631,8 @@ export default function CreateCollectionScreen() {
           collectionName={name}
           onToggle={toggleItem}
           onDeselectAll={() => setSelected([])}
+          eligibility={eligibility}
+          onKeepRoomEligible={keepRoomEligibleOnly}
         />
       ) : null}
 
@@ -593,21 +670,28 @@ export default function CreateCollectionScreen() {
             <>
               <Text style={styles.label}>Items that fit</Text>
               <View style={styles.grid}>
-                {fits.map(({ item, reason }) => (
-                  <View key={item.id} style={styles.fitCard}>
-                    <ItemArt seed={item.id} tier={item.rarityTier} style={styles.fitArt} />
-                    <Text style={styles.rowTitle} numberOfLines={2}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.gameLine}>{GAME_LABELS[item.title]}</Text>
-                    {/* §11 F5 — the reason ships with the recommendation, always. */}
-                    <Text style={styles.fitReason}>{reason}</Text>
-                    <SecondaryButton
-                      label="Add"
-                      onPress={() => setSelected((prev) => [...prev, item.id])}
-                    />
-                  </View>
-                ))}
+                {fits.map(({ item, reason }) => {
+                  // A suggestion is the one place eligibility can break without
+                  // the user touching the picker — so the pip travels with it.
+                  const suggestedTrust = inventory.find((entry) => entry.item.id === item.id)?.owned
+                    .trustLevel;
+                  return (
+                    <View key={item.id} style={styles.fitCard}>
+                      <ItemArt seed={item.id} tier={item.rarityTier} style={styles.fitArt} />
+                      <Text style={styles.rowTitle} numberOfLines={2}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.gameLine}>{GAME_LABELS[item.title]}</Text>
+                      {suggestedTrust ? <TrustPip level={suggestedTrust} /> : null}
+                      {/* §11 F5 — the reason ships with the recommendation, always. */}
+                      <Text style={styles.fitReason}>{reason}</Text>
+                      <SecondaryButton
+                        label="Add"
+                        onPress={() => setSelected((prev) => [...prev, item.id])}
+                      />
+                    </View>
+                  );
+                })}
               </View>
             </>
           ) : null}
@@ -780,6 +864,19 @@ export default function CreateCollectionScreen() {
             />
           </View>
 
+          {/*
+            Restated here because step 3's suggestions can add an unverified item
+            after the picker's note has scrolled out of the flow — this is the
+            last screen before publish, so it is the last honest moment to say it.
+          */}
+          {FEATURES.trustUi ? (
+            <Text style={styles.footnote}>
+              {eligibility.eligible
+                ? `✓ Every item is verified — this collection can become a Collection Room (§9.4).`
+                : `🔒 ${eligibility.reason}. Publishing the collection is unaffected.`}
+            </Text>
+          ) : null}
+
           <View style={styles.ownerCard}>
             <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={40} />
             <View style={styles.rowBody}>
@@ -792,6 +889,7 @@ export default function CreateCollectionScreen() {
           </View>
         </View>
       ) : null}
+      </FadeInView>
 
       <View style={styles.footer}>
         {step === 0 ? (
@@ -876,6 +974,8 @@ function SelectItems({
   collectionName,
   onToggle,
   onDeselectAll,
+  eligibility,
+  onKeepRoomEligible,
 }: {
   inventory: readonly OwnedItemView[];
   selected: string[];
@@ -886,6 +986,8 @@ function SelectItems({
   collectionName: string;
   onToggle: (itemId: string) => void;
   onDeselectAll: () => void;
+  eligibility: RoomEligibility;
+  onKeepRoomEligible: () => void;
 }) {
   const matching = useMemo(
     () =>
@@ -971,6 +1073,29 @@ function SelectItems({
       </View>
       <Text style={styles.footnote}>Items can belong to multiple collections (§11 F3).</Text>
 
+      {/*
+        §9.4 made visible while the user picks, rather than sprung on them at
+        the room picker. Unverified items are never blocked HERE — a collection
+        takes anything you own, and that is the point of the tier. This only
+        reports what the selection can go on to become.
+      */}
+      {FEATURES.trustUi && selected.length > 0 ? (
+        <View style={[styles.roomNote, eligibility.eligible && styles.roomNoteOk]}>
+          <Text style={eligibility.eligible ? styles.roomNoteOkText : styles.rowTitle}>
+            {eligibility.eligible ? '✓ Room-eligible selection' : '🔒 Collection only'}
+          </Text>
+          <Text style={styles.muted}>{eligibility.reason}</Text>
+          {!eligibility.eligible && eligibility.verifiedCount > 0 ? (
+            <Pressable onPress={onKeepRoomEligible} hitSlop={8}>
+              <Text style={styles.coverLink}>
+                Keep only the {eligibility.verifiedCount} verified{' '}
+                {eligibility.verifiedCount === 1 ? 'item' : 'items'}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       {groups.map((group) => (
         <View key={group.key} style={styles.block}>
           {group.label ? <Text style={styles.groupHead}>{group.label}</Text> : null}
@@ -995,7 +1120,10 @@ function SelectItems({
                     {entry.item.name}
                   </Text>
                   <Text style={styles.gameLine}>{GAME_LABELS[entry.item.title]}</Text>
-                  <RarityBadge tier={entry.item.rarityTier} title={entry.item.title} />
+                  <View style={styles.badgeRow}>
+                    <RarityBadge tier={entry.item.rarityTier} title={entry.item.title} />
+                    <TrustPip level={entry.owned.trustLevel} />
+                  </View>
                 </Pressable>
               );
             })}
@@ -1036,6 +1164,26 @@ function glyphFor(tag: string): string {
   return THEME_TAGS.find((t) => t.tag === tag)?.glyph ?? '✦';
 }
 
+/**
+ * Compact trust marker for the picker grid.
+ *
+ * `ItemCard`'s `TrustBadge` is the equivalent on shared cards, but that
+ * component is Jovan's (§13.3) and the picker card is bespoke to this screen —
+ * so this is the local one rather than a change to a shared component under
+ * someone else's name. Same rule, same flag.
+ */
+function TrustPip({ level }: { level: TrustLevel }) {
+  if (!FEATURES.trustUi) return null;
+  const verified = level === 'verified';
+  return (
+    <View style={[styles.pip, verified ? styles.pipVerified : styles.pipUnverified]}>
+      <Text style={[styles.pipText, verified && styles.pipTextVerified]}>
+        {verified ? '✓ Verified' : 'Unverified'}
+      </Text>
+    </View>
+  );
+}
+
 function Toggle({
   label,
   hint,
@@ -1063,6 +1211,7 @@ function Toggle({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.md },
+  stepBody: { gap: spacing.md },
   contentFlush: { paddingBottom: spacing.xxl },
   block: { gap: spacing.md },
 
@@ -1264,6 +1413,37 @@ const styles = StyleSheet.create({
   },
   checkOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   checkGlyph: { color: colors.textOnAccent, fontSize: 13, fontWeight: '700' },
+
+  // §9.4 trust surfaces — the room gate, stated while the user picks.
+  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
+  pip: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+  },
+  pipVerified: { borderColor: colors.success },
+  pipUnverified: { borderColor: colors.border },
+  pipText: { ...typography.meta, fontSize: 9, color: colors.textTertiary },
+  pipTextVerified: { color: colors.success },
+  roomNote: {
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  roomNoteOk: { borderColor: colors.success },
+  roomNoteOkText: { ...typography.cardTitle, color: colors.success },
+  gate: {
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
 
   tray: {
     gap: spacing.sm,

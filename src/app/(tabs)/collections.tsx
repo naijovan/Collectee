@@ -11,13 +11,14 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   CollectionCard,
   EmptyState,
+  FadeInView,
   FilterChips,
   LoadingState,
   PrimaryButton,
@@ -27,6 +28,7 @@ import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
 import { suggestRoom } from '@/domain/roomSuggestion';
 import type { RoomSuggestion } from '@/domain/roomSuggestion';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, inventoryService, roomService } from '@/services';
 import type { RoomStatus } from '@/services';
@@ -92,11 +94,22 @@ export default function CollectionsScreen() {
     }, [load]),
   );
 
+  const { refreshing, onRefresh } = usePullToRefresh(load);
+
   return (
     <ScrollView
       ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.textSecondary}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.surface}
+        />
+      }
     >
       <View style={styles.header}>
         <Text style={styles.title}>Collections</Text>
@@ -120,8 +133,8 @@ export default function CollectionsScreen() {
         <View style={styles.grid}>
           {entries
             .filter((entry) => matchesFilter(entry.collection, rooms.get(entry.collection.id), filter))
-            .map((entry) => (
-              <View key={entry.collection.id} style={styles.gridItem}>
+            .map((entry, index) => (
+              <FadeInView key={entry.collection.id} index={index} style={styles.gridItem}>
                 <CollectionCard
                   collection={entry.collection}
                   owner={viewer}
@@ -141,7 +154,7 @@ export default function CollectionsScreen() {
                   collectionId={entry.collection.id}
                   suggestion={entry.suggestion}
                 />
-              </View>
+              </FadeInView>
             ))}
         </View>
       )}
@@ -233,9 +246,22 @@ function RoomCta({
         style={styles.roomCta}
         onPress={() => router.push({ pathname: '/room/intro', params: { collectionId } })}
       >
-        <Text style={styles.roomCtaText}>
-          {suggestion ? `Create ${suggestion.theme.name} room` : '+  Create room'}
-        </Text>
+        {suggestion ? (
+          // Two Text nodes, not one interpolated string: the theme name is the
+          // part that varies in length (e.g. "Futuristic Weapon Vault"), so it
+          // is the only part allowed to shrink and truncate. "room" stays whole
+          // — truncating the composed string could just as easily eat the
+          // suffix and leave the pill reading "Create Futuristic Weapon Vau…",
+          // which looks broken rather than merely abbreviated.
+          <>
+            <Text style={styles.roomCtaName} numberOfLines={1} ellipsizeMode="tail">
+              Create {suggestion.theme.name}
+            </Text>
+            <Text style={styles.roomCtaText}>room</Text>
+          </>
+        ) : (
+          <Text style={styles.roomCtaText}>+  Create room</Text>
+        )}
       </Pressable>
     </>
   );
@@ -259,7 +285,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
+    // Horizontal padding was missing, so long labels (a theme name like
+    // "Futuristic Weapon Vault") touched or crossed the pill's rounded edge
+    // instead of sitting inside it.
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+    // Fixes the pill's height regardless of which branch renders — a truncated
+    // single line must not make this CTA read as shorter than "View room →" or
+    // "Room in progress" beside it in the grid.
+    minHeight: 44,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.accent,
@@ -268,6 +302,14 @@ const styles = StyleSheet.create({
   /** In-progress is a status, not an action — muted so it reads as one. */
   roomCtaMuted: { borderColor: colors.border, backgroundColor: 'transparent' },
   roomCtaText: { ...typography.cardTitle, color: colors.accent },
+  /**
+   * The variable-length half of the suggested-room label ("Create {theme
+   * name}"). `flexShrink: 1` lets it give up width to its fixed-width "room"
+   * sibling instead of overflowing the row; `minWidth: 0` is required for that
+   * shrink to actually take effect inside a flex row on both native and web —
+   * without it a Text child defaults to its content width and never shrinks.
+   */
+  roomCtaName: { ...typography.cardTitle, color: colors.accent, flexShrink: 1, minWidth: 0 },
   roomCtaPending: { ...typography.cardTitle, color: colors.textSecondary },
 
   /** The suggested-room line above the CTA. */

@@ -23,8 +23,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import * as haptics from '@/lib/haptics';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import { colors, fonts, interaction, radius, spacing, typography } from '@/theme/theme';
 
 interface Tab {
   href: '/' | '/explore' | '/collections' | '/profile';
@@ -57,8 +58,19 @@ export function TabBar() {
       <Pressable
         key={tab.href}
         disabled={locked}
-        onPress={() => router.navigate(tab.href)}
-        style={styles.tab}
+        onPress={() => {
+          if (active) return;
+          haptics.selection();
+          router.navigate(tab.href);
+        }}
+        accessibilityRole="tab"
+        accessibilityLabel={tab.label}
+        /* The gate was previously visual only — greyed pixels tell a sighted
+           user the tab is locked and tell a screen-reader user nothing. §13.4
+           says non-interactive, and this is the half that was missing. */
+        accessibilityState={{ selected: active, disabled: locked }}
+        accessibilityHint={locked ? 'Import your inventory to unlock this tab' : undefined}
+        style={({ pressed }) => [styles.tab, pressed && !active && styles.pressed]}
       >
         <Text style={[styles.glyph, active && styles.active, locked && styles.locked]}>
           {tab.glyph}
@@ -71,13 +83,26 @@ export function TabBar() {
   }
 
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+    <View
+      style={[styles.bar, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
+      accessibilityRole="tablist"
+    >
       {left.map(renderTab)}
 
-      <Pressable onPress={() => router.push('/create')} style={styles.plusSlot}>
-        <View style={styles.plus}>
-          <Text style={styles.plusText}>+</Text>
-        </View>
+      <Pressable
+        onPress={() => {
+          haptics.tap();
+          router.push('/create');
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Create"
+        style={styles.plusSlot}
+      >
+        {({ pressed }) => (
+          <View style={[styles.plus, pressed && styles.plusPressed]}>
+            <Text style={styles.plusText}>+</Text>
+          </View>
+        )}
       </Pressable>
 
       {right.map(renderTab)}
@@ -113,5 +138,14 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: colors.background,
   },
-  plusText: { color: colors.textOnAccent, fontSize: 26, lineHeight: 30, fontWeight: '600' },
+  /* The + is the app's most-pressed control and sits on a flat bar, so it
+     gets a deliberate squash rather than the shared dim — the ring around it
+     already reads as depth, and dimming alone looked like it had failed. */
+  plusPressed: {
+    backgroundColor: colors.accentPressed,
+    transform: [{ scale: 0.92 }],
+  },
+  plusText: { color: colors.textOnAccent, fontSize: 26, lineHeight: 30, fontFamily: fonts.display },
+
+  pressed: { opacity: interaction.pressedOpacity },
 });
