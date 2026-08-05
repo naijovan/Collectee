@@ -30,8 +30,9 @@ import {
   swapPlacements,
 } from '@/domain/room';
 import type { CameraTarget } from '@/domain/room';
-import type { OwnedItem, Placement, Room, RoomSettings, RoomTheme, Slot, Visibility } from '@/types';
+import type { Collection, OwnedItem, Placement, Room, RoomSettings, RoomTheme, Slot, Visibility } from '@/types';
 import { LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT, delay, delayWithProgress } from './latency';
+import { collectionService } from './collectionService';
 
 /** §11 F4 acceptance criterion: generation completes in under 20s. */
 const GENERATION_MS = LATENCY_GENERATE * 4;
@@ -114,6 +115,66 @@ export const roomService = {
     const best = suggestRoom(itemsFor(ownedItems), ROOM_THEMES);
     const fallback = { theme: ROOM_THEMES[0]!, reason: 'A neutral starting point' };
     return delay(best ?? fallback, LATENCY_FETCH);
+  },
+
+  /**
+   * Create a Collection Room in one step — the user-facing object (§9.4, F3/F4).
+   *
+   * A "Collection Room" is one thing to the person using the app: a named,
+   * themed, interactive space built from items they own. Underneath it is still
+   * a `Collection` plus a `Room` pointing at it, because those shapes are the
+   * merge contract three other flows read (`src/types/`, CLAUDE.md). This
+   * method is the seam that hides that split: one call, one publish, both
+   * records.
+   *
+   * Collapsing the two records is a phase-2 refactor with no user-visible
+   * effect. Do NOT scatter this pairing across screens in the meantime — if a
+   * screen ever writes a Collection and a Room separately, the split leaks back
+   * into the product and this seam stops being worth having.
+   *
+   * §9.4 is enforced here rather than trusted from the caller: only verified
+   * items are placed. Unverified ones stay in the collection, which is exactly
+   * the rule — they are listed, just not in the room.
+   */
+  async createCollectionRoom(params: {
+    userId: string;
+    name: string;
+    description?: string;
+    itemIds: readonly string[];
+    themeId: string;
+    ownedItems: readonly OwnedItem[];
+    visibility?: Visibility;
+    onProgress?: (fraction: number) => void;
+  }): Promise<{ collection: Collection; room: Room }> {
+    const visibility = params.visibility ?? 'private';
+
+    const collection = await collectionService.createCollection({
+      userId: params.userId,
+      name: params.name,
+      description: params.description ?? '',
+      coverUrl: '',
+      themeTags: [],
+      itemIds: [...params.itemIds],
+      visibility,
+      allowComments: true,
+      showOnProfile: true,
+    });
+
+    // Verified only — the collection keeps everything, the room takes what it
+    // is allowed to (§9.4).
+    const placeable = params.ownedItems.filter(
+      (entry) => entry.trustLevel === 'verified' && params.itemIds.includes(entry.itemId),
+    );
+
+    const room = await this.createRoom({
+      collectionId: collection.id,
+      collectionName: params.name,
+      themeId: params.themeId,
+      ownedItems: placeable,
+      onProgress: params.onProgress,
+    });
+
+    return { collection, room };
   },
 
   /** Every theme ranked for these items — the picker orders itself by this. */

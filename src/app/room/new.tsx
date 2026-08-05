@@ -23,7 +23,7 @@
  * timed, not measured. Say so on stage.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -87,12 +87,31 @@ const DISPLAY_STYLES: readonly DisplayStyle[] = ['card', 'framed', 'hologram'];
 
 export default function CreateRoomScreen() {
   const router = useRouter();
-  const { collectionId: param } = useLocalSearchParams<{ collectionId?: string }>();
+  /**
+   * Two ways in, one destination.
+   *
+   *   collectionId   an existing collection is being given a room
+   *   name + itemIds a suggestion is being accepted, and the collection does
+   *                  not exist yet — it is created at generate time by
+   *                  `roomService.createCollectionRoom`
+   *
+   * The second path is what makes a Collection Room feel like one object: the
+   * user picks a suggestion and a style, and never sees a separate "now make a
+   * collection" step.
+   */
+  const {
+    collectionId: param,
+    name: suggestedName,
+    itemIds: suggestedItemIds,
+  } = useLocalSearchParams<{ collectionId?: string; name?: string; itemIds?: string }>();
+
+  const draftItemIds = suggestedItemIds ? suggestedItemIds.split(',').filter(Boolean) : [];
+  const isDraft = !param && draftItemIds.length > 0;
   const { viewerId } = useApp();
   const { width } = useWindowDimensions();
   const sceneWidth = Math.min(width, 520) - spacing.lg * 2;
 
-  const [step, setStep] = useState(param ? 1 : 0);
+  const [step, setStep] = useState(param || draftItemIds.length > 0 ? 1 : 0);
   /** Every step opens at the top — the flow is one route, so nothing remounts. */
   const scrollRef = useTopOnFocus(step);
   const [collectionId, setCollectionId] = useState<string | null>(param ?? null);
@@ -150,6 +169,47 @@ export default function CreateRoomScreen() {
     };
   }, [viewerId]);
 
+  /**
+   * Draft path — a suggestion, not yet a collection. Same downstream shape as
+   * the collection path so nothing after this has to know which way it arrived.
+   */
+  useEffect(() => {
+    if (!isDraft) return;
+    let cancelled = false;
+
+    async function load() {
+      const all = await inventoryService.getOwnedItems(viewerId);
+      const inDraft = all.filter((entry) => draftItemIds.includes(entry.itemId));
+      const gateResult = roomEligibility(inDraft);
+      const catalogue = await catalogueService.getItems(
+        gateResult.eligibleItems.map((o) => o.itemId),
+      );
+      const byItemId = new Map(catalogue.map((item) => [item.id, item]));
+      const pick = await roomService.recommendTheme(gateResult.eligibleItems);
+
+      if (cancelled) return;
+      setOwned(gateResult.eligibleItems);
+      setGate(gateResult);
+      setItemsByOwnedId(
+        new Map(
+          gateResult.eligibleItems
+            .map((entry) => [entry.id, byItemId.get(entry.itemId)] as const)
+            .filter((pair): pair is readonly [string, Item] => pair[1] !== undefined),
+        ),
+      );
+      setRecommended(pick);
+      setThemeId((current) => current ?? pick.theme.id);
+      setTitle(suggestedName ?? 'My Collection Room');
+      setBusy(false);
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDraft, viewerId, suggestedItemIds, suggestedName]);
+
   // Everything downstream keys off the chosen collection, so this is one effect.
   useEffect(() => {
     if (!collectionId) return;
@@ -195,23 +255,38 @@ export default function CreateRoomScreen() {
 
   // ── Generate ────────────────────────────────────────────────────────
   const generate = useCallback(async () => {
-    if (!collectionId || !themeId) return;
+    if (!themeId) return;
+    if (!collectionId && !isDraft) return;
     setStep(1);
     setReady(false);
     setProgress(0);
     setGenerateError(null);
+    generating.current = true;
 
     // Anything thrown in here used to reject silently, and the screen sat on
     // "Designing your…" forever with no way back — the worst failure mode a
     // progress screen has, because it is indistinguishable from slow.
     try {
-      const created = await roomService.createRoom({
-        collectionId,
-        collectionName: collection?.name,
-        themeId,
-        ownedItems: owned,
-        onProgress: setProgress,
-      });
+      // One call writes both records on the draft path, so the user never sees
+      // a "now create a collection" step. §9.4 is enforced inside it.
+      const created = collectionId
+        ? await roomService.createRoom({
+            collectionId,
+            collectionName: collection?.name,
+            themeId,
+            ownedItems: owned,
+            onProgress: setProgress,
+          })
+        : (
+            await roomService.createCollectionRoom({
+              userId: viewerId,
+              name: suggestedName ?? 'My Collection Room',
+              itemIds: draftItemIds,
+              themeId,
+              ownedItems: owned,
+              onProgress: setProgress,
+            })
+          ).room;
 
       setOverflow(roomService.overflow(created, owned.map((o) => o.id)));
       setRoom(created);
@@ -222,8 +297,33 @@ export default function CreateRoomScreen() {
       setGenerateError(
         error instanceof Error ? error.message : 'Generation failed. Try again.',
       );
+      // Released so Try again can re-arm the effect.
+      generating.current = false;
     }
   }, [collectionId, collection?.name, themeId, owned]);
+
+  /**
+   * Start generation on arrival.
+   *
+   * `step` initialises to 1 when the screen is entered with a collection or a
+   * draft — the style has already been chosen upstream, so the flow opens on
+   * Generate. But `generate()` only ever ran from the step-0 button, so those
+   * entries landed on the progress bar with nothing running and sat at 0%
+   * forever. That is the "stuck at Designing your…" report, and it affected
+   * every entry from room/intro, collection/new and the suggestion cards —
+   * i.e. every path except manually picking a collection on this screen.
+   *
+   * Guarded on `room` and `generating` so this fires exactly once and a
+   * re-render mid-generation cannot restart it.
+   */
+  const generating = useRef(false);
+  useEffect(() => {
+    if (step !== 1 || room !== null || generating.current) return;
+    if (!themeId || owned.length === 0) return;
+    if (gate !== null && !gate.eligible) return;
+    generating.current = true;
+    void generate();
+  }, [step, room, themeId, owned.length, gate, generate]);
 
   // ── Edit ────────────────────────────────────────────────────────────
   /**
@@ -372,11 +472,13 @@ export default function CreateRoomScreen() {
   }
 
   // ── Collection picker (outside the numbered bar) ────────────────────
-  if (!collectionId) {
+  // A draft skips this entirely: it already knows its items, and its collection
+  // does not exist yet by design.
+  if (!collectionId && !isDraft) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <Text style={styles.title}>Which collection?</Text>
-        <Text style={styles.body}>A room is built from one collection.</Text>
+        <Text style={styles.body}>A Collection Room is built from one collection.</Text>
         {busy ? <LoadingState height={160} /> : null}
         {!busy && collections.length === 0 ? (
           <EmptyState
@@ -469,7 +571,7 @@ export default function CreateRoomScreen() {
         <View style={styles.block}>
           <View style={styles.styleHeading}>
             <View style={styles.rowBody}>
-              <Text style={styles.title}>Choose room style</Text>
+              <Text style={styles.title}>Choose your room style</Text>
               <Text style={styles.body}>Select the design that best fits your collection.</Text>
             </View>
             <Text style={styles.designCount}>{themes.length} designs</Text>

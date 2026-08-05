@@ -219,8 +219,9 @@ export default function CollectionsScreen() {
         <SectionHeader title="Your Collection Rooms" />
         {builtRooms.length === 0 ? (
           <Text style={styles.muted}>
-            No rooms yet. A room is the interactive version of a collection — build one from
-            any collection with 3 or more verified items.
+            No Collection Rooms yet. A Collection Room is the interactive version of a
+            collection — accept a suggestion below, or build one from any collection with 3
+            or more verified items.
           </Text>
         ) : (
           <View style={styles.grid}>
@@ -252,15 +253,28 @@ export default function CollectionsScreen() {
         <View>
           <SectionHeader title="Suggestions" />
           <Text style={styles.muted}>
-            Groupings we found in your inventory. Each one can become a 2D collection; the
-            verified ones can become a room.
+            Groupings we found in your inventory. Verified ones can become an interactive
+            Collection Room in one step; the rest become a 2D collection.
           </Text>
           <View style={styles.ideaList}>
             {ideas.map((idea) => (
               <Pressable
                 key={idea.suggestion.name}
                 style={styles.ideaCard}
-                onPress={() => router.push('/collection/new')}
+                onPress={() =>
+                  idea.eligibility.eligible
+                    ? // One step: the collection is created at generate time,
+                      // so accepting a suggestion never asks the user to build
+                      // a collection first and then decorate it.
+                      router.push({
+                        pathname: '/room/new',
+                        params: {
+                          name: idea.suggestion.name,
+                          itemIds: idea.suggestion.itemIds.join(','),
+                        },
+                      })
+                    : router.push('/collection/new')
+                }
               >
                 <View style={styles.ideaHead}>
                   <Text style={styles.ideaSpark}>✦</Text>
@@ -274,7 +288,7 @@ export default function CollectionsScreen() {
                     no suggestion. */}
                 {idea.eligibility.eligible && idea.themeName ? (
                   <Text style={styles.ideaRoom}>
-                    ⌂ Could be a {idea.themeName} room · {idea.themeReason}
+                    ⌂ Create as a {idea.themeName} Collection Room · {idea.themeReason}
                   </Text>
                 ) : (
                   <Text style={styles.ideaBlocked}>⚿ 2D collection · {idea.eligibility.reason}</Text>
@@ -395,7 +409,7 @@ function RoomCta({
         {/* The theme name is already on the line above; repeating it here
             overflowed the pill on a half-width card. */}
         <Text style={styles.roomCtaText} numberOfLines={1}>
-          {suggestion ? '✦  Create this room' : '+  Create room'}
+          {suggestion ? '✦  Create Collection Room' : '+  Create Collection Room'}
         </Text>
       </Pressable>
     </>
