@@ -27,6 +27,7 @@ What exists:
 | Service layer (§12.1) | `src/services/` | All async. **Screens import from here, never from fixtures.** |
 | App state | `src/state/AppContext.tsx` | Viewer, inventory, onboarding gate, notifications. |
 | Feature flags (§14) | `src/config/features.ts` | The descope ladder, as booleans. |
+| Art, depth and mesh bakes | `scripts/bake-*.ts` | Offline build steps. `@huggingface/transformers` is a **devDependency** — no app code imports it and nothing ships in the bundle. |
 | Design tokens (§13.2) | `src/theme/theme.ts` | No raw hex anywhere else. |
 | Shared components (§13.3) | `src/components/` | All 14, plus `RoomScene`. **Jovan owns these — change via PR announced in chat.** |
 | Navigation + screens | `src/app/` | Tab group, Home in full (§13.4), and a walkable screen for every journey. |
@@ -79,6 +80,20 @@ Run `npm ci`, not `npm install`, and a lockfile conflict on the 6th costs nobody
 ```bash
 npm run typecheck          # tsc --noEmit, strict
 npm run validate:fixtures  # referential integrity across every fixture
+npm run audit:art          # art, depth and backdrop coverage vs the catalogue
+```
+
+**If `typecheck` fails right after a pull with errors like `Type '"/thread/[id]"' is not
+assignable`** — that is Expo Router's `typedRoutes` codegen, not your code. The route union is
+regenerated when the bundler runs. Start the app once (`npm run web`) and re-run. Nobody should
+lose an hour to this.
+
+Regenerating art is a separate, slower path and only needed when renders change:
+
+```bash
+npm run bake:depth    # depth maps  (first run downloads ~50MB of model)
+npm run bake:mesh     # .glb meshes from depth + silhouette
+npm run bake:palette  # dominant colour per item, feeds room suggestions
 ```
 
 Run both before you open a PR.
@@ -124,8 +139,15 @@ These are in the PRD but easy to lose. Do not contradict them on stage.
 - **SHA-256 screenshot hashing was considered and dropped** (§9.1). A hash proves a file is
   unaltered; it says nothing about who owns the item depicted. Leading with why it was rejected is
   a strength.
-- **No 3D turntable** (§11 F4). Rooms are a 2.5D parallax scene with look-at focus. A real
-  turntable needs publisher game assets we do not have.
+- **Interactive Collection Rooms are verified-only** (§9.4). An unverified item can live in a
+  normal 2D collection; it cannot go in a room. That is deliberate — it gives the trust model
+  teeth and makes account linking the second activation event. Say the dependency out loud
+  before a judge finds it: rooms are what connecting an inventory buys, which is the reason a
+  publisher would integrate, not a hole in the product.
+- **Rooms render real geometry now, and it is ours** (§11 F4, §15). Collectibles are meshes
+  baked from our own concept art by a local pass — `bake:depth` then `bake:mesh`. They are not
+  publisher assets, we do not have those, and the backs are inferred from a single view. A
+  turntable of the actual in-game model remains impossible; do not promise it.
 - **No trading, pricing or valuation** (§7). Deliberate — it invites skin-gambling-adjacent
   regulatory exposure.
 

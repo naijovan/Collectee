@@ -1,6 +1,6 @@
 # Collectee — Product Requirements Document
 
-**Version** 0.5 · **Date** 2 August 2026
+**Version** 0.6 · **Date** 5 August 2026
 **Submission** Garena AI Build Challenge (Singapore) — theme: *Reimagine Digital Entertainment Experiences with AI*
 **Prototype** Figma — `Collectee` (6 flow groups, ~50 screens)
 **Team** Bernard, Marcus, Jovan, Ray
@@ -151,7 +151,7 @@ Every user may post any item. Each item carries a **trust level** based on how i
 
 | Trust level | How | Treatment |
 |---|---|---|
-| **Verified** | Item read from a connected game account | Badge on item; ranked higher in Explore and feed; eligible for verified-only perks (profile frames, priority in Collectors You May Like, verified-only communities) |
+| **Verified** | Item read from a connected game account | Badge on item; ranked higher in Explore and feed; **eligible for interactive Collection Rooms (F4)**; verified-only perks (profile frames, priority in Collectors You May Like, verified-only communities) |
 | **Unverified** | Self-reported via scan or manual add | No badge; allowed and fully usable; ranked lower in discovery surfaces; community-flaggable |
 
 **Second layer — social proof.** Unverified items can be flagged by other users for:
@@ -162,6 +162,41 @@ Every user may post any item. Each item carries a **trust level** based on how i
 Flags do not auto-remove. Threshold behaviour: `n ≥ 3` distinct flags from accounts with their own verified items → item loses discovery ranking and enters a review queue. This threshold guard matters, because an unguarded flag button in a competitive community becomes a weapon.
 
 **Why this is the right answer for the product, not just the deadline:** Collectee is a social app. Making trust a visible social attribute rather than a hidden cryptographic one is consistent with the whole thesis, and it converts verification from a blocking technical dependency into an engagement mechanic.
+
+### 9.4 What Verified unlocks — the Collection Room gate (v0.6)
+
+**Trust level decides which surface an item can live on.**
+
+| Trust level | Normal collection (2D grid) | Interactive Collection Room |
+|---|---|---|
+| **Unverified** | ✅ | ❌ |
+| **Verified** | ✅ | ✅ |
+
+An unverified item is fully usable — it lists, it is shareable, it counts toward
+sets. It simply cannot be placed in a room. A verified item can go in either.
+
+**Why gate the differentiator, of all things.** §9.2 promised "verified-only
+perks" and then listed only cosmetic ones — a profile frame does not make anyone
+connect an account. Putting F4 behind verification does three things at once:
+
+1. It gives the trust model teeth. §8.2 names safer communities as a judging
+   theme; a trust level that changes nothing users care about is decoration.
+2. It makes account linking the second activation event, after import.
+3. It answers "why would a publisher integrate?" — because their players get
+   rooms when the inventory API exists. The partnership gate in §9.3 stops being
+   an admission and becomes the pitch.
+
+**Say this plainly, and do not let it be discovered.** Gating the headline
+feature behind a tier that is partnership-gated (§9.3) means that, today, no
+real user could build a room. That is a genuine dependency, not a detail. The
+honest framing is the one above: *connect your inventory and your skins become a
+room* is a reason for Garena to integrate, not a hole in the product. If a judge
+raises it before you do, it reads as a gap; if you raise it first, it reads as
+the business case.
+
+**[DEMO]** Seeded data ships a realistic mix — the demo account holds 40 items,
+12 of them verified, which is enough to fill the 11-slot hero theme. The rest
+demonstrate the normal-collection path and the upgrade prompt.
 
 ### 9.3 Implementation staging
 
@@ -227,6 +262,11 @@ Rarity breakdown (10% Epic / 20% Legendary), set-completion progress, one-senten
 
 Named, described collections built from owned items; cover art; theme selection; drag-to-arrange; preview; publish public / unlisted / private.
 
+**A normal collection is the 2D surface** — items listed as artwork in a grid.
+It accepts items at any trust level, which is what makes it the default
+destination after import. The interactive Collection Room (F4) is the other
+destination and is verified-only (§9.4).
+
 **This flow is not one of the five "AI features" but it is where value is actually created** — the moment an inventory dump becomes an identity. Pitch it as a headline, not plumbing: *AI does the tedious part, the player does the expressive part.* AI assists with suggested groupings and titles; the curation is human and that is the point.
 
 **Stepper numbering — fix before building `StepperHeader`.** The Figma shows a 4-step bar but labels three screens Step 3 (Select Theme, Arrange, Preview Details "3.5"). Canonical: **Details → Select items → Theme → Arrange → Publish**, with Preview Details and Preview as modal/confirm screens outside the numbered bar. The Room flow has the same problem: two screens labelled Step 3 in a 5-step bar. Pick canonical counts once, in code, and let both flows import them.
@@ -241,6 +281,12 @@ Named, described collections built from owned items; cover art; theme selection;
 ### F4 — Collection Rooms **[DEMO — the differentiator]**
 
 Items are placed as cards, statues or wall art inside a themed space rather than a grid. Flow: select collection → choose style → generate → manual adjust → preview → publish → live room.
+
+**⚠️ Verified-only (§9.4).** Only verified items may be placed in a room. An
+unverified inventory can still build normal collections; the room is what
+connecting a game account buys. The room picker must therefore show the user's
+verified count, and say what to do about it when the count is too low — an empty
+picker with no explanation is the worst version of this rule.
 
 **Interaction model (team decision).** A true turntable of the actual in-game 3D model is **not possible** — it requires direct access to publisher game assets, which we do not have and will not have. Do not promise it. What we build instead, entirely within the app:
 

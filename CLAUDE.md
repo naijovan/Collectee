@@ -26,6 +26,10 @@ holds app-wide React context.
   total.
 - **Scanned items land `unverified`.** The scanner never produces a verified item — verification
   needs a linked game account and that is partnership-gated (§9.3).
+- **Only verified items may enter a Collection Room** (§9.4). Unverified items are fine in a
+  normal 2D collection and everywhere else. This is the perk that makes the trust model matter,
+  so do not quietly relax it to make a screen easier to build — and never render an empty room
+  picker without telling the user why it is empty.
 - **Room themes must be original styles, never named franchises** (§11 F4). "Ancient Dojo" yes,
   "Naruto dojo" no — the latter generates derivative third-party IP.
 - **Match results always carry a human-readable `reason`.** A percentage without its reason is a
@@ -45,8 +49,12 @@ thresholds, rarity labels that drift from the §12.2 table.
 ## Scope guards worth repeating
 
 - All AI is mocked (§12.1). No backend, no API key, no network during the demo.
-- Rooms are a 2.5D parallax scene, not navigable 3D and not a turntable. Build to the §11 F4 spec,
-  **not** to the richer Figma frames.
+- Rooms render collectibles as real meshes baked from our own concept art (`scripts/bake-mesh.ts`),
+  never publisher assets. The backs are inferred from a single view — say so rather than implying
+  a scanned model. A turntable of the actual in-game model is still impossible (§11 F4).
+- **The art, depth, mesh and palette bakes are build steps, never runtime.** `@huggingface/
+  transformers` is a devDependency; no app code may import it (§12.1 — no model call in the
+  demo).
 - The descope ladder (§14) is encoded as booleans in `src/config/features.ts`. Cutting scope is
   flipping a flag, not deleting code.
 - Never cut: import → review → collection → room → share.
