@@ -17,6 +17,8 @@ import { RARITY_LABELS } from '../src/domain/rarity';
 import { CONTENT_REPORT_THRESHOLD } from '../src/domain/trust';
 import { THREADS, THREAD_REPLIES } from '../src/fixtures/threads';
 import type { Flag } from '../src/types';
+import { GAME_TITLES } from '../src/types';
+import { GAME_DIGESTS } from '../src/fixtures/digests';
 import { ALL_ITEMS, ALL_SETS, ITEMS_BY_ID } from '../src/fixtures/catalogue';
 import { COLLECTIONS, ROOMS, POSTS } from '../src/fixtures/collections';
 import { OWNED_ITEMS } from '../src/fixtures/owned-items';
@@ -178,6 +180,39 @@ for (const article of ARTICLES) {
   check(article.url.startsWith('http'), `Article ${article.id}: must link out to the source (§11 F6)`);
 }
 
+/**
+ * Digests (§11 F6). The seeded digest is what the news screen shows whenever
+ * the live path does not run, which today is always — so "every game has a full
+ * one, drawn from that game's own articles" is a correctness property, not a
+ * content preference. TypeScript cannot check any of it.
+ */
+const articlesById = new Map(ARTICLES.map((a) => [a.id, a]));
+for (const title of GAME_TITLES) {
+  const digest = GAME_DIGESTS.filter((d) => d.title === title);
+  check(digest.length === 1, `Digest: ${title} needs exactly one digest, found ${digest.length}`);
+}
+for (const digest of GAME_DIGESTS) {
+  check(
+    digest.bullets.length >= 3 && digest.bullets.length <= 4,
+    `Digest ${digest.title}: needs 3-4 bullets, has ${digest.bullets.length}`,
+  );
+  for (const bullet of digest.bullets) {
+    check(bullet.trim().length > 0, `Digest ${digest.title}: empty bullet`);
+    // The card is a fixed-height header on the news screen; long bullets push
+    // the articles below the fold.
+    check(bullet.length <= 130, `Digest ${digest.title}: bullet over 130 chars — "${bullet.slice(0, 40)}…"`);
+  }
+  check(digest.sourceArticleIds.length > 0, `Digest ${digest.title}: cites no articles`);
+  for (const id of digest.sourceArticleIds) {
+    const article = articlesById.get(id);
+    check(article !== undefined, `Digest ${digest.title}: unknown source article "${id}"`);
+    check(
+      article === undefined || (article.relatedGames as readonly string[]).includes(digest.title),
+      `Digest ${digest.title}: source article "${id}" is not about ${digest.title}`,
+    );
+  }
+}
+
 for (const saved of SAVED_ARTICLES) {
   check(userIds.has(saved.userId), 'SavedArticle: unknown user');
   check(articleIds.has(saved.articleId), `SavedArticle: unknown article "${saved.articleId}"`);
@@ -305,6 +340,6 @@ if (errors.length > 0) {
 console.log(
   `Fixtures OK — ${ALL_ITEMS.length} items, ${ALL_SETS.length} sets, ${USERS.length} users, ` +
     `${OWNED_ITEMS.length} owned, ${COLLECTIONS.length} collections, ${ROOMS.length} rooms, ` +
-    `${ROOM_THEMES.length} themes, ${ARTICLES.length} articles, ${SCAN_RESULTS.length} scans, ` +
-    `${THREADS.length} threads, ${THREAD_REPLIES.length} replies.`,
+    `${ROOM_THEMES.length} themes, ${ARTICLES.length} articles, ${GAME_DIGESTS.length} digests, ` +
+    `${SCAN_RESULTS.length} scans, ${THREADS.length} threads, ${THREAD_REPLIES.length} replies.`,
 );
