@@ -35,6 +35,17 @@ holds app-wide React context.
 - **Match results always carry a human-readable `reason`.** A percentage without its reason is a
   broken feature, not a styling choice (§11 F5).
 
+## After pulling
+
+1. **`npm ci`.** Dependencies changed on 5 Aug — four runtime packages plus one devDependency.
+   The app will not compile without it.
+2. **A failing `typecheck` with `Type '"/thread/[id]"' is not assignable`** is Expo Router's
+   `typedRoutes` codegen, not broken code. Run `npm run web` once to regenerate, then re-run.
+3. **`roomEligibility` lives in `src/domain/trust.ts` and nowhere else.** It was built twice
+   independently and reconciled — do not add a third copy. It is deliberately **partial**: a
+   collection with 3 verified and 3 unverified items builds a room from the 3, because §9.4 is a
+   rule about items, not collections.
+
 ## Before opening a PR
 
 ```bash

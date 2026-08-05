@@ -73,6 +73,36 @@ npm start       # then scan the QR with Expo Go
 npm run web     # or http://localhost:8081 in a browser
 ```
 
+### ⚠️ After you pull — read this first
+
+Two things will look like broken code and are not. Both are one command.
+
+**1. Install. Dependencies changed.** Four runtime packages landed with the
+J1/J2 merge (`expo-haptics`, `expo-linear-gradient`, and two `@expo-google-fonts`
+packages), plus one devDependency for the art pipeline
+(`@huggingface/transformers`). Without this the app will not compile:
+
+```bash
+npm ci
+```
+
+**2. `npm run typecheck` may fail with route errors until you start the app once.**
+
+```
+Type '"/thread/[id]"' is not assignable to type '"/" | "/explore" | …'
+```
+
+That is Expo Router's `typedRoutes` codegen, not your code. The route union is
+regenerated when the bundler runs, and your local copy predates whatever routes
+came in with the pull. Run `npm run web` once, then re-run typecheck. Nobody
+should lose an hour to this.
+
+**3. The room gate is partial, not all-or-nothing.** `roomEligibility` in
+`domain/trust.ts` is the one implementation — it was built twice independently
+and reconciled on 5 Aug. A collection with 3 verified and 3 unverified items
+*does* build a room, from the 3. §9.4 is a rule about items, not collections.
+Do not add a second copy of this function; three surfaces already call it.
+
 Built and verified on **Node 26.4.0**. The PRD says Node 20 LTS; nobody on this machine has a
 version manager installed, so the committed `package-lock.json` is what keeps everyone identical.
 Run `npm ci`, not `npm install`, and a lockfile conflict on the 6th costs nobody an evening.
@@ -82,11 +112,6 @@ npm run typecheck          # tsc --noEmit, strict
 npm run validate:fixtures  # referential integrity across every fixture
 npm run audit:art          # art, depth and backdrop coverage vs the catalogue
 ```
-
-**If `typecheck` fails right after a pull with errors like `Type '"/thread/[id]"' is not
-assignable`** — that is Expo Router's `typedRoutes` codegen, not your code. The route union is
-regenerated when the bundler runs. Start the app once (`npm run web`) and re-run. Nobody should
-lose an hour to this.
 
 Regenerating art is a separate, slower path and only needed when renders change:
 
