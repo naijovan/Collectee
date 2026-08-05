@@ -11,6 +11,7 @@
  * summary; swapping in a real call touches this function and nothing else.
  */
 
+import { DEMO_NOW } from '@/config/features';
 import { ARTICLES, ARTICLES_BY_ID } from '@/fixtures/articles';
 import { FOLLOWED_TOPICS, SAVED_ARTICLES } from '@/fixtures/social';
 import { USERS_BY_ID } from '@/fixtures/users';
@@ -50,7 +51,7 @@ export const newsService = {
    * relevance is about what you own, not what you can prove. The 3 Aug decision
    * scoped verified-only to matching, where verification is the incentive.
    */
-  async getFyp(userId: string, now: number = Date.now(), limit = 20): Promise<RankedArticle[]> {
+  async getFyp(userId: string, now: number = DEMO_NOW, limit = 20): Promise<RankedArticle[]> {
     const user = USERS_BY_ID.get(userId);
     if (!user) return delay([], LATENCY_INSTANT);
 

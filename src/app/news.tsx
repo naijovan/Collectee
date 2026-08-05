@@ -20,7 +20,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { ArticleCard, EmptyState, FilterChips, LoadingState } from '@/components';
-import { FEATURES } from '@/config/features';
+import { DEMO_NOW, FEATURES } from '@/config/features';
 import type { RankedArticle } from '@/domain/news';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { newsService } from '@/services';
@@ -45,7 +45,9 @@ export default function NewsScreen() {
 
   const load = useCallback(async () => {
     const [personalised, general, bookmarks] = await Promise.all([
-      newsService.getFyp(viewerId, Date.now()),
+      // DEMO_NOW, not Date.now(): the ranking takes a clock as an argument so it
+      // stays deterministic, and reading the real one throws that away.
+      newsService.getFyp(viewerId, DEMO_NOW),
       newsService.getDiscover(),
       newsService.getSaved(viewerId),
     ]);
