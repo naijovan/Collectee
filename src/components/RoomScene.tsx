@@ -16,7 +16,15 @@ import { backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { cameraTargetFor, parallaxOffset } from '@/domain/room';
 import { rarityLabelFor } from '@/domain/rarity';
-import { colors, lightingPresets, radius, rarityColors, spacing, typography } from '@/theme/theme';
+import {
+  colors,
+  lightingPresets,
+  radius,
+  rarityColors,
+  scrim,
+  spacing,
+  typography,
+} from '@/theme/theme';
 
 import { ItemArt } from './primitives';
 import { GAME_SHORT_LABELS } from '@/types';
@@ -517,7 +525,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   /** Keeps the name legible over a bright render without hiding the art. */
-  faceScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: 'rgba(0,0,0,0.55)' },
+  faceScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%', backgroundColor: scrim.medium },
   faceGlow: {
     position: 'absolute',
     width: '80%',
@@ -545,7 +553,7 @@ const styles = StyleSheet.create({
     ...typography.meta,
     fontSize: 10,
     color: colors.textSecondary,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: scrim.light,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.pill,

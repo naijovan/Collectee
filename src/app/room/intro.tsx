@@ -16,11 +16,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ItemArt, LoadingState, PrimaryButton, SecondaryButton } from '@/components';
 import { headlineItem } from '@/domain/collections';
-import { roomEligibilityFor } from '@/domain/roomEligibility';
-import type { RoomEligibility } from '@/domain/roomEligibility';
-import { rarityLabelFor } from '@/domain/rarity';
-import { catalogueService, collectionService, inventoryService } from '@/services';
-import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
+import { RARITY_RANK, rarityLabelFor } from '@/domain/rarity';
+import { roomEligibility } from '@/domain/trust';
+import type { RoomEligibility } from '@/domain/trust';
+import { catalogueService, collectionService, inventoryService, socialService } from '@/services';
+import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Collection, Item, RarityTier } from '@/types';
 
@@ -48,7 +48,14 @@ export default function RoomIntroScreen() {
       if (cancelled) return;
       setCollection(found);
       setItems(contents);
-      setGate(found ? roomEligibilityFor(found.itemIds, owned) : null);
+      setGate(
+        found
+          ? roomEligibility(
+              owned.filter((entry) => found.itemIds.includes(entry.itemId)),
+              (ownedItemId) => socialService.isUnderReview(ownedItemId),
+            )
+          : null,
+      );
       setBusy(false);
     }
     void load();
@@ -169,9 +176,10 @@ function describeSignals(
 ): Signal[] {
   const titles = [...new Set(items.map((item) => item.title))];
   const tiers = [...new Set(items.map((item) => item.rarityTier))] as RarityTier[];
-  const top = tiers
-    .sort((a, b) => Object.keys(rarityColors).indexOf(b) - Object.keys(rarityColors).indexOf(a))
-    .slice(0, 2);
+  /* Rank comes from the domain, not from the key order of a colour token —
+     `rarityColors` is a palette and reordering it must not silently change
+     which tiers this screen calls "top". */
+  const top = tiers.sort((a, b) => RARITY_RANK[b] - RARITY_RANK[a]).slice(0, 2);
 
   return [
     {

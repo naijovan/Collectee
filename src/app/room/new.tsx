@@ -36,6 +36,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   Avatar,
@@ -53,8 +54,8 @@ import {
 import { backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { ROOM_STEPS, VISIBILITY_DESCRIPTIONS, VISIBILITY_LABELS } from '@/domain/collections';
-import { roomEligibility } from '@/domain/roomEligibility';
-import type { RoomEligibility } from '@/domain/roomEligibility';
+import { roomEligibility } from '@/domain/trust';
+import type { RoomEligibility } from '@/domain/trust';
 import {
   ROOM_STAGES,
   catalogueService,
@@ -62,11 +63,13 @@ import {
   inventoryService,
   matchService,
   roomService,
+  socialService,
 } from '@/services';
 import type { CollectorRecommendation } from '@/services';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { useApp } from '@/state/AppContext';
-import { colors, lightingPresets, radius, spacing, typography } from '@/theme/theme';
+import * as haptics from '@/lib/haptics';
+import { colors, interaction, lightingPresets, radius, spacing, typography } from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
 import type {
   Collection,
@@ -87,6 +90,8 @@ const DISPLAY_STYLES: readonly DisplayStyle[] = ['card', 'framed', 'hologram'];
 
 export default function CreateRoomScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+
   /**
    * Two ways in, one destination.
    *
@@ -180,19 +185,19 @@ export default function CreateRoomScreen() {
     async function load() {
       const all = await inventoryService.getOwnedItems(viewerId);
       const inDraft = all.filter((entry) => draftItemIds.includes(entry.itemId));
-      const gateResult = roomEligibility(inDraft);
-      const catalogue = await catalogueService.getItems(
-        gateResult.eligibleItems.map((o) => o.itemId),
-      );
+      const gateResult = roomEligibility(inDraft, (id) => socialService.isUnderReview(id));
+      const draftPlaceable = new Set(gateResult.eligibleOwnedItemIds);
+      const eligibleDraft = inDraft.filter((entry) => draftPlaceable.has(entry.id));
+      const catalogue = await catalogueService.getItems(eligibleDraft.map((o) => o.itemId));
       const byItemId = new Map(catalogue.map((item) => [item.id, item]));
-      const pick = await roomService.recommendTheme(gateResult.eligibleItems);
+      const pick = await roomService.recommendTheme(eligibleDraft);
 
       if (cancelled) return;
-      setOwned(gateResult.eligibleItems);
+      setOwned(eligibleDraft);
       setGate(gateResult);
       setItemsByOwnedId(
         new Map(
-          gateResult.eligibleItems
+          eligibleDraft
             .map((entry) => [entry.id, byItemId.get(entry.itemId)] as const)
             .filter((pair): pair is readonly [string, Item] => pair[1] !== undefined),
         ),
@@ -226,8 +231,11 @@ export default function CreateRoomScreen() {
       // at the point of placement. Everything downstream (recommendation,
       // auto-place, the tray, the overflow count) reads `owned`, so gating once
       // at the source means no later surface can leak an unverified item in.
-      const gate = roomEligibility(everythingInCollection);
-      const inCollection = gate.eligibleItems;
+      const gate = roomEligibility(everythingInCollection, (id) =>
+        socialService.isUnderReview(id),
+      );
+      const placeable = new Set(gate.eligibleOwnedItemIds);
+      const inCollection = everythingInCollection.filter((entry) => placeable.has(entry.id));
       const catalogue = await catalogueService.getItems(inCollection.map((o) => o.itemId));
       const byItemId = new Map(catalogue.map((item) => [item.id, item]));
       const pick = await roomService.recommendTheme(inCollection);
@@ -402,15 +410,20 @@ export default function CreateRoomScreen() {
     });
     const live = await roomService.publish(room.id, visibility);
     if (!live) return;
+    haptics.success();
     setPublished(live);
     // Frame 11 — the room does not dead-end at publish; it hands off to J4.
     setInvites(await matchService.getRecommendedCollectors(viewerId, 3));
   }
 
+  /* The native header is off for this route — it sat on top of StepperHeader's
+     own back chevron. Every branch here owns its top inset instead. */
+  const topPad = [styles.content, { paddingTop: insets.top + spacing.md }];
+
   // ── Published (outside the numbered bar) ────────────────────────────
   if (published) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.screen} contentContainerStyle={topPad}>
         <Collectible3DViewer item={threeDItem} onClose={() => setThreeDItem(null)} />
 
         <Text style={styles.done}>✓</Text>
@@ -476,7 +489,17 @@ export default function CreateRoomScreen() {
   // does not exist yet by design.
   if (!collectionId && !isDraft) {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.screen} contentContainerStyle={topPad}>
+        {/* This branch sits outside StepperHeader, so it needs its own way out —
+            without the native header there is otherwise nothing to press. */}
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={interaction.hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Text style={styles.pickerBack}>‹ Back</Text>
+        </Pressable>
         <Text style={styles.title}>Which collection?</Text>
         <Text style={styles.body}>A Collection Room is built from one collection.</Text>
         {busy ? <LoadingState height={160} /> : null}
@@ -505,7 +528,7 @@ export default function CreateRoomScreen() {
   }
 
   return (
-    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={topPad}>
       <StepperHeader
         steps={ROOM_STEPS}
         current={step}
@@ -670,10 +693,10 @@ export default function CreateRoomScreen() {
                 onPress={() => router.push('/link-account')}
               />
             </View>
-          ) : gate && gate.blockedItems.length > 0 ? (
+          ) : gate && gate.blockedOwnedItemIds.length > 0 ? (
             <Text style={styles.footnote}>
-              ⚿ {gate.eligibleItems.length} verified items will be placed ·{' '}
-              {gate.blockedItems.length} unverified stay in the 2D collection
+              ⚿ {gate.verifiedCount} verified items will be placed ·{' '}
+              {gate.blockedOwnedItemIds.length} unverified stay in the 2D collection
             </Text>
           ) : null}
 
@@ -1150,6 +1173,7 @@ const styles = StyleSheet.create({
   block: { gap: spacing.md },
 
   title: { ...typography.screenTitle, color: colors.textPrimary },
+  pickerBack: { ...typography.body, color: colors.accent },
   sectionLabel: { ...typography.cardTitle, color: colors.textPrimary, marginTop: spacing.sm },
   body: { ...typography.body, color: colors.textSecondary },
   rowTitle: { ...typography.cardTitle, color: colors.textPrimary },

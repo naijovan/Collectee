@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,6 +23,7 @@ import {
 } from '@/components';
 import { FEATURES } from '@/config/features';
 import { VIEWER_UNVERIFIED_REASON } from '@/domain/matching';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { matchService, socialService } from '@/services';
 import type {
@@ -100,11 +101,22 @@ export default function ExploreScreen() {
     await load();
   }
 
+  const { refreshing, onRefresh } = usePullToRefresh(load);
+
   return (
     <ScrollView
       ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.textSecondary}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.surface}
+        />
+      }
     >
       <View style={styles.headerRow}>
         <Text style={styles.title}>Discover</Text>

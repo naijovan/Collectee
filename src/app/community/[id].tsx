@@ -23,6 +23,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   Avatar,
   EmptyState,
+  KeyboardSafe,
   LoadingState,
   PrimaryButton,
   SecondaryButton,
@@ -150,6 +151,9 @@ export default function CommunityScreen() {
   const postingGate = threadService.canPostIn(viewerId, community.id);
 
   return (
+    /* The thread composer sits at the bottom of this scroll view — without this
+       the iOS keyboard covers the field the user just tapped. */
+    <KeyboardSafe>
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.identity}>
         <Avatar name={community.name} size={72} />
@@ -298,6 +302,7 @@ export default function CommunityScreen() {
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
+    </KeyboardSafe>
   );
 }
 

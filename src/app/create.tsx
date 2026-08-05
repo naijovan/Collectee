@@ -14,7 +14,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useApp } from '@/state/AppContext';
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import { colors, radius, scrim, spacing, typography } from '@/theme/theme';
 
 interface Action {
   label: string;
@@ -95,7 +95,7 @@ export default function CreateSheet() {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: scrim.medium },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.lg,

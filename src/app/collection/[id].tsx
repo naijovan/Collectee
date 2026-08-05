@@ -15,11 +15,12 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import {
   Avatar,
+  KeyboardSafe,
   ItemArt,
   ItemCard,
   LoadingState,
@@ -35,13 +36,21 @@ import {
   FLAG_REASON_LABELS,
   FLAG_THRESHOLD,
   OWNERSHIP_FLAG_REASONS,
+  roomEligibility,
 } from '@/domain/trust';
+import type { RoomEligibility } from '@/domain/trust';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
-import { catalogueService, collectionService, roomService, socialService } from '@/services';
+import {
+  catalogueService,
+  collectionService,
+  inventoryService,
+  roomService,
+  socialService,
+} from '@/services';
 import type { RoomStatus } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
-import type { Collection, Comment, FlagReason, Item, User } from '@/types';
+import type { Collection, Comment, FlagReason, Item, OwnedItem, User } from '@/types';
 
 export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -56,9 +65,22 @@ export default function CollectionScreen() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [authors, setAuthors] = useState<ReadonlyMap<string, User>>(new Map());
   const [draft, setDraft] = useState('');
-  const [flagTarget, setFlagTarget] = useState<Item | null>(null);
+  const [flagTarget, setFlagTarget] = useState<{ item: Item; claim: OwnedItem } | null>(null);
   const [roomStatus, setRoomStatus] = useState<RoomStatus | undefined>(undefined);
   const [busy, setBusy] = useState(true);
+
+  /**
+   * The OWNER's ownership claim for each catalogue item in this collection,
+   * keyed by `Item.id`.
+   *
+   * Two things on this page are meaningless without it. A trust badge belongs to
+   * a claim, not to a catalogue entry — the same Prime Vandal is verified for one
+   * collector and unverified for another — and a flag disputes a claim, so it
+   * needs the `OwnedItem.id` (see `FLAG_TARGET_ID_SPACE` in domain/trust.ts).
+   * Read from the owner, never the viewer: this page is usually someone else's.
+   */
+  const [claims, setClaims] = useState<ReadonlyMap<string, OwnedItem>>(new Map());
+  const [eligibility, setEligibility] = useState<RoomEligibility | null>(null);
 
   const load = useCallback(async () => {
     const found = await collectionService.getCollection(id);
@@ -66,12 +88,23 @@ export default function CollectionScreen() {
       setBusy(false);
       return;
     }
-    const [ownerUser, collectionItems, thread, users] = await Promise.all([
+    const [ownerUser, collectionItems, thread, users, ownerInventory] = await Promise.all([
       socialService.getUser(found.userId),
       catalogueService.getItemsSorted(found.itemIds),
       socialService.getComments('collection', found.id, viewerId),
       socialService.getUsers(),
+      inventoryService.getOwnedItems(found.userId),
     ]);
+
+    const inCollection = ownerInventory.filter((owned) => found.itemIds.includes(owned.itemId));
+    setClaims(new Map(inCollection.map((owned) => [owned.itemId, owned])));
+    // §9.4 — the room gate. Derived from the claims, never stored on the
+    // collection, so linking an account or resolving a flag changes the answer
+    // on the next load rather than leaving a stale boolean behind (§12.3).
+    setEligibility(
+      roomEligibility(inCollection, (ownedItemId) => socialService.isUnderReview(ownedItemId)),
+    );
+
     setRoomStatus((await roomService.statusByCollection()).get(found.id));
     setCollection(found);
     setOwner(ownerUser);
@@ -97,10 +130,18 @@ export default function CollectionScreen() {
     setComments(await socialService.getComments('collection', collection.id, viewerId));
   }
 
-  async function raiseFlag(item: Item, reason: FlagReason) {
+  /**
+   * `targetId` is the owner's `OwnedItem.id`, NOT `Item.id`.
+   *
+   * A flag disputes one person's ownership claim; flagging the catalogue entry
+   * would dispute the concept of the skin, which means nothing and never
+   * resolves to a review-queue entry (`previewFor` in socialService looks the
+   * target up with `getOwnedItem`).
+   */
+  async function raiseFlag(claim: OwnedItem, reason: FlagReason) {
     await socialService.raiseFlag({
       targetType: 'item',
-      targetId: item.id,
+      targetId: claim.id,
       reporterId: viewerId,
       reason,
     });
@@ -125,7 +166,40 @@ export default function CollectionScreen() {
     );
   }
 
+  const isOwner = collection.userId === viewerId;
+
+  /**
+   * Share is the last rung of the never-cut chain (§14), so it is the one
+   * action on this page that gets a real implementation rather than a mock.
+   *
+   * The OS sheet is genuine — the *link* is the honest part: there is no
+   * backend and no public host, so it shares a deep link into the app rather
+   * than pretending a collectee.app URL resolves for anyone else. Swapping in a
+   * real URL later is a one-line change in this function.
+   */
+  async function shareCollection() {
+    if (!collection) return;
+    try {
+      await Share.share({
+        title: collection.name,
+        message: `${collection.name} — ${items.length} items on Collectee\ncollectee://collection/${collection.id}`,
+      });
+    } catch {
+      /* The user dismissed the sheet, or the platform has no share target.
+         Neither is an error worth interrupting them over. */
+    }
+  }
+  /**
+   * An already-published room is never re-gated. The items were eligible when it
+   * was built, and pulling a live room's entrance because one item later picked
+   * up a flag would be an auto-removal — which §9.2 says flags never do.
+   */
+  const roomBlocked = !roomStatus?.published && eligibility !== null && !eligibility.eligible;
+
   return (
+    /* The comment composer sits at the bottom of this scroll view — without
+       this the iOS keyboard covers the field the user just tapped. */
+    <KeyboardSafe>
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <ItemArt
         seed={collection.id}
@@ -163,11 +237,12 @@ export default function CollectionScreen() {
       */}
       <View style={styles.actionGrid}>
         <View style={styles.actionCell}>
-          <SecondaryButton label="✎ Edit collection" />
+          <SecondaryButton label="✎ Edit collection" disabled />
         </View>
         <View style={styles.actionCell}>
           <PrimaryButton
             label={roomStatus?.published ? 'View room' : 'Create Collection Room'}
+            disabled={roomBlocked}
             onPress={() =>
               roomStatus?.published
                 ? router.push({ pathname: '/room/[id]', params: { id: roomStatus.room.id } })
@@ -176,12 +251,46 @@ export default function CollectionScreen() {
           />
         </View>
         <View style={styles.actionCell}>
-          <SecondaryButton label="⇪ Share" />
+          <SecondaryButton label="⇪ Share" onPress={() => void shareCollection()} />
         </View>
         <View style={styles.actionCell}>
-          <SecondaryButton label="+ Add items" />
+          <SecondaryButton label="+ Add items" disabled />
         </View>
       </View>
+
+      {/*
+        §9.4 again — these two are disabled because the edit flow is not built,
+        not because of anything about this collection. A greyed button with no
+        reason is exactly the failure CLAUDE.md names, and "we ran out of days"
+        is a legitimate reason to print.
+      */}
+      <Text style={styles.footnote}>
+        Editing a published collection lands after the demo. Create a new collection to change what
+        is in one.
+      </Text>
+
+      {/*
+        §9.4 — a disabled button with no explanation is the failure CLAUDE.md
+        calls out by name. Say which items are blocking the room and, for the
+        owner, give them the one action that fixes it.
+      */}
+      {roomBlocked && eligibility ? (
+        <View style={styles.gate}>
+          <Text style={styles.gateTitle}>🔒 Rooms are a verified perk</Text>
+          <Text style={styles.muted}>{eligibility.reason}</Text>
+          <Text style={styles.footnote}>
+            This collection stays public either way — verification only gates the interactive room
+            (§9.4).
+          </Text>
+          {isOwner ? (
+            <SecondaryButton
+              label="Link a game account"
+              onPress={() => router.push('/link-account')}
+            />
+          ) : null}
+        </View>
+      ) : null}
+
       {roomStatus && !roomStatus.published ? (
         <Pressable
           onPress={() => router.push({ pathname: '/room/[id]', params: { id: roomStatus.room.id } })}
@@ -192,36 +301,52 @@ export default function CollectionScreen() {
 
       <SectionHeader title="Items" />
       <View style={styles.grid}>
-        {items.map((item) => (
-          <View key={item.id} style={styles.itemWrap}>
-            <ItemCard item={item} width="100%" artHeight={82} trustLevel="unverified" />
-            {FEATURES.trustUi ? (
-              <Pressable
-                onPress={() => setFlagTarget(item)}
-                hitSlop={8}
-                style={styles.kebab}
-                accessibilityLabel={`More options for ${item.name}`}
-              >
-                <Text style={styles.kebabText}>⋮</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ))}
+        {items.map((item) => {
+          // The badge reports the OWNER's claim. It used to be hard-coded
+          // `unverified`, which told every visitor a verified collection was
+          // self-reported — the exact overstatement §9.2 exists to prevent, in
+          // reverse.
+          const claim = claims.get(item.id);
+          return (
+            <View key={item.id} style={styles.itemWrap}>
+              <ItemCard
+                item={item}
+                width="100%"
+                artHeight={82}
+                trustLevel={claim?.trustLevel}
+              />
+              {FEATURES.trustUi && claim ? (
+                <Pressable
+                  onPress={() => setFlagTarget({ item, claim })}
+                  hitSlop={8}
+                  style={styles.kebab}
+                  accessibilityLabel={`More options for ${item.name}`}
+                >
+                  <Text style={styles.kebabText}>⋮</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        })}
       </View>
 
       {/* §9.2 — the confirmation state. A flag is a claim, not a takedown. */}
       {flagTarget ? (
         <View style={styles.flagPanel}>
-          <Text style={styles.rowTitle}>Flag “{flagTarget.name}”</Text>
+          <Text style={styles.rowTitle}>Flag “{flagTarget.item.name}”</Text>
           <Text style={styles.muted}>
             Flags do not remove anything. At {FLAG_THRESHOLD} distinct flags from collectors with
             verified items of their own, this item loses discovery ranking and enters a review queue.
+          </Text>
+          <Text style={styles.footnote}>
+            You are disputing {owner?.displayName ?? 'this collector'}&apos;s claim on this item, not
+            the item itself.
           </Text>
           {OWNERSHIP_FLAG_REASONS.map((reason) => (
             <Pressable
               key={reason}
               style={styles.flagReason}
-              onPress={() => void raiseFlag(flagTarget, reason)}
+              onPress={() => void raiseFlag(flagTarget.claim, reason)}
             >
               <Text style={styles.rowTitle}>{FLAG_REASON_LABELS[reason]}</Text>
               <Text style={styles.muted}>{FLAG_REASON_DESCRIPTIONS[reason]}</Text>
@@ -271,6 +396,7 @@ export default function CollectionScreen() {
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
+    </KeyboardSafe>
   );
 }
 
@@ -282,6 +408,18 @@ const styles = StyleSheet.create({
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   actionCell: { width: '47%' },
   pending: { ...typography.meta, color: colors.warning },
+
+  // §9.4 room gate — an explanation, not a dead end.
+  gate: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  gateTitle: { ...typography.cardTitle, color: colors.textPrimary },
+
   title: { ...typography.screenTitle, color: colors.textPrimary },
   body: { ...typography.body, color: colors.textSecondary },
   muted: { ...typography.meta, color: colors.textSecondary },

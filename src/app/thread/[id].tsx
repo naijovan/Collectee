@@ -23,7 +23,15 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
-import { Avatar, EmptyState, LoadingState, PrimaryButton, SectionHeader, timeAgo } from '@/components';
+import {
+  Avatar,
+  EmptyState,
+  KeyboardSafe,
+  LoadingState,
+  PrimaryButton,
+  SectionHeader,
+  timeAgo,
+} from '@/components';
 import { FLAG_REASON_DESCRIPTIONS, FLAG_REASON_LABELS } from '@/domain/trust';
 import { socialService, threadService } from '@/services';
 import type { ThreadView } from '@/services';
@@ -126,6 +134,9 @@ export default function ThreadScreen() {
   const replyTotal = view.nodes.reduce((total, node) => total + 1 + node.children.length, 0);
 
   return (
+    /* The reply composer sits at the bottom of this scroll view — without this
+       the iOS keyboard covers the field the user just tapped. */
+    <KeyboardSafe>
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       {community ? (
         <Pressable
@@ -287,6 +298,7 @@ export default function ThreadScreen() {
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
+    </KeyboardSafe>
   );
 }
 

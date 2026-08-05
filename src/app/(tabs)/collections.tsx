@@ -11,13 +11,14 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   CollectionCard,
   EmptyState,
+  FadeInView,
   FilterChips,
   LoadingState,
   PrimaryButton,
@@ -28,10 +29,11 @@ import type { SetProgress } from '@/domain/collections';
 import { suggestRoom } from '@/domain/roomSuggestion';
 import type { CollectionSuggestion } from '@/domain/collections';
 import type { RoomSuggestion } from '@/domain/roomSuggestion';
-import { roomEligibilityFor } from '@/domain/roomEligibility';
-import type { RoomEligibility } from '@/domain/roomEligibility';
+import { roomEligibility } from '@/domain/trust';
+import type { RoomEligibility } from '@/domain/trust';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
-import { catalogueService, collectionService, inventoryService, roomService } from '@/services';
+import { catalogueService, collectionService, inventoryService, roomService, socialService } from '@/services';
 import type { RoomStatus } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
@@ -100,7 +102,10 @@ export default function CollectionsScreen() {
           suggestion: suggestRoom(items, themes),
           // Gated on THIS collection's verified items, not the whole inventory,
           // or every card would claim eligibility on items it does not hold.
-          eligibility: roomEligibilityFor(collection.itemIds, owned),
+          eligibility: roomEligibility(
+            owned.filter((entry) => collection.itemIds.includes(entry.itemId)),
+            (id) => socialService.isUnderReview(id),
+          ),
         };
       }),
     );
@@ -123,7 +128,10 @@ export default function CollectionsScreen() {
             suggestion: idea,
             themeName: room?.theme.name ?? null,
             themeReason: room?.reason ?? null,
-            eligibility: roomEligibilityFor(idea.itemIds, owned),
+            eligibility: roomEligibility(
+              owned.filter((entry) => idea.itemIds.includes(entry.itemId)),
+              (id) => socialService.isUnderReview(id),
+            ),
           };
         }),
     );
@@ -142,11 +150,22 @@ export default function CollectionsScreen() {
     }, [load]),
   );
 
+  const { refreshing, onRefresh } = usePullToRefresh(load);
+
   return (
     <ScrollView
       ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.textSecondary}
+          colors={[colors.accent]}
+          progressBackgroundColor={colors.surface}
+        />
+      }
     >
       <View style={styles.header}>
         <View style={styles.rowBody}>
@@ -182,8 +201,8 @@ export default function CollectionsScreen() {
         <View style={styles.grid}>
           {entries
             .filter((entry) => matchesFilter(entry.collection, rooms.get(entry.collection.id), filter))
-            .map((entry) => (
-              <View key={entry.collection.id} style={styles.gridItem}>
+            .map((entry, index) => (
+              <FadeInView key={entry.collection.id} index={index} style={styles.gridItem}>
                 <CollectionCard
                   collection={entry.collection}
                   owner={viewer}
@@ -204,7 +223,7 @@ export default function CollectionsScreen() {
                   suggestion={entry.suggestion}
                   eligibility={entry.eligibility}
                 />
-              </View>
+              </FadeInView>
             ))}
         </View>
       )}
@@ -406,11 +425,22 @@ function RoomCta({
         style={styles.roomCta}
         onPress={() => router.push({ pathname: '/room/intro', params: { collectionId } })}
       >
-        {/* The theme name is already on the line above; repeating it here
-            overflowed the pill on a half-width card. */}
-        <Text style={styles.roomCtaText} numberOfLines={1}>
-          {suggestion ? '✦  Create Collection Room' : '+  Create Collection Room'}
-        </Text>
+        {suggestion ? (
+          // Two Text nodes, not one interpolated string: the theme name is the
+          // part that varies in length (e.g. "Futuristic Weapon Vault"), so it
+          // is the only part allowed to shrink and truncate. The suffix stays
+          // whole — truncating the composed string could just as easily eat it
+          // and leave the pill reading "Create Futuristic Weapon Vau…", which
+          // looks broken rather than merely abbreviated.
+          <>
+            <Text style={styles.roomCtaName} numberOfLines={1} ellipsizeMode="tail">
+              Create {suggestion.theme.name}
+            </Text>
+            <Text style={styles.roomCtaText}>Collection Room</Text>
+          </>
+        ) : (
+          <Text style={styles.roomCtaText}>+  Create Collection Room</Text>
+        )}
       </Pressable>
     </>
   );
@@ -458,7 +488,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
+    // Horizontal padding was missing, so long labels (a theme name like
+    // "Futuristic Weapon Vault") touched or crossed the pill's rounded edge
+    // instead of sitting inside it.
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
+    // Fixes the pill's height regardless of which branch renders — a truncated
+    // single line must not make this CTA read as shorter than "View room →" or
+    // "Room in progress" beside it in the grid.
+    minHeight: 44,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.accent,
@@ -467,6 +505,14 @@ const styles = StyleSheet.create({
   /** In-progress is a status, not an action — muted so it reads as one. */
   roomCtaMuted: { borderColor: colors.border, backgroundColor: 'transparent' },
   roomCtaText: { ...typography.cardTitle, color: colors.accent },
+  /**
+   * The variable-length half of the suggested-room label ("Create {theme
+   * name}"). `flexShrink: 1` lets it give up width to its fixed-width "room"
+   * sibling instead of overflowing the row; `minWidth: 0` is required for that
+   * shrink to actually take effect inside a flex row on both native and web —
+   * without it a Text child defaults to its content width and never shrinks.
+   */
+  roomCtaName: { ...typography.cardTitle, color: colors.accent, flexShrink: 1, minWidth: 0 },
   roomCtaPending: { ...typography.cardTitle, color: colors.textSecondary },
 
   /** The suggested-room line above the CTA. */
