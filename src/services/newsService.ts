@@ -11,10 +11,11 @@
  * summary; swapping in a real call touches this function and nothing else.
  */
 
+import { DEMO_NOW } from '@/config/features';
 import { ARTICLES, ARTICLES_BY_ID } from '@/fixtures/articles';
 import { FOLLOWED_TOPICS, SAVED_ARTICLES } from '@/fixtures/social';
-import { OWNED_BY_USER } from '@/fixtures/owned-items';
 import { USERS_BY_ID } from '@/fixtures/users';
+import { inventoryService } from './inventoryService';
 import { rankDiscover, rankFyp } from '@/domain/news';
 import type { RankedArticle } from '@/domain/news';
 import type { Article } from '@/types';
@@ -39,12 +40,22 @@ export const newsService = {
    * FYP: personalised by followed games, topics AND owned items.
    * `now` is injected so ranking cannot silently reorder between rehearsal and
    * the live run.
+   *
+   * Ownership is read through `inventoryService`, never from
+   * `@/fixtures/owned-items`. §11 F6's whole premise is that "a player who owns
+   * a skin for a champion being reworked should see that patch note first" — and
+   * a fixture read makes that false for every item imported or verified during
+   * the session, which is exactly the run where a judge is watching.
+   *
+   * Unlike matching, this counts ALL owned items rather than verified ones:
+   * relevance is about what you own, not what you can prove. The 3 Aug decision
+   * scoped verified-only to matching, where verification is the incentive.
    */
-  async getFyp(userId: string, now: number = Date.now(), limit = 20): Promise<RankedArticle[]> {
+  async getFyp(userId: string, now: number = DEMO_NOW, limit = 20): Promise<RankedArticle[]> {
     const user = USERS_BY_ID.get(userId);
     if (!user) return delay([], LATENCY_INSTANT);
 
-    const ownedItemIds = (OWNED_BY_USER.get(userId) ?? []).map((o) => o.itemId);
+    const ownedItemIds = inventoryService.getItemIdsByUser().get(userId) ?? [];
     const followedTopics = FOLLOWED_TOPICS.filter((t) => t.userId === userId);
 
     return delay(

@@ -73,6 +73,24 @@ export const FEATURES = {
 export type FeatureFlag = keyof typeof FEATURES;
 
 /**
+ * The clock the News feed ranks against — PRD §11 F6.
+ *
+ * `domain/news.rankFyp` takes `now` as a parameter precisely so ranking is
+ * deterministic, and then the screen handed it `Date.now()`, which threw that
+ * away: recency decays over a fortnight, so the same feed drifts and eventually
+ * reorders between a rehearsal and the live run. Fixtures already use absolute
+ * dates "so nothing drifts at demo time" (§12.3) — this is the same decision
+ * applied to the clock reading them.
+ *
+ * Set to the morning of the submission deadline, which keeps every seeded
+ * article inside the recency window without making any of them look stale.
+ *
+ * Phase 2 deletes this and passes the real clock; nothing else changes, because
+ * `now` was always an argument.
+ */
+export const DEMO_NOW = Date.parse('2026-08-09T09:00:00.000Z');
+
+/**
  * §16 Q8 — onboarding/signup screens do not exist in the Figma and have no
  * owner. Recommended answer, implemented here: the demo opens on a logged-in
  * state and auth is skipped entirely.
