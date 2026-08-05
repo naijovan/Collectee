@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 /**
  * Design tokens — PRD §13.2.
  *
@@ -17,7 +19,11 @@
  * single source to pull from, and nobody hardcodes a colour in the meantime.
  */
 
-export const colors = {
+/**
+ * The dark palette — §13.2, and still the canonical one. The Figma is dark and
+ * the demo opens dark; light is an alternative, not a replacement.
+ */
+export const DARK_PALETTE = {
   // Surfaces
   background: '#0B0D10',
   surface: '#141821',
@@ -41,6 +47,70 @@ export const colors = {
   warning: '#F5A524',
   danger: '#F04438',
 } as const;
+
+/**
+ * The light palette.
+ *
+ * Not an inversion. `accent` darkens slightly so it still passes contrast on a
+ * white surface, and `accentMuted` becomes a pale tint rather than a navy —
+ * inverting it would produce a near-black fill behind accent-coloured text.
+ * Rarity colours are deliberately NOT re-themed: they are identity (§12.2),
+ * and a mythic that changes hue between themes stops being recognisable.
+ */
+export const LIGHT_PALETTE: Record<keyof typeof DARK_PALETTE, string> = {
+  background: '#F6F7F9',
+  surface: '#FFFFFF',
+  surfaceElevated: '#FFFFFF',
+  surfaceSunken: '#ECEEF2',
+  border: '#D9DDE5',
+
+  accent: '#1D4FD8',
+  accentPressed: '#1740B0',
+  accentMuted: '#E3EAFD',
+
+  textPrimary: '#0B0D10',
+  textSecondary: '#525C6B',
+  textTertiary: '#7A8494',
+  textOnAccent: '#FFFFFF',
+
+  success: '#0F9D63',
+  warning: '#B26A02',
+  danger: '#C4321F',
+};
+
+/** The CSS custom-property name for a token, e.g. `--c-surface`. */
+export function cssVarName(token: keyof typeof DARK_PALETTE): string {
+  return `--c-${token.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
+}
+
+/**
+ * The exported palette every screen imports.
+ *
+ * ── Why web gets `var(--c-…)` instead of a hex ────────────────────────────
+ * `StyleSheet.create` runs at module load and copies colour values in. There
+ * are ~770 colour references across 30 files, so a runtime toggle that changed
+ * these objects would not reach a single already-created style.
+ *
+ * CSS custom properties move the indirection into the browser: the style says
+ * `var(--c-surface)`, and swapping one attribute on <html> re-themes every
+ * style in the app without a re-render and without touching those 30 files —
+ * 13 of which belong to other people mid-flow.
+ *
+ * Native has no such mechanism, so it takes the dark palette directly. That is
+ * a deliberate scope line, not an oversight: the toggle is a web affordance,
+ * the Figma is dark (§13.2), and rewriting every screen for runtime theming
+ * four days from submission is the wrong trade.
+ */
+export const colors = (
+  Platform.OS === 'web'
+    ? (Object.fromEntries(
+        Object.keys(DARK_PALETTE).map((token) => [
+          token,
+          `var(${cssVarName(token as keyof typeof DARK_PALETTE)})`,
+        ]),
+      ) as Record<keyof typeof DARK_PALETTE, string>)
+    : DARK_PALETTE
+) as Record<keyof typeof DARK_PALETTE, string>;
 
 /**
  * §12.2 — five tiers, five colour tokens. One `<RarityBadge tier label />`.
@@ -113,6 +183,8 @@ export const scrim = {
   light: 'rgba(0,0,0,0.35)',
   medium: 'rgba(0,0,0,0.55)',
   heavy: 'rgba(0,0,0,0.75)',
+  /** Pointer hover over a card cover — light enough to read the art through. */
+  hover: 'rgba(0,0,0,0.45)',
 } as const;
 
 /**

@@ -20,6 +20,7 @@ import {
   EmptyState,
   FadeInView,
   FilterChips,
+  ItemArt,
   LoadingState,
   PrimaryButton,
   SectionHeader,
@@ -40,7 +41,7 @@ import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Collection, Item } from '@/types';
 
 /** §14 rung: "Has room" is the filter that makes J3 discoverable from J2. */
-const FILTERS = ['All', 'Public', 'Private', 'Has room'] as const;
+const FILTERS = ['All', 'Public', 'Private', 'Showrooms'] as const;
 type Filter = (typeof FILTERS)[number];
 
 /**
@@ -56,6 +57,8 @@ type Filter = (typeof FILTERS)[number];
  */
 interface SuggestedGroup {
   suggestion: CollectionSuggestion;
+  /** Resolved members, so the card can show what is in the grouping. */
+  items: Item[];
   themeName: string | null;
   themeReason: string | null;
   eligibility: RoomEligibility;
@@ -126,6 +129,7 @@ export default function CollectionsScreen() {
           const room = suggestRoom(items, themes);
           return {
             suggestion: idea,
+            items,
             themeName: room?.theme.name ?? null,
             themeReason: room?.reason ?? null,
             eligibility: roomEligibility(
@@ -153,10 +157,24 @@ export default function CollectionsScreen() {
   const { refreshing, onRefresh } = usePullToRefresh(load);
 
   return (
+    <View style={styles.screen}>
+      {/* Pinned: the four tab screens keep their title and filters on screen
+          while the list moves under them, so the user never loses the context
+          for what they are scrolling through. */}
+      <View style={[styles.pinned, { paddingTop: insets.top + spacing.md }]}>
+        <View style={styles.header}>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>Collections</Text>
+            <Text style={styles.muted}>{inventory.length} items owned</Text>
+          </View>
+        </View>
+        <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
+      </View>
+
     <ScrollView
       ref={scrollRef}
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -167,18 +185,10 @@ export default function CollectionsScreen() {
         />
       }
     >
-      <View style={styles.header}>
-        <View style={styles.rowBody}>
-          <Text style={styles.title}>Collections</Text>
-          <Text style={styles.muted}>{inventory.length} items owned</Text>
-        </View>
-      </View>
-
-      <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
 
       <SectionHeader
         title="Your Collections"
-        actionLabel="Add collection"
+        actionLabel="Add Collection"
         actionIcon="+"
         onSeeAll={() => router.push('/collection/new')}
       />
@@ -212,12 +222,6 @@ export default function CollectionsScreen() {
                 <Text style={styles.visibility}>
                   {VISIBILITY_LABELS[entry.collection.visibility]}
                 </Text>
-                <RoomCta
-                  status={rooms.get(entry.collection.id)}
-                  collectionId={entry.collection.id}
-                  suggestion={entry.suggestion}
-                  eligibility={entry.eligibility}
-                />
               </FadeInView>
             ))}
         </View>
@@ -232,7 +236,7 @@ export default function CollectionsScreen() {
       <View>
         <SectionHeader
           title="Your Showrooms"
-          actionLabel="Add showroom"
+          actionLabel="Add Showroom"
           actionIcon="+"
           onSeeAll={() => router.push('/room/new')}
         />
@@ -276,50 +280,90 @@ export default function CollectionsScreen() {
             Showroom in one step; the rest become a 2D collection.
           </Text>
           <View style={styles.ideaList}>
-            {ideas.map((idea) => (
-              <Pressable
-                key={idea.suggestion.name}
-                style={styles.ideaCard}
-                onPress={() =>
-                  idea.eligibility.eligible
-                    ? // One step: the collection is created at generate time,
-                      // so accepting a suggestion never asks the user to build
-                      // a collection first and then decorate it.
-                      router.push({
-                        pathname: '/room/new',
-                        params: {
-                          name: idea.suggestion.name,
-                          itemIds: idea.suggestion.itemIds.join(','),
-                        },
-                      })
-                    : router.push('/collection/new')
-                }
-              >
-                <View style={styles.ideaHead}>
-                  <Text style={styles.ideaSpark}>✦</Text>
-                  <Text style={styles.rowTitle}>{idea.suggestion.name}</Text>
-                  <Text style={styles.muted}>{idea.suggestion.itemIds.length} items</Text>
-                </View>
-                <Text style={styles.muted}>{idea.suggestion.reason}</Text>
+            {ideas.map((idea) => {
+              const canShowroom = idea.eligibility.eligible && idea.themeName;
+              return (
+                <View key={idea.suggestion.name} style={styles.ideaCard}>
+                  {/* Show the items, not just their count. A suggestion asks the
+                      user to trust a grouping they did not make, and the fastest
+                      way to earn that is to let them see what is in it. */}
+                  <View style={styles.ideaPreview}>
+                    {idea.items.slice(0, 4).map((item) => (
+                      <ItemArt
+                        key={item.id}
+                        seed={item.id}
+                        tier={item.rarityTier}
+                        renderUrl={item.renderUrl}
+                        style={styles.ideaThumb}
+                      />
+                    ))}
+                    {idea.suggestion.itemIds.length > 4 ? (
+                      <View style={[styles.ideaThumb, styles.ideaMore]}>
+                        <Text style={styles.ideaMoreText}>
+                          +{idea.suggestion.itemIds.length - 4}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
 
-                {/* §9.4 decides which of the two things this can become, and
-                    says so — a suggestion the user cannot act on is worse than
-                    no suggestion. */}
-                {idea.eligibility.eligible && idea.themeName ? (
-                  <Text style={styles.ideaRoom}>
-                    ⌂ Create as a {idea.themeName} Showroom · {idea.themeReason}
-                  </Text>
-                ) : (
-                  <Text style={styles.ideaBlocked}>⚿ 2D collection · {idea.eligibility.reason}</Text>
-                )}
-              </Pressable>
-            ))}
+                  <View style={styles.ideaBody}>
+                    <Text style={styles.ideaName}>{idea.suggestion.name}</Text>
+                    <Text style={styles.muted}>
+                      {idea.suggestion.itemIds.length} items · {idea.suggestion.reason}
+                    </Text>
+                  </View>
+
+                  {/* The outcome is a badge, not a sentence: which of the two
+                      things this becomes is the single fact that decides whether
+                      the button is worth tapping. */}
+                  <View style={styles.ideaFooter}>
+                    <View style={[styles.ideaTag, canShowroom && styles.ideaTagLive]}>
+                      <Text style={[styles.ideaTagText, canShowroom && styles.ideaTagTextLive]}>
+                        {canShowroom ? `⌂ ${idea.themeName}` : '⚿ 2D collection'}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() =>
+                        canShowroom
+                          ? router.push({
+                              pathname: '/room/new',
+                              params: {
+                                name: idea.suggestion.name,
+                                itemIds: idea.suggestion.itemIds.join(','),
+                              },
+                            })
+                          : router.push('/collection/new')
+                      }
+                      style={({ pressed }) => [
+                        styles.ideaButton,
+                        canShowroom && styles.ideaButtonPrimary,
+                        pressed && styles.pressedIdea,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.ideaButtonText,
+                          canShowroom && styles.ideaButtonTextPrimary,
+                        ]}
+                      >
+                        {canShowroom ? 'Create showroom' : 'Create collection'}
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  {!canShowroom ? (
+                    <Text style={styles.ideaHint}>{idea.eligibility.reason}</Text>
+                  ) : null}
+                </View>
+              );
+            })}
           </View>
         </View>
       ) : null}
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
+    </View>
   );
 }
 
@@ -333,7 +377,7 @@ function matchesFilter(
       return collection.visibility === 'public';
     case 'Private':
       return collection.visibility === 'private';
-    case 'Has room':
+    case 'Showrooms':
       return status !== undefined;
     default:
       return true;
@@ -449,6 +493,15 @@ function RoomCta({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.lg },
+  pinned: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
+    backgroundColor: colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    zIndex: 10,
+  },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, justifyContent: 'space-between' },
   createButton: {
@@ -467,7 +520,40 @@ const styles = StyleSheet.create({
   gridItem: { width: '48%', gap: spacing.xs },
   visibility: { ...typography.meta, color: colors.textTertiary, paddingLeft: spacing.xs },
 
-  ideaList: { gap: spacing.sm },
+  ideaList: { gap: spacing.md },
+  ideaPreview: { flexDirection: 'row', gap: spacing.xs },
+  ideaThumb: { flex: 1, height: 64, borderRadius: radius.sm },
+  ideaMore: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSunken },
+  ideaMoreText: { ...typography.meta, color: colors.textSecondary },
+  ideaBody: { gap: 2 },
+  ideaName: { ...typography.cardTitle, color: colors.textPrimary },
+  ideaFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  ideaTag: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSunken,
+  },
+  ideaTagLive: { backgroundColor: colors.accentMuted },
+  ideaTagText: { ...typography.meta, color: colors.textTertiary },
+  ideaTagTextLive: { color: colors.accent },
+  ideaButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  ideaButtonPrimary: { borderColor: colors.accent, backgroundColor: colors.accent },
+  ideaButtonText: { ...typography.meta, color: colors.textSecondary, fontWeight: '600' },
+  ideaButtonTextPrimary: { color: colors.textOnAccent },
+  pressedIdea: { opacity: 0.75 },
+  ideaHint: { ...typography.meta, color: colors.textTertiary },
   ideaCard: {
     gap: spacing.xs,
     padding: spacing.md,

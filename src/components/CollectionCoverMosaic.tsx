@@ -30,7 +30,7 @@ export function CollectionCoverMosaic({
   tier,
   style,
   fallbackSeed,
-  max = 2,
+  max = 3,
 }: {
   /** The collection's members, in display order — first is the featured item. */
   itemIds: readonly string[];
@@ -44,10 +44,11 @@ export function CollectionCoverMosaic({
    */
   fallbackSeed?: string;
   /**
-   * Two, not four. Every cover box in the app is short and wide, so a panel is
-   * `boxWidth / max` across: at four panels each column is narrower than a face
-   * and the cover reads as abstract texture. Raise it only for a cover that is
-   * taller than it is wide.
+   * Three panels. Every cover box in the app is short and wide, so a panel is
+   * `boxWidth / max` across — at four, each column is narrower than a face and
+   * the cover reads as abstract texture rather than as items. Three is the
+   * most that still shows what a thing is, and it gives a better sense of the
+   * collection's contents than two.
    */
   max?: number;
 }) {

@@ -32,6 +32,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { AppProvider } from '@/state/AppContext';
+import { ThemeModeProvider, ThemeToggle, useThemeMode } from '@/theme/ThemeMode';
 import { colors, fonts } from '@/theme/theme';
 
 /* Hold the native splash until the fonts resolve, so the first frame is already
@@ -62,8 +63,9 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <AppProvider>
-      <StatusBar style="light" />
+    <ThemeModeProvider>
+      <AppProvider>
+        <ThemedChrome />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
@@ -108,7 +110,20 @@ export default function RootLayout() {
         <Stack.Screen name="community/[id]" options={{ title: 'Community' }} />
         <Stack.Screen name="thread/[id]" options={{ title: 'Thread' }} />
         <Stack.Screen name="article/[id]" options={{ title: 'Article' }} />
-      </Stack>
-    </AppProvider>
+        </Stack>
+        {/* Fixed to the viewport, so it is reachable from every screen rather
+            than duplicated into each header. Renders nothing on native. */}
+        <ThemeToggle />
+      </AppProvider>
+    </ThemeModeProvider>
   );
+}
+
+/**
+ * The status bar is the one piece of chrome the CSS variables cannot reach — it
+ * is drawn by the OS, not the DOM — so it follows the mode explicitly.
+ */
+function ThemedChrome() {
+  const { mode } = useThemeMode();
+  return <StatusBar style={mode === 'light' ? 'dark' : 'light'} />;
 }

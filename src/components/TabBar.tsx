@@ -15,8 +15,12 @@
  * Create collection / Create room) — it appears in every flow and the PRD flags
  * it as previously unspecified.
  *
- * Icons are unicode glyphs: §13.1 says nobody adds a dependency without saying
- * so in chat, and that includes an icon font.
+ * Icons are drawn from Views rather than an icon font: §13.1 says nobody adds a
+ * dependency without saying so in chat, and that includes an icon set. Unicode
+ * glyphs were the previous answer and looked it — ⌂ ◎ ▦ ⏣ come from four
+ * different type designs, so they disagreed on weight, size and baseline no
+ * matter how they were styled. Four small shapes are more code and better
+ * pixels, and they inherit the theme like everything else.
  */
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -30,17 +34,67 @@ import { colors, fonts, interaction, radius, spacing, typography } from '@/theme
 interface Tab {
   href: '/' | '/explore' | '/collections' | '/profile';
   label: string;
-  glyph: string;
+  kind: IconKind;
   /** True for the two tabs behind the onboarding gate. */
   gated?: boolean;
 }
 
 const TABS: readonly Tab[] = [
-  { href: '/', label: 'Home', glyph: '⌂' },
-  { href: '/explore', label: 'Explore', glyph: '◎' },
-  { href: '/collections', label: 'Collections', glyph: '▦', gated: true },
-  { href: '/profile', label: 'Profile', glyph: '⏣', gated: true },
+  { href: '/', label: 'Home', kind: 'home' },
+  { href: '/explore', label: 'Explore', kind: 'explore' },
+  { href: '/collections', label: 'Collections', kind: 'collections', gated: true },
+  { href: '/profile', label: 'Profile', kind: 'profile', gated: true },
 ];
+
+type IconKind = 'home' | 'explore' | 'collections' | 'profile';
+
+/**
+ * The four tab icons, built from Views.
+ *
+ * Each is a 22x22 box so they share a baseline and optical weight — the thing
+ * the mixed unicode glyphs could never do. Strokes are 2px borders throughout,
+ * which keeps them consistent at a glance and legible at tab-bar size where
+ * finer detail turns to mush.
+ */
+function TabIcon({ kind, colour }: { kind: IconKind; colour: string }) {
+  if (kind === 'home') {
+    return (
+      <View style={styles.icon}>
+        {/* A rotated square is the roof; the body sits under it and clips the
+            lower half, which is cheaper than a triangle drawn from borders. */}
+        <View style={[styles.homeRoof, { borderColor: colour }]} />
+        <View style={[styles.homeBody, { borderColor: colour }]} />
+      </View>
+    );
+  }
+
+  if (kind === 'explore') {
+    return (
+      <View style={styles.icon}>
+        <View style={[styles.exploreRing, { borderColor: colour }]} />
+        <View style={[styles.exploreNeedle, { backgroundColor: colour }]} />
+      </View>
+    );
+  }
+
+  if (kind === 'collections') {
+    // Four cells, because a collection is a grid of things.
+    return (
+      <View style={[styles.icon, styles.grid]}>
+        {[0, 1, 2, 3].map((cell) => (
+          <View key={cell} style={[styles.gridCell, { borderColor: colour }]} />
+        ))}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.icon}>
+      <View style={[styles.profileHead, { borderColor: colour }]} />
+      <View style={[styles.profileBody, { borderColor: colour }]} />
+    </View>
+  );
+}
 
 export function TabBar() {
   const router = useRouter();
@@ -72,9 +126,10 @@ export function TabBar() {
         accessibilityHint={locked ? 'Import your inventory to unlock this tab' : undefined}
         style={({ pressed }) => [styles.tab, pressed && !active && styles.pressed]}
       >
-        <Text style={[styles.glyph, active && styles.active, locked && styles.locked]}>
-          {tab.glyph}
-        </Text>
+        <TabIcon
+          kind={tab.kind}
+          colour={locked ? colors.border : active ? colors.accent : colors.textTertiary}
+        />
         <Text style={[styles.label, active && styles.active, locked && styles.locked]}>
           {tab.label}
         </Text>
@@ -89,20 +144,30 @@ export function TabBar() {
     >
       {left.map(renderTab)}
 
+      {/* Import sits level with the other four rather than as a raised circle.
+          §13.4 specifies the raised "+", but an unlabelled glyph in the most
+          prominent slot never said what it did — and the thing it does is the
+          activation event the whole product depends on (J1). Labelling it and
+          levelling it costs the flourish and buys a tab that explains itself. */}
       <Pressable
         onPress={() => {
           haptics.tap();
-          router.push('/create');
+          router.push('/import');
         }}
         accessibilityRole="button"
-        accessibilityLabel="Create"
-        style={styles.plusSlot}
+        accessibilityLabel="Import inventory"
+        style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
       >
-        {({ pressed }) => (
-          <View style={[styles.plus, pressed && styles.plusPressed]}>
-            <Text style={styles.plusText}>+</Text>
+        {/* A filled accent plus. Level with the other four, but the only
+            coloured icon in the bar — import is the activation event the whole
+            product depends on (J1), so it earns the one bit of colour. */}
+        <View style={styles.icon}>
+          <View style={styles.plusDisc}>
+            <View style={styles.plusBarH} />
+            <View style={styles.plusBarV} />
           </View>
-        )}
+        </View>
+        <Text style={[styles.label, styles.active]}>Import</Text>
       </Pressable>
 
       {right.map(renderTab)}
@@ -120,11 +185,73 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   tab: { flex: 1, alignItems: 'center', gap: 2 },
-  glyph: { fontSize: 20, color: colors.textTertiary, lineHeight: 24 },
+  icon: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
+
+  homeRoof: {
+    position: 'absolute',
+    top: 1,
+    width: 13,
+    height: 13,
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+    transform: [{ rotate: '45deg' }],
+  },
+  homeBody: {
+    position: 'absolute',
+    bottom: 2,
+    width: 15,
+    height: 10,
+    borderWidth: 2,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+  },
+
+  exploreRing: { width: 18, height: 18, borderWidth: 2, borderRadius: radius.pill },
+  exploreNeedle: {
+    position: 'absolute',
+    width: 2,
+    height: 9,
+    borderRadius: 1,
+    transform: [{ rotate: '45deg' }],
+  },
+
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, padding: 2 },
+  gridCell: { width: 7, height: 7, borderWidth: 2, borderRadius: 1.5 },
+
+  profileHead: {
+    position: 'absolute',
+    top: 1,
+    width: 9,
+    height: 9,
+    borderWidth: 2,
+    borderRadius: radius.pill,
+  },
+  profileBody: {
+    position: 'absolute',
+    bottom: 2,
+    width: 17,
+    height: 9,
+    borderWidth: 2,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 9,
+    borderTopRightRadius: 9,
+  },
   label: { ...typography.meta, fontSize: 10, color: colors.textTertiary },
   active: { color: colors.accent },
   /** §13.4 — greyed AND non-interactive, not just greyed. */
   locked: { color: colors.border },
+
+  plusDisc: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
+  plusBarH: { position: 'absolute', width: 11, height: 2.5, borderRadius: 2, backgroundColor: colors.textOnAccent },
+  plusBarV: { position: 'absolute', width: 2.5, height: 11, borderRadius: 2, backgroundColor: colors.textOnAccent },
 
   plusSlot: { flex: 1, alignItems: 'center' },
   plus: {

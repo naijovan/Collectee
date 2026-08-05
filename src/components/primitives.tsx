@@ -563,10 +563,26 @@ const styles = StyleSheet.create({
   },
   tickText: { color: colors.textOnAccent, fontWeight: '700' },
 
-  sectionAction: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  /**
+   * Shaped like the filter chips above it — same pill, same border, same
+   * padding. A create action and a filter are both "small control in a row of
+   * small controls"; giving them different shapes made the header look like two
+   * unrelated toolbars.
+   */
+  sectionAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   sectionActionCircle: {
-    width: 26,
-    height: 26,
+    width: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
@@ -574,8 +590,8 @@ const styles = StyleSheet.create({
   },
   sectionActionGlyph: {
     color: colors.textOnAccent,
-    fontSize: 17,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 16,
     fontWeight: '600',
   },
 

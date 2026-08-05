@@ -11,6 +11,7 @@
  * flows through the existing `ItemArt` seam.
  */
 
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DimensionValue } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -149,10 +150,27 @@ export function CollectionCard({
   width?: DimensionValue;
   onPress?: () => void;
 }) {
+  /**
+   * Hover is a real affordance here, not decoration: the card lost its CTA, so
+   * without one there is nothing telling a pointer user the tile is clickable.
+   * Touch devices never fire these, which is correct — they get the press
+   * state instead.
+   */
+  const [hovered, setHovered] = useState(false);
+
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.collectionCard, width ? { width } : null, pressed && styles.pressed]}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      accessibilityRole="button"
+      accessibilityLabel={`${collection.name}, ${collection.itemIds.length} items`}
+      style={({ pressed }) => [
+        styles.collectionCard,
+        width ? { width } : null,
+        hovered && styles.collectionCardHovered,
+        pressed && styles.pressed,
+      ]}
     >
       <View>
         {/* Composed from the members' own renders — never a baked collage. */}
@@ -175,6 +193,13 @@ export function CollectionCard({
         {headline ? (
           <View style={styles.badgeOverlay}>
             <GameBadge title={headline.title} />
+          </View>
+        ) : null}
+        {hovered ? (
+          <View style={styles.hoverVeil} pointerEvents="none">
+            <View style={styles.hoverPill}>
+              <Text style={styles.hoverText}>View collection →</Text>
+            </View>
           </View>
         ) : null}
       </View>
@@ -286,6 +311,25 @@ export function ArticleCard({
 const styles = StyleSheet.create({
   pressed: { opacity: interaction.pressedOpacity, transform: [{ scale: interaction.pressedScale }] },
 
+  collectionCardHovered: {
+    borderColor: colors.accent,
+    transform: [{ translateY: -2 }],
+  },
+  /** Sits over the cover only, so the title and counts stay readable. */
+  hoverVeil: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: scrim.hover,
+  },
+  hoverPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
+  hoverText: { ...typography.meta, color: colors.textOnAccent, fontWeight: '600' },
+
   /* Radius + overflow so an epic/legendary border clips the art corners rather
      than drawing a square frame around a rounded image. */
   itemCard: { borderRadius: radius.card, overflow: 'hidden' },
@@ -314,7 +358,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
   },
-  collectionArt: { height: 104, borderRadius: 0 },
+  // Taller than the 104 it was: three panels across a half-width card make each
+  // one narrow, and at 104 they were wider than they were tall — weapons read
+  // as slivers. 148 gives each panel a near-square crop.
+  collectionArt: { height: 148, borderRadius: 0 },
   badgeOverlay: { position: 'absolute', top: spacing.sm, left: spacing.sm },
   /** Only the top third — a full-height scrim would grey out the artwork. */
   coverScrim: { position: 'absolute', top: 0, left: 0, right: 0, height: '38%' },
