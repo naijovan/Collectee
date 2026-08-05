@@ -111,9 +111,9 @@ export default function AssistantScreen() {
           {/* Honest about what is running. A "powered by AI" badge over a
               deterministic answerer is the exact thing §12.1 warns against. */}
           <Text style={styles.mode}>
-            {mode === 'mocked'
+            {mode === 'offline'
               ? '⚙ Offline · answers computed on-device'
-              : `⚡ ${mode === 'proxy' ? 'Proxy' : 'Gemini'} connected · ${assistantService.remainingCalls()} calls left this minute`}
+              : `⚡ Claude connected · ${assistantService.remainingCalls()} calls left this minute`}
           </Text>
         </View>
 
