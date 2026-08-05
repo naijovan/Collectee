@@ -1,5 +1,5 @@
 /**
- * Collection Room types — PRD §11 F4 and §12.3.
+ * Showroom types — PRD §11 F4 and §12.3.
  *
  * This is the flow Jovan owns. The shapes below are the ones §12.3 flags as
  * blocking, reproduced exactly as specified.

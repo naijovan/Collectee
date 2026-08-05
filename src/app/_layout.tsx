@@ -8,7 +8,7 @@
  *
  *   J1 Import inventory       → /import
  *   J2 Create & publish       → /collection/new  → /collection/[id]
- *   J3 Collection Room        → /room/new        → /room/[id]
+ *   J3 Showroom        → /room/new        → /room/[id]
  *   J4 Discover collectors    → /collector/[id]
  *   J5 News & gaming updates  → /news            → /article/[id]
  *
@@ -95,7 +95,7 @@ export default function RootLayout() {
           options={{ title: 'New collection', headerShown: false }}
         />
         <Stack.Screen name="collection/[id]" options={{ title: 'Collection' }} />
-        <Stack.Screen name="room/intro" options={{ title: 'Create Collection Room' }} />
+        <Stack.Screen name="room/intro" options={{ title: 'Create Showroom' }} />
         <Stack.Screen name="room/new" options={{ title: 'New room', headerShown: false }} />
         <Stack.Screen name="room/[id]" options={{ title: 'Room' }} />
         {/* The immersive room draws its own overlay controls edge to edge, so a

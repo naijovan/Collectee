@@ -26,7 +26,7 @@ holds app-wide React context.
   total.
 - **Scanned items land `unverified`.** The scanner never produces a verified item — verification
   needs a linked game account and that is partnership-gated (§9.3).
-- **Only verified items may enter a Collection Room** (§9.4). Unverified items are fine in a
+- **Only verified items may enter a Showroom** (§9.4). Unverified items are fine in a
   normal 2D collection and everywhere else. This is the perk that makes the trust model matter,
   so do not quietly relax it to make a screen easier to build — and never render an empty room
   picker without telling the user why it is empty.

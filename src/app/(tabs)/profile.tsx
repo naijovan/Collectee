@@ -16,41 +16,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Avatar,
   CollectionCard,
-  FilterChips,
   ItemArt,
   ItemCard,
   LoadingState,
-  SecondaryButton,
   SectionHeader,
 } from '@/components';
-import { groupByRarity, rarityLabelFor, RARITY_RANK } from '@/domain/rarity';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { collectionService, inventoryService, roomService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
+import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Collection, Item, RarityTier, Room, User } from '@/types';
-
-/**
- * Inventory filters. Trust sits alongside rarity rather than in its own control
- * because §9.4 made it a property users now act on — it decides whether an item
- * can enter a Collection Room, so "which of mine are verified" is a question
- * worth one tap.
- */
-const INVENTORY_FILTERS = [
-  'All',
-  'Verified',
-  'Unverified',
-  'Mythic',
-  'Legendary',
-  'Epic',
-] as const;
-type InventoryFilter = (typeof INVENTORY_FILTERS)[number];
-
-const FILTER_TIERS: Partial<Record<InventoryFilter, RarityTier>> = {
-  Mythic: 'mythic',
-  Legendary: 'legendary',
-  Epic: 'epic',
-};
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -59,25 +34,6 @@ export default function ProfileScreen() {
 
   const scrollRef = useTopOnFocus();
 
-  const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>('All');
-
-  /**
-   * Grouped locally rather than via `getGroupedByRarity`, because the filter
-   * needs `owned.trustLevel` and that service returns catalogue items only —
-   * the trust half of the join is dropped on the way out.
-   */
-  const groups = useMemo(() => {
-    const tier = FILTER_TIERS[inventoryFilter];
-    const filtered = inventory.filter((entry) => {
-      if (inventoryFilter === 'Verified') return entry.owned.trustLevel === 'verified';
-      if (inventoryFilter === 'Unverified') return entry.owned.trustLevel !== 'verified';
-      if (tier) return entry.item.rarityTier === tier;
-      return true;
-    });
-    return groupByRarity(filtered.map((entry) => entry.item)).sort(
-      (a, b) => RARITY_RANK[b.tier] - RARITY_RANK[a.tier],
-    );
-  }, [inventory, inventoryFilter]);
 
   const verifiedCount = useMemo(
     () => inventory.filter((entry) => entry.owned.trustLevel === 'verified').length,
@@ -125,7 +81,7 @@ export default function ProfileScreen() {
         <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={72} />
         <Text style={styles.name}>{viewer?.displayName ?? '—'}</Text>
         <Text style={styles.muted}>@{viewer?.handle ?? '—'}</Text>
-        <Text style={styles.bio}>{viewer?.bio ?? ''}</Text>
+
       </View>
 
       <View style={styles.stats}>
@@ -135,10 +91,6 @@ export default function ProfileScreen() {
         <Stat label="Following" value={following.length} />
       </View>
 
-      <View style={styles.actions}>
-        <SecondaryButton label="Import more items" onPress={() => router.push('/import')} />
-        <SecondaryButton label="Build a room" onPress={() => router.push('/room/new')} />
-      </View>
 
       {/*
         Rooms on profile — the last screen of the §10 J3 flow map, and the point
@@ -146,12 +98,12 @@ export default function ProfileScreen() {
         identity. Only published rooms with showOnProfile appear.
       */}
       {/* Always rendered, even empty. The three sections — Collections,
-          Collection Rooms, Inventory — are the shape of a profile; hiding one
+          Showrooms, Inventory — are the shape of a profile; hiding one
           when it happens to be empty makes the page look like it has a
           different structure per user. An empty state that says what a room is
           does more work than a gap. */}
       <View>
-        <SectionHeader title="Collection Rooms" />
+        <SectionHeader title="Showrooms" />
         {publishedRooms.length === 0 ? (
           <Pressable style={styles.roomEmpty} onPress={() => router.push('/room/new')}>
             <Text style={styles.devLabel}>No rooms yet</Text>
@@ -210,42 +162,30 @@ export default function ProfileScreen() {
         )}
       </View>
 
+      {/* A preview, not the list. Profile is an identity page — collections,
+          showrooms, a taste of what you own. Forty item cards inline turn it
+          into a list screen nobody scrolls past, so the full grid and its
+          filters live on /inventory. */}
       <View>
-        <SectionHeader title="Inventory" />
+        <SectionHeader
+          title="Inventory"
+          actionLabel="View full inventory"
+          onSeeAll={() => router.push('/inventory')}
+        />
         <Text style={styles.muted}>
           {inventory.length} items · {verifiedCount} verified · {inventory.length - verifiedCount}{' '}
           unverified
         </Text>
-        <FilterChips
-          options={INVENTORY_FILTERS}
-          value={inventoryFilter}
-          onChange={setInventoryFilter}
-        />
+        <View style={styles.previewGrid}>
+          {inventory.slice(0, 4).map((entry) => (
+            <View key={entry.owned.id} style={styles.previewCell}>
+              <ItemCard item={entry.item} width="100%" />
+            </View>
+          ))}
+        </View>
       </View>
 
-      {busy ? (
-        <LoadingState height={200} />
-      ) : groups.length === 0 ? (
-        <Text style={styles.muted}>Nothing matches that filter.</Text>
-      ) : (
-        groups.map((group) => (
-          <View key={group.tier}>
-            <View style={styles.tierHeader}>
-              <View style={[styles.tierDot, { backgroundColor: rarityColors[group.tier] }]} />
-              <Text style={styles.tierName}>
-                {/* Printed label is native to the title of the first item (§12.2). */}
-                {rarityLabelFor(group.tier, group.items[0]!.title)}
-              </Text>
-              <Text style={styles.muted}>{group.items.length}</Text>
-            </View>
-            <View style={styles.grid}>
-              {group.items.map((item) => (
-                <ItemCard key={item.id} item={item} width="30%" />
-              ))}
-            </View>
-          </View>
-        ))
-      )}
+      {busy ? <LoadingState height={120} /> : null}
 
       <View>
         <SectionHeader title="Developer" />
@@ -312,6 +252,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   devLabel: { ...typography.cardTitle, color: colors.textPrimary },
+
+  previewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  previewCell: { width: '22%' },
 
   collectionGrid: {
     flexDirection: 'row',

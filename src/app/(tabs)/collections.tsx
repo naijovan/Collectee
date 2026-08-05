@@ -172,21 +172,16 @@ export default function CollectionsScreen() {
           <Text style={styles.title}>Collections</Text>
           <Text style={styles.muted}>{inventory.length} items owned</Text>
         </View>
-        {/* Create is a persistent affordance, not a banner — it should not push
-            the content down every time the page loads. */}
-        <Pressable
-          accessibilityLabel="Create a collection"
-          hitSlop={10}
-          onPress={() => router.push('/collection/new')}
-          style={styles.createButton}
-        >
-          <Text style={styles.createGlyph}>+</Text>
-        </Pressable>
       </View>
 
       <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
 
-      <SectionHeader title="Your Collections" />
+      <SectionHeader
+        title="Your Collections"
+        actionLabel="Add collection"
+        actionIcon="+"
+        onSeeAll={() => router.push('/collection/new')}
+      />
 
       {busy ? (
         <LoadingState height={220} />
@@ -233,12 +228,17 @@ export default function CollectionsScreen() {
           the grid, per the frame. It moves to the collection detail page rather
           than being deleted; `setProgressFor` is untouched. */}
 
-      {/* ── Your Collection Rooms ───────────────────────────────────── */}
+      {/* ── Your Showrooms ───────────────────────────────────── */}
       <View>
-        <SectionHeader title="Your Collection Rooms" />
+        <SectionHeader
+          title="Your Showrooms"
+          actionLabel="Add showroom"
+          actionIcon="+"
+          onSeeAll={() => router.push('/room/new')}
+        />
         {builtRooms.length === 0 ? (
           <Text style={styles.muted}>
-            No Collection Rooms yet. A Collection Room is the interactive version of a
+            No Showrooms yet. A Showroom is the interactive version of a
             collection — accept a suggestion below, or build one from any collection with 3
             or more verified items.
           </Text>
@@ -273,7 +273,7 @@ export default function CollectionsScreen() {
           <SectionHeader title="Suggestions" />
           <Text style={styles.muted}>
             Groupings we found in your inventory. Verified ones can become an interactive
-            Collection Room in one step; the rest become a 2D collection.
+            Showroom in one step; the rest become a 2D collection.
           </Text>
           <View style={styles.ideaList}>
             {ideas.map((idea) => (
@@ -307,7 +307,7 @@ export default function CollectionsScreen() {
                     no suggestion. */}
                 {idea.eligibility.eligible && idea.themeName ? (
                   <Text style={styles.ideaRoom}>
-                    ⌂ Create as a {idea.themeName} Collection Room · {idea.themeReason}
+                    ⌂ Create as a {idea.themeName} Showroom · {idea.themeReason}
                   </Text>
                 ) : (
                   <Text style={styles.ideaBlocked}>⚿ 2D collection · {idea.eligibility.reason}</Text>
@@ -436,10 +436,10 @@ function RoomCta({
             <Text style={styles.roomCtaName} numberOfLines={1} ellipsizeMode="tail">
               Create {suggestion.theme.name}
             </Text>
-            <Text style={styles.roomCtaText}>Collection Room</Text>
+            <Text style={styles.roomCtaText}>Showroom</Text>
           </>
         ) : (
-          <Text style={styles.roomCtaText}>+  Create Collection Room</Text>
+          <Text style={styles.roomCtaText}>+  Create Showroom</Text>
         )}
       </Pressable>
     </>

@@ -46,7 +46,7 @@ whole product end to end. The flow owner expands theirs; the shell underneath do
 | `create` | The `+` action sheet (§13.5) | — |
 | `import` | J1 Upload → Scan → Review → Needs Review → Done | Bernard |
 | `collection/new` · `collection/[id]` | J2 Create & publish | Bernard |
-| `room/new` · `room/[id]` | J3 Collection Room — 2.5D parallax, look-at focus | Jovan |
+| `room/new` · `room/[id]` | J3 Showroom — 2.5D parallax, look-at focus | Jovan |
 | `news` · `article/[id]` | J5 News & updates (behind `FEATURES.news`) | Marcus |
 | `diagnostics` | Every service called the way a screen calls it | Jovan |
 
@@ -142,7 +142,7 @@ Run both before you open a PR.
 | Person | Flow | Files |
 |---|---|---|
 | Bernard | J1 Import, J2 Create & Publish | `services/scanService.ts`, `services/collectionService.ts` |
-| Jovan | J3 Collection Room + foundation | `services/roomService.ts`, `domain/room.ts`, `theme/`, `types/` |
+| Jovan | J3 Showroom + foundation | `services/roomService.ts`, `domain/room.ts`, `theme/`, `types/` |
 | Marcus | J4 Discover, J5 News | `services/matchService.ts`, `services/newsService.ts` |
 | Ray | Slides, demo video | — |
 
@@ -164,7 +164,7 @@ These are in the PRD but easy to lose. Do not contradict them on stage.
 - **SHA-256 screenshot hashing was considered and dropped** (§9.1). A hash proves a file is
   unaltered; it says nothing about who owns the item depicted. Leading with why it was rejected is
   a strength.
-- **Interactive Collection Rooms are verified-only** (§9.4). An unverified item can live in a
+- **Interactive Showrooms are verified-only** (§9.4). An unverified item can live in a
   normal 2D collection; it cannot go in a room. That is deliberate — it gives the trust model
   teeth and makes account linking the second activation event. Say the dependency out loud
   before a judge finds it: rooms are what connecting an inventory buys, which is the reason a

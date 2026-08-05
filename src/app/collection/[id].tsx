@@ -231,7 +231,7 @@ export default function CollectionScreen() {
       </View>
 
       {/*
-        The 2×2 action grid from the design frames. Create Collection Room is
+        The 2×2 action grid from the design frames. Create Showroom is
         the primary action — J3 is the differentiator (§11 F4), and a collection
         page that treats it as a footnote buries the feature the pitch leads on.
       */}
@@ -241,7 +241,7 @@ export default function CollectionScreen() {
         </View>
         <View style={styles.actionCell}>
           <PrimaryButton
-            label={roomStatus?.published ? 'View room' : 'Create Collection Room'}
+            label={roomStatus?.published ? 'View room' : 'Create Showroom'}
             disabled={roomBlocked}
             onPress={() =>
               roomStatus?.published

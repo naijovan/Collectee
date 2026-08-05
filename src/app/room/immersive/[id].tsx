@@ -1,5 +1,5 @@
 /**
- * The full-screen Collection Room — PRD §11 F4, the differentiator.
+ * The full-screen Showroom — PRD §11 F4, the differentiator.
  *
  * A separate route rather than a mode on `room/[id]` deliberately. That screen
  * is the room's *page*: title, credit, likes, comments, share. This is the room

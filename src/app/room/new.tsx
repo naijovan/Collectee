@@ -1,5 +1,5 @@
 /**
- * J3 — build a Collection Room (PRD §10, §11 F4). Flow owner: Jovan.
+ * J3 — build a Showroom (PRD §10, §11 F4). Flow owner: Jovan.
  * THE DIFFERENTIATOR.
  *
  * Style → Generate → Edit → Preview → Publish, driven by `ROOM_STEPS` so the
@@ -100,7 +100,7 @@ export default function CreateRoomScreen() {
    *                  not exist yet — it is created at generate time by
    *                  `roomService.createCollectionRoom`
    *
-   * The second path is what makes a Collection Room feel like one object: the
+   * The second path is what makes a Showroom feel like one object: the
    * user picks a suggestion and a style, and never sees a separate "now make a
    * collection" step.
    */
@@ -204,7 +204,7 @@ export default function CreateRoomScreen() {
       );
       setRecommended(pick);
       setThemeId((current) => current ?? pick.theme.id);
-      setTitle(suggestedName ?? 'My Collection Room');
+      setTitle(suggestedName ?? 'My Showroom');
       setBusy(false);
     }
 
@@ -288,7 +288,7 @@ export default function CreateRoomScreen() {
         : (
             await roomService.createCollectionRoom({
               userId: viewerId,
-              name: suggestedName ?? 'My Collection Room',
+              name: suggestedName ?? 'My Showroom',
               itemIds: draftItemIds,
               themeId,
               ownedItems: owned,
@@ -501,7 +501,7 @@ export default function CreateRoomScreen() {
           <Text style={styles.pickerBack}>‹ Back</Text>
         </Pressable>
         <Text style={styles.title}>Which collection?</Text>
-        <Text style={styles.body}>A Collection Room is built from one collection.</Text>
+        <Text style={styles.body}>A Showroom is built from one collection.</Text>
         {busy ? <LoadingState height={160} /> : null}
         {!busy && collections.length === 0 ? (
           <EmptyState

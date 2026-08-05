@@ -1,5 +1,5 @@
 /**
- * Collection Rooms — PRD §11 F4. Flow owner: Jovan (J3). THE DIFFERENTIATOR.
+ * Showrooms — PRD §11 F4. Flow owner: Jovan (J3). THE DIFFERENTIATOR.
  *
  * §16 Q6 is still open: room backdrops pre-generated and bundled, or generated
  * live? This service implements the RECOMMENDED answer — bundled, consistent
@@ -118,9 +118,9 @@ export const roomService = {
   },
 
   /**
-   * Create a Collection Room in one step — the user-facing object (§9.4, F3/F4).
+   * Create a Showroom in one step — the user-facing object (§9.4, F3/F4).
    *
-   * A "Collection Room" is one thing to the person using the app: a named,
+   * A "Showroom" is one thing to the person using the app: a named,
    * themed, interactive space built from items they own. Underneath it is still
    * a `Collection` plus a `Room` pointing at it, because those shapes are the
    * merge contract three other flows read (`src/types/`, CLAUDE.md). This

@@ -167,7 +167,7 @@ export default function CreateCollectionScreen() {
   );
 
   /**
-   * §9.4 — can this selection become a Collection Room?
+   * §9.4 — can this selection become a Showroom?
    *
    * A collection takes anything the user owns; the room is the verified perk on
    * top. Answering it live, while they pick, is the difference between a feature
@@ -872,7 +872,7 @@ export default function CreateCollectionScreen() {
           {FEATURES.trustUi ? (
             <Text style={styles.footnote}>
               {eligibility.eligible
-                ? `✓ Every item is verified — this collection can become a Collection Room (§9.4).`
+                ? `✓ Every item is verified — this collection can become a Showroom (§9.4).`
                 : `🔒 ${eligibility.reason}. Publishing the collection is unaffected.`}
             </Text>
           ) : null}

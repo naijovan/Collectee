@@ -1,5 +1,5 @@
 /**
- * RoomScene owns both Collection Room renderers.
+ * RoomScene owns both Showroom renderers.
  *
  * Published and preview rooms use a procedural WebGL gallery so the space and
  * collectibles respond in three dimensions. Edit mode keeps the slot-based

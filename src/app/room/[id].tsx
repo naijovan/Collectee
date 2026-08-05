@@ -1,5 +1,5 @@
 /**
- * A live Collection Room — the last screen of J3 and the thing that gets shared.
+ * A live Showroom — the last screen of J3 and the thing that gets shared.
  *
  * This is the payoff for the whole thesis: "your skins live in a menu no one
  * else ever sees. Collectee is the room you put them in." So it is a public

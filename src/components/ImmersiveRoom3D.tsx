@@ -275,7 +275,7 @@ export function ImmersiveRoom3D({
 
   return (
     <View
-      accessibilityLabel="Interactive 3D collection room"
+      accessibilityLabel="Interactive 3D showroom"
       ref={viewport}
       style={[styles.viewport, immersive && styles.viewportImmersive, { width, height }]}
       {...pan.panHandlers}

@@ -1,5 +1,5 @@
 /**
- * The atmosphere layer for a Collection Room — the part that makes it read as
+ * The atmosphere layer for a Showroom — the part that makes it read as
  * a space rather than items floating on a photograph.
  *
  * Everything here is procedural and asset-free, so it costs no bundle size and

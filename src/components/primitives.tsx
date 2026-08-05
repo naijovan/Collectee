@@ -224,9 +224,23 @@ export function Avatar({
 export function SectionHeader({
   title,
   onSeeAll,
+  actionLabel = 'See all',
+  actionIcon,
 }: {
   title: string;
   onSeeAll?: () => void;
+  /**
+   * Overrides the trailing action's text. "See all" is the common case, but a
+   * section whose action creates something ("Add showroom") needs to say so —
+   * a create action labelled "See all" is a lie about what the tap does.
+   */
+  actionLabel?: string;
+  /**
+   * Renders the action as a circular icon button with the label beside it.
+   * Reserved for actions that CREATE something — the filled circle is what
+   * separates "make a new one" from a navigation link at a glance.
+   */
+  actionIcon?: string;
 }) {
   return (
     <View style={styles.sectionHeader}>
@@ -236,10 +250,15 @@ export function SectionHeader({
           onPress={onSeeAll}
           hitSlop={interaction.hitSlop}
           accessibilityRole="button"
-          accessibilityLabel={`See all ${title}`}
-          style={({ pressed }) => pressed && styles.pressed}
+          accessibilityLabel={`${actionLabel} — ${title}`}
+          style={({ pressed }) => [styles.sectionAction, pressed && styles.pressed]}
         >
-          <Text style={styles.seeAll}>See all</Text>
+          {actionIcon ? (
+            <View style={styles.sectionActionCircle}>
+              <Text style={styles.sectionActionGlyph}>{actionIcon}</Text>
+            </View>
+          ) : null}
+          <Text style={styles.seeAll}>{actionLabel}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -543,6 +562,22 @@ const styles = StyleSheet.create({
     borderColor: colors.background,
   },
   tickText: { color: colors.textOnAccent, fontWeight: '700' },
+
+  sectionAction: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  sectionActionCircle: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
+  sectionActionGlyph: {
+    color: colors.textOnAccent,
+    fontSize: 17,
+    lineHeight: 19,
+    fontWeight: '600',
+  },
 
   sectionHeader: {
     flexDirection: 'row',

@@ -21,7 +21,7 @@ Anything marked **[DEMO]** is what ships for the hackathon. Anything marked **[R
 
 ## 1. Summary
 
-Collectee is a mobile social platform where gamers turn their in-game skins and cosmetics into a public, cross-game **collection identity**. Players import inventories by uploading screenshots or screen recordings; AI recognises the items and populates their account; players curate those items into published collections and into **Collection Rooms** — themed spaces that replace the standard grid. A recommendation layer connects collectors with similar taste, and an AI-curated news feed keeps players current on releases, patches and meta.
+Collectee is a mobile social platform where gamers turn their in-game skins and cosmetics into a public, cross-game **collection identity**. Players import inventories by uploading screenshots or screen recordings; AI recognises the items and populates their account; players curate those items into published collections and into **Showrooms** — themed spaces that replace the standard grid. A recommendation layer connects collectors with similar taste, and an AI-curated news feed keeps players current on releases, patches and meta.
 
 **Pitch line:** your skins represent hundreds of hours and hundreds of dollars, and they live in a menu no one else ever sees. Collectee is the room you put them in.
 
@@ -63,7 +63,7 @@ Not targeting: traders, resellers, or skin-market investors. See §7.
 | Tracker.gg, Leetify, OP.GG | Performance stats | Stats, not cosmetics |
 | Reddit, YouTube, patch sites | News | Unfiltered, not personalised by what you own |
 
-**The wedge:** nobody serves *cosmetic identity as a social object*, and nobody serves it cross-game. The defensibility is not the scanner (replicable) or the news feed (commoditised) — it is the **published Collection Room plus the social graph built on item overlap**. Priorities in this document follow that.
+**The wedge:** nobody serves *cosmetic identity as a social object*, and nobody serves it cross-game. The defensibility is not the scanner (replicable) or the news feed (commoditised) — it is the **published Showroom plus the social graph built on item overlap**. Priorities in this document follow that.
 
 ---
 
@@ -123,7 +123,7 @@ The brief asks for prototypes that use AI to enable new possibilities for users,
 
 | Brief theme | Collectee feature |
 |---|---|
-| New ways for users to engage with content | Collection Rooms (F4) — cosmetics become a navigable, shareable space instead of a menu |
+| New ways for users to engage with content | Showrooms (F4) — cosmetics become a navigable, shareable space instead of a menu |
 | Safer and more inclusive communities | Trust levels, community flagging and the review queue (§9), plus moderation in F5 |
 | More personalised experiences | Item-overlap collector matching with visible reasons (F5); owned-item-driven news FYP (F6) |
 | Intelligent tools | AI Inventory Scanner (F1) — removes the manual cataloguing barrier entirely |
@@ -151,7 +151,7 @@ Every user may post any item. Each item carries a **trust level** based on how i
 
 | Trust level | How | Treatment |
 |---|---|---|
-| **Verified** | Item read from a connected game account | Badge on item; ranked higher in Explore and feed; **eligible for interactive Collection Rooms (F4)**; verified-only perks (profile frames, priority in Collectors You May Like, verified-only communities) |
+| **Verified** | Item read from a connected game account | Badge on item; ranked higher in Explore and feed; **eligible for interactive Showrooms (F4)**; verified-only perks (profile frames, priority in Collectors You May Like, verified-only communities) |
 | **Unverified** | Self-reported via scan or manual add | No badge; allowed and fully usable; ranked lower in discovery surfaces; community-flaggable |
 
 **Second layer — social proof.** Unverified items can be flagged by other users for:
@@ -163,11 +163,11 @@ Flags do not auto-remove. Threshold behaviour: `n ≥ 3` distinct flags from acc
 
 **Why this is the right answer for the product, not just the deadline:** Collectee is a social app. Making trust a visible social attribute rather than a hidden cryptographic one is consistent with the whole thesis, and it converts verification from a blocking technical dependency into an engagement mechanic.
 
-### 9.4 What Verified unlocks — the Collection Room gate (v0.6)
+### 9.4 What Verified unlocks — the Showroom gate (v0.6)
 
 **Trust level decides which surface an item can live on.**
 
-| Trust level | Normal collection (2D grid) | Interactive Collection Room |
+| Trust level | Normal collection (2D grid) | Interactive Showroom |
 |---|---|---|
 | **Unverified** | ✅ | ❌ |
 | **Verified** | ✅ | ✅ |
@@ -212,7 +212,7 @@ demonstrate the normal-collection path and the upgrade prompt.
 |---|---|---|---|---|
 | J1 | Import inventory | Import Inventory Flow | Upload → Scan → Review → Needs Review → Completion | Bernard |
 | J2 | Create & publish collection | Create & Publish Flow | Details → Select items → Theme → Arrange → Preview details → Preview → Posted → Public page | Bernard |
-| J3 | Collection Room | Collection Room Flow | Select collection → Style → Generate → Edit/adjust → Final preview → Publish details → Room live → Room on profile | Jovan |
+| J3 | Showroom | Showroom Flow | Select collection → Style → Generate → Edit/adjust → Final preview → Publish details → Room live → Room on profile | Jovan |
 | J4 | Discover collectors & communities | Discover Flow | Recommendations → Collection match → Public profile → Featured collection → Comment → Communities → Join | Marcus |
 | J5 | News & gaming updates | News Flow | Updates home → Discover → FYP → Article → AI summary → Following/notifications → Saved | Marcus |
 
@@ -264,7 +264,7 @@ Named, described collections built from owned items; cover art; theme selection;
 
 **A normal collection is the 2D surface** — items listed as artwork in a grid.
 It accepts items at any trust level, which is what makes it the default
-destination after import. The interactive Collection Room (F4) is the other
+destination after import. The interactive Showroom (F4) is the other
 destination and is verified-only (§9.4).
 
 **This flow is not one of the five "AI features" but it is where value is actually created** — the moment an inventory dump becomes an identity. Pitch it as a headline, not plumbing: *AI does the tedious part, the player does the expressive part.* AI assists with suggested groupings and titles; the curation is human and that is the point.
@@ -278,7 +278,14 @@ destination and is verified-only (§9.4).
 
 ---
 
-### F4 — Collection Rooms **[DEMO — the differentiator]**
+### F4 — Showrooms **[DEMO — the differentiator]**
+
+> **Renamed in v0.6.** These were called "Collection Rooms". Sitting next to
+> "Collections" the two read as the same feature, and in the Collections tab —
+> where "Your Collections" and "Your Collection Rooms" appear one above the
+> other — the distinction was doing no work at all. **Showroom** says what the
+> thing is. The Figma group is still labelled "Collection Room Flow"; the code,
+> the copy and this document use Showroom.
 
 Items are placed as cards, statues or wall art inside a themed space rather than a grid. Flow: select collection → choose style → generate → manual adjust → preview → publish → live room.
 
@@ -473,7 +480,7 @@ Only after this merges to `main` does feature work branch out.
 | Person | Scope |
 |---|---|
 | **Bernard** | Import Inventory flow (J1), Create & Publish flow (J2), PRD, AI voiceover for the demo video |
-| **Jovan** | Collection Room flow (J3), foundational base build |
+| **Jovan** | Showroom flow (J3), foundational base build |
 | **Marcus** | Discover Collectors & Communities flow (J4), News flow (J5 — droppable) |
 | **Ray** | Pitch slides, demo video animation |
 
@@ -512,7 +519,7 @@ Phase 2 changes how to treat this document's scope markers. Anything marked **[R
 ### Descope ladder — agree this now, not at 2am on the 6th
 
 1. News flow (J5) → static seeded articles, AI summary on one article only
-2. Collection Room manual-adjust steps → one adjust step instead of two
+2. Showroom manual-adjust steps → one adjust step instead of two
 3. Communities → join/view only, no posting
 4. Scanner video input → screenshots only
 5. Third game → two titles with the third shown as "coming soon"

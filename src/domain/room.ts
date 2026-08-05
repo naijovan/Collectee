@@ -1,5 +1,5 @@
 /**
- * Collection Room logic — PRD §11 F4. Owner: Jovan.
+ * Showroom logic — PRD §11 F4. Owner: Jovan.
  *
  * Slots remain the durable arrangement contract for both renderers: the 2.5D
  * editor maps them to precise drag/drop regions, while the immersive renderer
