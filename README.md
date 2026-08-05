@@ -125,6 +125,67 @@ Run both before you open a PR.
 
 ---
 
+## AI assistant — where the API key goes
+
+The assistant answers questions about your own account (items, verification,
+collections, showrooms, followers) and about how the app works. Reachable from
+the ✦ in the Home header, or `/assistant`.
+
+**It works with no key at all.** Every question about your own state is
+arithmetic over data already in memory, so `domain/assistant.ts` answers those
+locally and instantly — which is what makes it safe to demo on conference wifi
+(§12.1). A key only adds free-form questions the local answerer cannot phrase.
+
+### Adding your key
+
+1. **Get one** — [aistudio.google.com/apikey](https://aistudio.google.com/apikey),
+   "Create API key". The free tier covers the demo.
+2. **Create `.env`** in the repo root:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Paste it in** — this line, in `.env`, nothing else:
+
+   ```
+   EXPO_PUBLIC_GEMINI_API_KEY=AIza...your-key...
+   ```
+
+4. **Restart the dev server.** Expo reads env at bundle time, so a running
+   server will not pick up the change.
+
+`.env` is gitignored (`.env`, `.env.*`, with `.env.example` excepted), so the
+key cannot be committed by accident. Verify with `git check-ignore -v .env`.
+
+The assistant screen shows which mode it is in — `⚙ Offline` or
+`⚡ Gemini connected` — so you always know whether a model is actually running.
+
+### ⚠️ What a client-side key does and does not protect
+
+`EXPO_PUBLIC_*` values are **bundled into the shipped JavaScript** and readable
+by anyone with the app. No obfuscation changes this; it is how client apps work.
+For a free-tier hackathon key the exposure is quota, which is an acceptable
+trade. **Do not put a billed key here.**
+
+If this ever leaves a demo, set `EXPO_PUBLIC_ASSISTANT_PROXY_URL` instead: the
+app calls your endpoint, the endpoint holds the key, and it takes precedence
+over the direct key. That is the only configuration that actually protects one.
+
+### Limits and guardrails
+
+| | |
+|---|---|
+| Rate limit | 8 model calls/minute, 1.5s minimum between calls |
+| Applies to | model calls only — local answers are never limited |
+| Question cap | 400 characters |
+| Timeout | 12s, then it falls back to a local answer |
+| Scope | prompt-injection and credential-fishing patterns are rejected before a request is spent |
+| Context sent | counts, collection names, theme names. **No ids, emails, or tokens** — see `buildContext` in `domain/assistant.ts` |
+
+The context object is the privacy boundary: whatever is in it is what leaves the
+device. It is deliberately narrow, and adding a field is a decision to send it.
+
 ## The rules that stop merge day becoming a rewrite
 
 1. **Screens never import from `@/fixtures`.** Go through `@/services`. Every service method returns

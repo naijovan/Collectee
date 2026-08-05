@@ -181,6 +181,17 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.headerActions}>
+          {/* The assistant sits in the header rather than a tab: it answers
+              questions ABOUT the app, so it belongs beside the account controls
+              rather than competing with the five destinations. */}
+          <Pressable
+            accessibilityLabel="Ask the assistant"
+            onPress={() => router.push('/assistant')}
+            hitSlop={8}
+            style={styles.bell}
+          >
+            <Text style={styles.bellGlyph}>✦</Text>
+          </Pressable>
           <Pressable onPress={() => router.push('/news')} hitSlop={8} style={styles.bell}>
             <Text style={styles.bellGlyph}>◔</Text>
             {unreadNotifications > 0 ? <View style={styles.unreadDot} /> : null}

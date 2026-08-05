@@ -31,7 +31,11 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+# ALL of them, not just *.local — a plain `.env` holding a proxy secret was
+# committable before this line existed.
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo

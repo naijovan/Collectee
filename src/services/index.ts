@@ -60,3 +60,6 @@ export {
   type ThreadView,
 } from './threadService';
 export { delay, delayWithProgress, LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT } from './latency';
+
+export { assistantService } from './assistantService';
+export type { AssistantMode } from './assistantService';

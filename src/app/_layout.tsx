@@ -89,6 +89,7 @@ export default function RootLayout() {
         {/* Header matches the "Reports" link that leads here — a viewer should
             not have to learn that "queue" and "reports" are the same place. */}
         <Stack.Screen name="moderation" options={{ title: 'Reports' }} />
+        <Stack.Screen name="assistant" options={{ title: 'Assistant' }} />
         <Stack.Screen name="diagnostics" options={{ title: 'Foundation checks' }} />
 
         {/* Dynamic routes need an explicit title or the header prints "room/[id]". */}
