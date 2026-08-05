@@ -26,6 +26,7 @@ import {
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
 import { suggestRoom } from '@/domain/roomSuggestion';
+import type { CollectionSuggestion } from '@/domain/collections';
 import type { RoomSuggestion } from '@/domain/roomSuggestion';
 import { roomEligibilityFor } from '@/domain/roomEligibility';
 import type { RoomEligibility } from '@/domain/roomEligibility';
@@ -39,6 +40,24 @@ import type { Collection, Item } from '@/types';
 /** §14 rung: "Has room" is the filter that makes J3 discoverable from J2. */
 const FILTERS = ['All', 'Public', 'Private', 'Has room'] as const;
 type Filter = (typeof FILTERS)[number];
+
+/**
+ * A suggested grouping, with the room it would become.
+ *
+ * Two engines compose here and neither duplicates the other:
+ *   `collectionService.suggest`  which of your items belong together, and why
+ *   `suggestRoom`                which room style suits that group, and why
+ *
+ * The gate then decides whether it can be a room at all (§9.4) — a group of
+ * unverified items is still a good grouping, it just becomes a 2D collection.
+ * Saying that is more useful than filtering it out silently.
+ */
+interface SuggestedGroup {
+  suggestion: CollectionSuggestion;
+  themeName: string | null;
+  themeReason: string | null;
+  eligibility: RoomEligibility;
+}
 
 interface Entry {
   collection: Collection;
@@ -59,6 +78,10 @@ export default function CollectionsScreen() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [rooms, setRooms] = useState<ReadonlyMap<string, RoomStatus>>(new Map());
   const [filter, setFilter] = useState<Filter>('All');
+  const [ideas, setIdeas] = useState<SuggestedGroup[]>([]);
+
+  /** Collections that already have a published room — the rooms section. */
+  const builtRooms = entries.filter((entry) => rooms.get(entry.collection.id)?.published);
   const [progress, setProgress] = useState<SetProgress[]>([]);
   const [busy, setBusy] = useState(true);
 
@@ -85,6 +108,26 @@ export default function CollectionsScreen() {
     // One pass for every card's room CTA, rather than a fetch per card.
     setRooms(await roomService.statusByCollection());
     setProgress(await collectionService.setProgressFor(owned));
+
+    // Groupings the user has NOT made yet. Anything already collected is
+    // dropped — suggesting a set someone built last week is noise.
+    const existing = new Set(mine.map((c) => c.itemIds.slice().sort().join('|')));
+    const raw = await collectionService.suggest(owned);
+    const composed = await Promise.all(
+      raw
+        .filter((idea) => !existing.has(idea.itemIds.slice().sort().join('|')))
+        .map(async (idea) => {
+          const items = await catalogueService.getItems(idea.itemIds);
+          const room = suggestRoom(items, themes);
+          return {
+            suggestion: idea,
+            themeName: room?.theme.name ?? null,
+            themeReason: room?.reason ?? null,
+            eligibility: roomEligibilityFor(idea.itemIds, owned),
+          };
+        }),
+    );
+    setIdeas(composed);
     setBusy(false);
   }, [viewerId]);
 
@@ -106,13 +149,25 @@ export default function CollectionsScreen() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Collections</Text>
-        <Text style={styles.muted}>{inventory.length} items owned</Text>
+        <View style={styles.rowBody}>
+          <Text style={styles.title}>Collections</Text>
+          <Text style={styles.muted}>{inventory.length} items owned</Text>
+        </View>
+        {/* Create is a persistent affordance, not a banner — it should not push
+            the content down every time the page loads. */}
+        <Pressable
+          accessibilityLabel="Create a collection"
+          hitSlop={10}
+          onPress={() => router.push('/collection/new')}
+          style={styles.createButton}
+        >
+          <Text style={styles.createGlyph}>+</Text>
+        </Pressable>
       </View>
 
       <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
 
-      <PrimaryButton label="+  Create a collection" onPress={() => router.push('/collection/new')} />
+      <SectionHeader title="Your Collections" />
 
       {busy ? (
         <LoadingState height={220} />
@@ -158,6 +213,77 @@ export default function CollectionsScreen() {
           Completionist persona) but it is not this screen's job — Collections is
           the grid, per the frame. It moves to the collection detail page rather
           than being deleted; `setProgressFor` is untouched. */}
+
+      {/* ── Your Collection Rooms ───────────────────────────────────── */}
+      <View>
+        <SectionHeader title="Your Collection Rooms" />
+        {builtRooms.length === 0 ? (
+          <Text style={styles.muted}>
+            No rooms yet. A room is the interactive version of a collection — build one from
+            any collection with 3 or more verified items.
+          </Text>
+        ) : (
+          <View style={styles.grid}>
+            {builtRooms.map((entry) => (
+              <Pressable
+                key={entry.collection.id}
+                style={styles.gridItem}
+                onPress={() =>
+                  router.push({
+                    pathname: '/room/immersive/[id]',
+                    params: { id: rooms.get(entry.collection.id)!.room.id },
+                  })
+                }
+              >
+                <CollectionCard
+                  collection={entry.collection}
+                  owner={viewer}
+                  headline={entry.headline}
+                />
+                <Text style={styles.visibility}>Interactive room ›</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* ── Suggestions ─────────────────────────────────────────────── */}
+      {ideas.length > 0 ? (
+        <View>
+          <SectionHeader title="Suggestions" />
+          <Text style={styles.muted}>
+            Groupings we found in your inventory. Each one can become a 2D collection; the
+            verified ones can become a room.
+          </Text>
+          <View style={styles.ideaList}>
+            {ideas.map((idea) => (
+              <Pressable
+                key={idea.suggestion.name}
+                style={styles.ideaCard}
+                onPress={() => router.push('/collection/new')}
+              >
+                <View style={styles.ideaHead}>
+                  <Text style={styles.ideaSpark}>✦</Text>
+                  <Text style={styles.rowTitle}>{idea.suggestion.name}</Text>
+                  <Text style={styles.muted}>{idea.suggestion.itemIds.length} items</Text>
+                </View>
+                <Text style={styles.muted}>{idea.suggestion.reason}</Text>
+
+                {/* §9.4 decides which of the two things this can become, and
+                    says so — a suggestion the user cannot act on is worse than
+                    no suggestion. */}
+                {idea.eligibility.eligible && idea.themeName ? (
+                  <Text style={styles.ideaRoom}>
+                    ⌂ Could be a {idea.themeName} room · {idea.themeReason}
+                  </Text>
+                ) : (
+                  <Text style={styles.ideaBlocked}>⚿ 2D collection · {idea.eligibility.reason}</Text>
+                )}
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
@@ -279,13 +405,37 @@ function RoomCta({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.lg },
-  header: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  rowBody: { flex: 1, minWidth: 0, gap: 2 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, justifyContent: 'space-between' },
+  createButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
+  createGlyph: { color: colors.textOnAccent, fontSize: 26, lineHeight: 28, fontWeight: '600' },
   title: { ...typography.screenTitle, color: colors.textPrimary },
   muted: { ...typography.meta, color: colors.textSecondary },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
   gridItem: { width: '48%', gap: spacing.xs },
   visibility: { ...typography.meta, color: colors.textTertiary, paddingLeft: spacing.xs },
+
+  ideaList: { gap: spacing.sm },
+  ideaCard: {
+    gap: spacing.xs,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  ideaHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  ideaSpark: { ...typography.meta, color: colors.accent },
+  ideaRoom: { ...typography.meta, color: colors.accent },
+  ideaBlocked: { ...typography.meta, color: colors.textTertiary },
   // Per the frame: a full-width accent-outlined pill inside the card, label
   // centred with its glyph. Same shape whichever state it is in, so a row of
   // cards reads as one control repeated rather than three different buttons.
