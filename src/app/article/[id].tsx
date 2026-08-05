@@ -26,6 +26,7 @@ import { newsService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
+import type { SummaryResult } from '@/services';
 import type { Article } from '@/types';
 
 export default function ArticleScreen() {
@@ -35,7 +36,7 @@ export default function ArticleScreen() {
   const scrollRef = useTopOnFocus();
 
   const [article, setArticle] = useState<Article | null>(null);
-  const [summary, setSummary] = useState<string[] | null>(null);
+  const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [summarising, setSummarising] = useState(false);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(true);
@@ -107,15 +108,22 @@ export default function ArticleScreen() {
 
       {summary ? (
         <View style={styles.summaryCard}>
-          {summary.map((line) => (
+          {summary.bullets.map((line) => (
             <Text key={line} style={styles.bullet}>
               • {line}
             </Text>
           ))}
+          {/*
+            The label follows what actually happened on THIS call, not what the
+            flag hoped for. With the flag on, a timeout or an unreachable
+            endpoint falls back to the prepared summary — and says so, rather
+            than claiming a model ran (§12.1: do not imply a model is running
+            when it is not).
+          */}
           <Text style={styles.footnote}>
-            {FEATURES.liveSummarisation
-              ? 'Generated live by a text model.'
-              : 'Prepared summary — no model call runs in this build (§12.1).'}
+            {summary.live
+              ? 'Summarised by Claude.'
+              : 'Prepared summary — no model call ran (§12.1).'}
           </Text>
         </View>
       ) : null}

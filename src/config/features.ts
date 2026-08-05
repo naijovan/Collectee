@@ -53,6 +53,20 @@ export const FEATURES = {
    */
   liveSummarisation: false,
 
+  /**
+   * §12.1 — the in-app assistant's model path, on the same proxy as
+   * `liveSummarisation` and the same key.
+   *
+   * FALSE IS A COMPLETE FEATURE, not a disabled one. The assistant answers from
+   * `domain/assistant` either way, and most questions about your own account are
+   * arithmetic over data already in memory — 25 of 27 test questions never touch
+   * a model. This flag only decides whether the questions the snapshot cannot
+   * answer get phrased by a model or answered with an honest "I don't have that".
+   *
+   * Nothing AI-powered ships unflagged, and the reply says which path answered.
+   */
+  assistantChat: false,
+
   /** [ROADMAP] §11 F2 — Collection Insights. Build only if all four flows land early. */
   collectionInsights: false,
 

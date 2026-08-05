@@ -207,6 +207,24 @@ export interface Article {
   publishedAt: IsoDateString;
 }
 
+/**
+ * The seeded "What's happening in <game>" digest (§11 F6).
+ *
+ * Every game has one, always. When the live digest runs it replaces these
+ * bullets for that render; when it does not — flag off, no endpoint, timeout,
+ * refusal — these are what the card shows, and the label says which it is.
+ * The card is never empty and never lies about where its text came from.
+ *
+ * `sourceArticleIds` is not decoration: it is the claim that these bullets are
+ * supported by seeded articles, and `validate-fixtures` enforces it.
+ */
+export interface GameDigest {
+  title: GameTitle;
+  bullets: string[];
+  /** Articles these bullets are drawn from. Must be that game's articles. */
+  sourceArticleIds: string[];
+}
+
 export interface SavedArticle {
   userId: string;
   articleId: string;
