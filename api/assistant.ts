@@ -11,9 +11,9 @@
  * their key handling, their CORS, their timeout contract and their
  * prompt-injection fencing. `mode` is the whole difference.
  *
- * ⚠️ The file is still named for the first capability it had. Renaming it is
- * free until the first deploy and costs a redeploy plus an env edit afterwards
- * — decide before going live, not after.
+ * The deployed path is therefore `/api/assistant`, and the client points at it
+ * with `EXPO_PUBLIC_AI_PROXY_URL`. Renaming this file changes a live URL once
+ * it is deployed, so it is not a free edit any more.
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
  * │  THE API KEY LIVES HERE AND NOWHERE ELSE.                           │

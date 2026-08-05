@@ -14,7 +14,7 @@
  * `EXPO_PUBLIC_*` value is inlined into the shipped JavaScript where anyone with
  * the app can read it. That was an accepted trade for a free-tier key; it is not
  * one for a billed Anthropic key. The key lives in the serverless function's
- * environment and the client only ever knows a URL — see `api/summarise.ts`.
+ * environment and the client only ever knows a URL — see `api/assistant.ts`.
  *
  * ── Local answers are tried FIRST, in both modes ──────────────────────────
  * Most questions about the user's own account are arithmetic over data already
@@ -56,7 +56,7 @@ export type AssistantMode = 'offline' | 'live';
  * use, because it is the same function with a different `mode`. One URL to
  * configure, one deploy to get right.
  */
-const AI_PROXY_URL = process.env.EXPO_PUBLIC_SUMMARY_PROXY_URL ?? '';
+const AI_PROXY_URL = process.env.EXPO_PUBLIC_AI_PROXY_URL ?? '';
 
 /** Requests allowed per rolling window, and the window. Deliberately tight. */
 const RATE_LIMIT = { requests: 8, windowMs: 60_000 };
@@ -309,7 +309,7 @@ export const assistantService = {
  * with a sentence telling them what the assistant CAN answer.
  *
  * The prompt, the grounding rule and the injection fencing all live on the
- * server (`api/summarise.ts`), where a client edit cannot reach them.
+ * server (`api/assistant.ts`), where a client edit cannot reach them.
  */
 async function callChat(
   question: string,

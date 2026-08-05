@@ -70,15 +70,15 @@ function followedTopicsFor(userId: string): FollowedTopic[] {
 }
 
 /**
- * The deployed `/api/summarise` endpoint (§12.1). Blank = the feature is off,
+ * The deployed `/api/assistant` endpoint (§12.1). Blank = the feature is off,
  * whatever `FEATURES.liveSummarisation` says.
  *
  * The Anthropic key is NOT here and must never be: `EXPO_PUBLIC_*` values are
  * bundled into the shipped JavaScript, the key is billed, and the repo's own
  * env template says not to. The key lives in the serverless function's
- * environment — see `api/summarise.ts`.
+ * environment — see `api/assistant.ts`.
  */
-const SUMMARY_PROXY_URL = process.env.EXPO_PUBLIC_SUMMARY_PROXY_URL ?? '';
+const AI_PROXY_URL = process.env.EXPO_PUBLIC_AI_PROXY_URL ?? '';
 
 /**
  * Abandon the call after this long.
@@ -124,7 +124,7 @@ async function callProxy(body: unknown): Promise<string[] | null> {
   const timeout = setTimeout(() => controller.abort(), SUMMARY_TIMEOUT_MS);
 
   try {
-    const response = await fetch(SUMMARY_PROXY_URL, {
+    const response = await fetch(AI_PROXY_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
@@ -150,7 +150,7 @@ async function callProxy(body: unknown): Promise<string[] | null> {
 
 /** True when the live path is both switched on and pointed somewhere. */
 function liveEnabled(): boolean {
-  return FEATURES.liveSummarisation && SUMMARY_PROXY_URL.length > 0;
+  return FEATURES.liveSummarisation && AI_PROXY_URL.length > 0;
 }
 
 // Only the title and the seeded summary are sent. Collectee never holds full
