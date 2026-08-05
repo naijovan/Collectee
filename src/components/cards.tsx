@@ -205,18 +205,21 @@ export function CollectionCard({
       </View>
 
       <View style={styles.collectionBody}>
+        {/* Title first. The collection is what the card is about; the creator is
+            attribution, and attribution reads better under the thing it
+            attributes than above it. */}
+        <Text style={styles.collectionName} numberOfLines={1}>
+          {collection.name}
+        </Text>
+
         {owner ? (
           <View style={styles.ownerRow}>
-            <Avatar name={owner.displayName} verified={owner.isAccountVerified} size={20} />
+            <Avatar name={owner.displayName} verified={owner.isAccountVerified} size={18} />
             <Text style={styles.ownerName} numberOfLines={1}>
               {owner.displayName}
             </Text>
           </View>
         ) : null}
-
-        <Text style={styles.collectionName} numberOfLines={1}>
-          {collection.name}
-        </Text>
 
         <View style={styles.likeRow}>
           <Text style={styles.like}>♥ {collection.likeCount.toLocaleString()}</Text>
@@ -368,7 +371,15 @@ const styles = StyleSheet.create({
   collectionBody: { padding: spacing.md, gap: spacing.xs },
   ownerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   ownerName: { ...typography.meta, color: colors.textSecondary, flexShrink: 1 },
-  collectionName: { ...typography.cardTitle, color: colors.textPrimary },
+  // Bigger and heavier than cardTitle: on a browse grid the collection name is
+  // the thing being chosen between, so it should win the card outright rather
+  // than tie with the counts underneath it.
+  collectionName: {
+    ...typography.sectionHeader,
+    fontSize: 18,
+    lineHeight: 24,
+    color: colors.textPrimary,
+  },
   likeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   like: { ...typography.meta, color: colors.danger },
 
