@@ -26,7 +26,11 @@ import {
   SectionHeader,
 } from '@/components';
 import { headlineItem } from '@/domain/collections';
-import { compareByDerivedTrust } from '@/domain/trust';
+import {
+  compareByDerivedTrust,
+  FLAG_REASON_DESCRIPTIONS,
+  FLAG_REASON_LABELS,
+} from '@/domain/trust';
 import type { DerivedTrust } from '@/domain/trust';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
@@ -40,7 +44,7 @@ import type { CollectorRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
-import type { Collection, Item, User } from '@/types';
+import type { Collection, FlagReason, Item, User } from '@/types';
 
 export default function CollectorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -55,6 +59,9 @@ export default function CollectorScreen() {
     { collection: Collection; headline: Item | null; trust: DerivedTrust }[]
   >([]);
   const [following, setFollowing] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [reported, setReported] = useState(false);
   const [busy, setBusy] = useState(true);
 
   const load = useCallback(async () => {
@@ -89,6 +96,7 @@ export default function CollectorScreen() {
     setMatch(pairwise);
     setCollections(withArt);
     setFollowing(socialService.isFollowing(viewerId, id));
+    setBlocked(socialService.isBlocked(viewerId, id));
     setBusy(false);
   }, [id, viewerId]);
 
@@ -98,6 +106,32 @@ export default function CollectorScreen() {
 
   async function toggleFollow() {
     setFollowing(await socialService.toggleFollow(viewerId, id));
+  }
+
+  async function toggleBlock() {
+    if (blocked) {
+      await socialService.unblockUser(viewerId, id);
+      setBlocked(false);
+      return;
+    }
+    // Blocking implies unfollowing — staying subscribed to someone whose
+    // content you have hidden is a state with no coherent meaning.
+    await socialService.blockUser(viewerId, id);
+    if (socialService.isFollowing(viewerId, id)) {
+      setFollowing(await socialService.toggleFollow(viewerId, id));
+    }
+    setBlocked(true);
+  }
+
+  async function report(reason: FlagReason) {
+    await socialService.raiseFlag({
+      targetType: 'user',
+      targetId: id,
+      reporterId: viewerId,
+      reason,
+    });
+    setReporting(false);
+    setReported(true);
   }
 
   if (busy) {
@@ -130,11 +164,54 @@ export default function CollectorScreen() {
 
       {viewerId === user.id ? (
         <SecondaryButton label="This is you" />
+      ) : blocked ? (
+        <SecondaryButton label="Blocked — unblock" onPress={() => void toggleBlock()} />
       ) : following ? (
         <SecondaryButton label="Following" onPress={() => void toggleFollow()} />
       ) : (
         <PrimaryButton label="Follow" onPress={() => void toggleFollow()} />
       )}
+
+      {/* §11 F5 moderation. Block is private and silent; reporting is public and queued. */}
+      {viewerId === user.id ? null : (
+        <View style={styles.modRow}>
+          {blocked ? null : (
+            <Pressable onPress={() => void toggleBlock()} hitSlop={8}>
+              <Text style={styles.modLink}>Block</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={() => setReporting((prev) => !prev)} hitSlop={8}>
+            <Text style={styles.modLink}>{reported ? 'Reported' : 'Report account'}</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {blocked ? (
+        <Text style={styles.footnote}>
+          You&apos;ve blocked {user.displayName}. Their comments are hidden from you and they no
+          longer appear in your recommendations. Nobody is notified, and nothing changes for anyone
+          else.
+        </Text>
+      ) : null}
+
+      {reporting ? (
+        <View style={styles.reportPanel}>
+          <Text style={styles.rowTitle}>Report {user.displayName}</Text>
+          <Text style={styles.muted}>
+            A report is a claim, not a takedown. It joins the same review queue as item disputes and
+            removes nothing on its own (§9.2).
+          </Text>
+          {(['identity_impersonation', 'abusive_content', 'spam'] as const).map((reason) => (
+            <Pressable key={reason} style={styles.reportReason} onPress={() => void report(reason)}>
+              <Text style={styles.rowTitle}>{FLAG_REASON_LABELS[reason]}</Text>
+              <Text style={styles.muted}>{FLAG_REASON_DESCRIPTIONS[reason]}</Text>
+            </Pressable>
+          ))}
+          <Pressable onPress={() => setReporting(false)} style={styles.cancel}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* The collection-match screen from the J4 flow map, inlined. */}
       {match ? (
@@ -220,4 +297,23 @@ const styles = StyleSheet.create({
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
   collectionCell: { width: '48%', gap: spacing.xs },
   underReview: { ...typography.meta, color: colors.warning, paddingLeft: spacing.xs },
+
+  modRow: { flexDirection: 'row', gap: spacing.xl, justifyContent: 'center' },
+  modLink: { ...typography.meta, color: colors.textTertiary },
+  reportPanel: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  reportReason: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    gap: 2,
+  },
+  cancel: { alignItems: 'center', paddingVertical: spacing.sm },
+  cancelText: { ...typography.cardTitle, color: colors.textSecondary },
 });

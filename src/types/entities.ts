@@ -135,13 +135,42 @@ export interface CommunityMembership {
   notificationPref: CommunityNotificationPref;
 }
 
+/**
+ * A discussion inside a community (§11 F5).
+ *
+ * Threads are where the social half of communities actually happens — showing
+ * off a pull, arguing about a patch, finding people to play with. §14 rung 3
+ * gates POSTING behind `FEATURES.communityPosting`; reading is never gated, so
+ * a descoped build still shows seeded conversations.
+ *
+ * Replies are NOT modelled here. A reply is a `Comment` with
+ * `targetType: 'thread'` and `targetId` set to the thread — see `TargetType`
+ * for why.
+ */
+export interface CommunityThread {
+  id: string;
+  communityId: string;
+  /** Author. */
+  userId: string;
+  title: string;
+  body: string;
+  /** Pinned threads sort above everything else — rules, welcomes, event posts. */
+  pinned: boolean;
+  createdAt: IsoDateString;
+}
+
 export interface Comment {
   id: string;
+  /** `'thread'` when this is a reply in a community discussion. */
   targetType: TargetType;
   targetId: string;
   userId: string;
   body: string;
-  /** Null for a top-level comment. */
+  /**
+   * Null for a top-level comment — or, on a thread, for a direct reply to the
+   * thread itself. One level of nesting only (§11 F5 scope): a reply may point
+   * at another reply, but nothing points at that.
+   */
   parentId: string | null;
   likeCount: number;
   createdAt: IsoDateString;

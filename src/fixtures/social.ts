@@ -179,6 +179,36 @@ export const FLAGS = [
     status: 'open',
     createdAt: '2026-07-23T12:30:00.000Z',
   },
+
+  /**
+   * Content reports on a thread reply (§11 F5, §8.2). Two reporters, which
+   * crosses CONTENT_REPORT_THRESHOLD — content reports need fewer reporters and
+   * no eligibility test, because requiring verified items to report harassment
+   * would gate safety behind a partnership that does not exist (§9.3).
+   *
+   * Note the second reporter: Nadia owns nothing verified, so her ownership
+   * flags do not count at all (see flag-6 above, which is why that item stays
+   * below its threshold). Here she counts. That contrast IS the two-tier rule,
+   * demonstrable in the seeded data without touching anything.
+   */
+  {
+    id: 'flag-7',
+    targetType: 'comment',
+    targetId: 'cmt-thr-lod-3',
+    reporterId: 'user-danish',
+    reason: 'spam',
+    status: 'open',
+    createdAt: '2026-08-01T06:40:00.000Z',
+  },
+  {
+    id: 'flag-8',
+    targetType: 'comment',
+    targetId: 'cmt-thr-lod-3',
+    reporterId: 'user-nadia',
+    reason: 'abusive_content',
+    status: 'open',
+    createdAt: '2026-08-01T07:15:00.000Z',
+  },
 ] as const satisfies readonly Flag[];
 
 export const FOLLOWED_TOPICS = [
