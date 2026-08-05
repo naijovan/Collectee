@@ -16,8 +16,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ItemArt, LoadingState, PrimaryButton, SecondaryButton } from '@/components';
 import { headlineItem } from '@/domain/collections';
+import { roomEligibilityFor } from '@/domain/roomEligibility';
+import type { RoomEligibility } from '@/domain/roomEligibility';
 import { rarityLabelFor } from '@/domain/rarity';
-import { catalogueService, collectionService } from '@/services';
+import { catalogueService, collectionService, inventoryService } from '@/services';
 import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Collection, Item, RarityTier } from '@/types';
@@ -34,6 +36,7 @@ export default function RoomIntroScreen() {
 
   const [collection, setCollection] = useState<Collection | null>(null);
   const [items, setItems] = useState<Item[]>([]);
+  const [gate, setGate] = useState<RoomEligibility | null>(null);
   const [busy, setBusy] = useState(true);
 
   useEffect(() => {
@@ -41,9 +44,11 @@ export default function RoomIntroScreen() {
     async function load() {
       const found = await collectionService.getCollection(collectionId);
       const contents = found ? await catalogueService.getItemsSorted(found.itemIds) : [];
+      const owned = found ? await inventoryService.getOwnedItems(found.userId) : [];
       if (cancelled) return;
       setCollection(found);
       setItems(contents);
+      setGate(found ? roomEligibilityFor(found.itemIds, owned) : null);
       setBusy(false);
     }
     void load();
@@ -115,12 +120,29 @@ export default function RoomIntroScreen() {
         </Text>
       </View>
 
-      <PrimaryButton
-        label="Choose room style"
-        onPress={() =>
-          router.replace({ pathname: '/room/new', params: { collectionId: collection.id } })
-        }
-      />
+      {/* §9.4 — the gate is checked here as well as in room/new. Two entry
+          points, one rule; a gate enforced on only one path is not a gate. */}
+      {gate && !gate.eligible ? (
+        <View style={styles.gateCard}>
+          <Text style={styles.previewTitle}>⚿  Rooms are verified-only</Text>
+          <Text style={styles.signalDetail}>{gate.reason}</Text>
+          <Text style={styles.footnote}>
+            {collection.name} stays available as a 2D collection — every item in it is
+            still listed, shareable and counted toward sets.
+          </Text>
+          <PrimaryButton
+            label="Connect a game account"
+            onPress={() => router.push('/link-account')}
+          />
+        </View>
+      ) : (
+        <PrimaryButton
+          label="Choose room style"
+          onPress={() =>
+            router.replace({ pathname: '/room/new', params: { collectionId: collection.id } })
+          }
+        />
+      )}
       <SecondaryButton label="Cancel" onPress={() => router.back()} />
 
       <Text style={styles.footnote}>
@@ -217,6 +239,14 @@ const styles = StyleSheet.create({
   signalLabel: { ...typography.cardTitle, color: colors.textPrimary },
   signalDetail: { ...typography.meta, color: colors.textSecondary },
 
+  gateCard: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   preview: {
     alignItems: 'center',
     gap: spacing.xs,

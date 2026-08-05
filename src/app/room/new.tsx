@@ -53,6 +53,8 @@ import {
 import { backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { ROOM_STEPS, VISIBILITY_DESCRIPTIONS, VISIBILITY_LABELS } from '@/domain/collections';
+import { roomEligibility } from '@/domain/roomEligibility';
+import type { RoomEligibility } from '@/domain/roomEligibility';
 import {
   ROOM_STAGES,
   catalogueService,
@@ -97,6 +99,7 @@ export default function CreateRoomScreen() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collection, setCollection] = useState<Collection | null>(null);
   const [owned, setOwned] = useState<OwnedItem[]>([]);
+  const [gate, setGate] = useState<RoomEligibility | null>(null);
   const [itemsByOwnedId, setItemsByOwnedId] = useState<ReadonlyMap<string, Item>>(new Map());
 
   const [themes, setThemes] = useState<RoomTheme[]>([]);
@@ -154,7 +157,16 @@ export default function CreateRoomScreen() {
     async function load() {
       const found = await collectionService.getCollection(collectionId!);
       const all = await inventoryService.getOwnedItems(viewerId);
-      const inCollection = all.filter((entry) => found?.itemIds.includes(entry.itemId));
+      const everythingInCollection = all.filter((entry) =>
+        found?.itemIds.includes(entry.itemId),
+      );
+
+      // §9.4 — rooms are verified-only, and the filter belongs HERE rather than
+      // at the point of placement. Everything downstream (recommendation,
+      // auto-place, the tray, the overflow count) reads `owned`, so gating once
+      // at the source means no later surface can leak an unverified item in.
+      const gate = roomEligibility(everythingInCollection);
+      const inCollection = gate.eligibleItems;
       const catalogue = await catalogueService.getItems(inCollection.map((o) => o.itemId));
       const byItemId = new Map(catalogue.map((item) => [item.id, item]));
       const pick = await roomService.recommendTheme(inCollection);
@@ -162,6 +174,7 @@ export default function CreateRoomScreen() {
       if (cancelled) return;
       setCollection(found);
       setOwned(inCollection);
+      setGate(gate);
       setItemsByOwnedId(
         new Map(
           inCollection
@@ -528,9 +541,29 @@ export default function CreateRoomScreen() {
 
           <PrimaryButton
             label="Generate my room"
-            disabled={!themeId || owned.length === 0}
+            disabled={!themeId || owned.length === 0 || (gate !== null && !gate.eligible)}
             onPress={() => void generate()}
           />
+          {gate && !gate.eligible ? (
+            <View style={styles.gateCard}>
+              <Text style={styles.gateTitle}>⚿  Rooms are verified-only</Text>
+              <Text style={styles.body}>{gate.reason}</Text>
+              <Text style={styles.footnote}>
+                Unverified items stay fully usable — they just live in the 2D collection
+                instead of the room.
+              </Text>
+              <SecondaryButton
+                label="Connect a game account"
+                onPress={() => router.push('/link-account')}
+              />
+            </View>
+          ) : gate && gate.blockedItems.length > 0 ? (
+            <Text style={styles.footnote}>
+              ⚿ {gate.eligibleItems.length} verified items will be placed ·{' '}
+              {gate.blockedItems.length} unverified stay in the 2D collection
+            </Text>
+          ) : null}
+
           {owned.length === 0 ? (
             <Text style={styles.warn}>
               You do not own any items in this collection, so there is nothing to place.
@@ -1101,6 +1134,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
+  gateCard: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  gateTitle: { ...typography.cardTitle, color: colors.textPrimary },
+
   selectedSummary: {
     backgroundColor: colors.surface,
     borderWidth: 1,

@@ -27,6 +27,8 @@ import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
 import { suggestRoom } from '@/domain/roomSuggestion';
 import type { RoomSuggestion } from '@/domain/roomSuggestion';
+import { roomEligibilityFor } from '@/domain/roomEligibility';
+import type { RoomEligibility } from '@/domain/roomEligibility';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, inventoryService, roomService } from '@/services';
 import type { RoomStatus } from '@/services';
@@ -43,6 +45,8 @@ interface Entry {
   headline: Item | null;
   /** The room this collection would get if the user asked for one. */
   suggestion: RoomSuggestion | null;
+  /** §9.4 — whether its verified items can fill a room, and why not if they cannot. */
+  eligibility: RoomEligibility;
 }
 
 export default function CollectionsScreen() {
@@ -61,6 +65,7 @@ export default function CollectionsScreen() {
   const load = useCallback(async () => {
     const mine = await collectionService.getCollectionsByUser(viewerId, true);
     const themes = await roomService.getThemes();
+    const owned = await inventoryService.getOwnedItems(viewerId);
     const withArt = await Promise.all(
       mine.map(async (collection) => {
         const items = await catalogueService.getItems(collection.itemIds);
@@ -70,10 +75,12 @@ export default function CollectionsScreen() {
           // Scored from the collection's own contents — colour, rarity, title
           // mix and item form. Pure logic, so it costs nothing to do per card.
           suggestion: suggestRoom(items, themes),
+          // Gated on THIS collection's verified items, not the whole inventory,
+          // or every card would claim eligibility on items it does not hold.
+          eligibility: roomEligibilityFor(collection.itemIds, owned),
         };
       }),
     );
-    const owned = await inventoryService.getOwnedItems(viewerId);
     setEntries(withArt);
     // One pass for every card's room CTA, rather than a fetch per card.
     setRooms(await roomService.statusByCollection());
@@ -140,6 +147,7 @@ export default function CollectionsScreen() {
                   status={rooms.get(entry.collection.id)}
                   collectionId={entry.collection.id}
                   suggestion={entry.suggestion}
+                  eligibility={entry.eligibility}
                 />
               </View>
             ))}
@@ -183,11 +191,14 @@ function RoomCta({
   status,
   collectionId,
   suggestion,
+  eligibility,
 }: {
   status: RoomStatus | undefined;
   collectionId: string;
   /** The room this collection would get, from `domain/roomSuggestion`. */
   suggestion?: RoomSuggestion | null;
+  /** §9.4 gate. Absent means "do not gate" — only the published branch skips it. */
+  eligibility?: RoomEligibility;
 }) {
   const router = useRouter();
 
@@ -217,6 +228,27 @@ function RoomCta({
     );
   }
 
+  // §9.4 — rooms are verified-only. This must say WHY and what to do about it:
+  // "an empty picker with no explanation is the worst version of this rule."
+  if (eligibility && !eligibility.eligible) {
+    return (
+      <>
+        <View style={styles.suggestRow}>
+          <Text style={styles.lockGlyph}>⚿</Text>
+          <Text style={styles.suggestText} numberOfLines={3}>
+            {eligibility.reason}
+          </Text>
+        </View>
+        <Pressable
+          style={[styles.roomCta, styles.roomCtaMuted]}
+          onPress={() => router.push('/link-account')}
+        >
+          <Text style={styles.roomCtaPending}>Connect a game account</Text>
+        </Pressable>
+      </>
+    );
+  }
+
   // No room yet — lead with what the app would build, not a bare CTA. The
   // suggestion is the feature (§11 F4); the button is how you accept it.
   return (
@@ -224,8 +256,9 @@ function RoomCta({
       {suggestion ? (
         <View style={styles.suggestRow}>
           <Text style={styles.suggestSpark}>✦</Text>
-          <Text style={styles.suggestText} numberOfLines={2}>
+          <Text style={styles.suggestText} numberOfLines={3}>
             {suggestion.theme.name} · {suggestion.reason}
+            {eligibility ? `\n${eligibility.reason}` : ''}
           </Text>
         </View>
       ) : null}
@@ -233,8 +266,10 @@ function RoomCta({
         style={styles.roomCta}
         onPress={() => router.push({ pathname: '/room/intro', params: { collectionId } })}
       >
-        <Text style={styles.roomCtaText}>
-          {suggestion ? `Create ${suggestion.theme.name} room` : '+  Create room'}
+        {/* The theme name is already on the line above; repeating it here
+            overflowed the pill on a half-width card. */}
+        <Text style={styles.roomCtaText} numberOfLines={1}>
+          {suggestion ? '✦  Create this room' : '+  Create room'}
         </Text>
       </Pressable>
     </>
@@ -273,6 +308,7 @@ const styles = StyleSheet.create({
   /** The suggested-room line above the CTA. */
   suggestRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.xs },
   suggestSpark: { ...typography.meta, color: colors.accent },
+  lockGlyph: { ...typography.meta, color: colors.textTertiary },
   suggestText: { ...typography.meta, color: colors.textSecondary, flex: 1, minWidth: 0 },
 
   progressList: { gap: spacing.sm },
