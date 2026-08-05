@@ -38,7 +38,12 @@ export {
   IMAGE_MIME_TYPES,
   MAX_IMAGE_BYTES,
 } from './mediaService';
-export { newsService, type NewsService, type SummaryResult } from './newsService';
+export {
+  newsService,
+  type DigestResult,
+  type NewsService,
+  type SummaryResult,
+} from './newsService';
 export {
   roomService,
   type RoomService,
