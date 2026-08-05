@@ -46,4 +46,5 @@ export { BACKDROPS, backdropsReady, resolveBackdrop } from './backdrops';
 export { ITEM_ART, itemArtCoverage, resolveItemArt } from './item-art';
 
 export { AssistantButton, ASSISTANT_CLEARANCE } from './AssistantButton';
+export { AssistantPanel } from './AssistantPanel';
 export { useHoverLift } from './primitives';

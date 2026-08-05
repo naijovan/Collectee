@@ -67,4 +67,4 @@ export {
 export { delay, delayWithProgress, LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT } from './latency';
 
 export { assistantService } from './assistantService';
-export type { AssistantMode } from './assistantService';
+export type { AssistantMode, ChatTurn } from './assistantService';
