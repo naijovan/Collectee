@@ -11,7 +11,7 @@
  * summary; swapping in a real call touches this function and nothing else.
  */
 
-import { DEMO_NOW } from '@/config/features';
+import { DEMO_NOW, FEATURES } from '@/config/features';
 import { ARTICLES, ARTICLES_BY_ID } from '@/fixtures/articles';
 import { FOLLOWED_TOPICS, SAVED_ARTICLES } from '@/fixtures/social';
 import { USERS_BY_ID } from '@/fixtures/users';
@@ -65,6 +65,82 @@ function followedTopicsFor(userId: string): FollowedTopic[] {
     byKey.set(key, topic);
   }
   return [...byKey.values()];
+}
+
+/**
+ * The deployed `/api/summarise` endpoint (§12.1). Blank = the feature is off,
+ * whatever `FEATURES.liveSummarisation` says.
+ *
+ * The Anthropic key is NOT here and must never be: `EXPO_PUBLIC_*` values are
+ * bundled into the shipped JavaScript, the key is billed, and the repo's own
+ * env template says not to. The key lives in the serverless function's
+ * environment — see `api/summarise.ts`.
+ */
+const SUMMARY_PROXY_URL = process.env.EXPO_PUBLIC_SUMMARY_PROXY_URL ?? '';
+
+/**
+ * Abandon the call after this long.
+ *
+ * The demo runs in four minutes on conference wifi. A summariser that hangs is
+ * worse than one that never ran — the prepared summary is one render away, so
+ * waiting past a few seconds buys nothing.
+ */
+const SUMMARY_TIMEOUT_MS = 5_000;
+
+export interface SummaryResult {
+  bullets: string[];
+  /** True only when a model actually produced these. Drives the on-screen label. */
+  live: boolean;
+}
+
+/** The seeded fallback: the prepared summary, split into bullets. */
+function preparedBullets(article: Article): string[] {
+  return article.summary
+    .split('. ')
+    .map((s) => s.trim().replace(/\.$/, ''))
+    .filter(Boolean);
+}
+
+/**
+ * Call the proxy. Returns null on ANY failure — timeout, network, non-200,
+ * malformed body, empty result.
+ *
+ * Null is not an error path bolted on; it is the contract. Nothing about this
+ * feature may put the demo in a broken state (§12.1 — the whole reason the rest
+ * of the AI layer is mocked is that a live call that fails on stage is a worse
+ * demo than a deterministic one). The caller substitutes the prepared summary
+ * and the screen says which it is.
+ */
+async function callSummariser(article: Article): Promise<string[] | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SUMMARY_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(SUMMARY_PROXY_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      // Only the title and the seeded summary are sent. Collectee never holds
+      // full article bodies (§11 F6 — summaries link out, we do not reproduce
+      // the article), so there is nothing else to send.
+      body: JSON.stringify({ title: article.title, body: article.summary }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) return null;
+
+    const payload = (await response.json()) as { bullets?: unknown };
+    if (!Array.isArray(payload.bullets)) return null;
+
+    const bullets = payload.bullets.filter(
+      (bullet): bullet is string => typeof bullet === 'string' && bullet.trim().length > 0,
+    );
+    return bullets.length > 0 ? bullets : null;
+  } catch {
+    // Includes the abort. Deliberately swallowed — see the doc comment.
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function followedGamesFor(userId: string): GameTitle[] {
@@ -121,14 +197,18 @@ export const newsService = {
    * ⚠️ Collectee never reproduces article bodies (§11 F6). A real implementation
    * summarises from the source and links out; it does not mirror the text.
    */
-  async summarise(articleId: string): Promise<string[]> {
+  async summarise(articleId: string): Promise<SummaryResult> {
     const article = ARTICLES_BY_ID.get(articleId);
-    if (!article) return delay([], LATENCY_INSTANT);
-    const bullets = article.summary
-      .split('. ')
-      .map((s) => s.trim().replace(/\.$/, ''))
-      .filter(Boolean);
-    return delay(bullets, LATENCY_GENERATE);
+    if (!article) return delay({ bullets: [], live: false }, LATENCY_INSTANT);
+
+    if (FEATURES.liveSummarisation && SUMMARY_PROXY_URL) {
+      const live = await callSummariser(article);
+      if (live) return { bullets: live, live: true };
+      // Fell through: timed out, unreachable, refused, or unparseable. The
+      // prepared summary below is the answer, and the label stays honest.
+    }
+
+    return delay({ bullets: preparedBullets(article), live: false }, LATENCY_GENERATE);
   },
 
   // ── Following management (§11 F6) ────────────────────────────────────
