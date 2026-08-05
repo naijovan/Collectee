@@ -26,6 +26,14 @@ import { useHoverLift } from './primitives';
 /** Routes that own their whole viewport and must stay unobstructed. */
 const HIDDEN_ON = ['/room/immersive', '/assistant'];
 
+/**
+ * Vertical space a scrolling screen must leave at its end so the last row is
+ * not trapped under the button. Exported so screens use the real number rather
+ * than each guessing at a spacer — the collision this prevents is a CTA the
+ * user can see but cannot tap.
+ */
+export const ASSISTANT_CLEARANCE = 150;
+
 export function AssistantButton() {
   const router = useRouter();
   const pathname = usePathname();

@@ -27,7 +27,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ItemCard, SectionHeader } from '@/components';
+import { ASSISTANT_CLEARANCE, ItemCard, SectionHeader } from '@/components';
 import { groupByRarity, rarityLabelFor, RARITY_RANK } from '@/domain/rarity';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
@@ -84,7 +84,7 @@ export default function InventoryScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + ASSISTANT_CLEARANCE }]}
     >
       <View>
         <Text style={styles.title}>Your inventory</Text>

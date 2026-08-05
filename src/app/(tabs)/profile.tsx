@@ -21,6 +21,7 @@ import {
   ItemCard,
   LoadingState,
   SectionHeader,
+  ASSISTANT_CLEARANCE,
 } from '@/components';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { collectionService, inventoryService, roomService, socialService } from '@/services';
@@ -233,7 +234,7 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      <View style={{ height: spacing.xxl }} />
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
   );
 }

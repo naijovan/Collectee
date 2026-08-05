@@ -24,6 +24,7 @@ import {
   LoadingState,
   PrimaryButton,
   SectionHeader,
+  ASSISTANT_CLEARANCE,
 } from '@/components';
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
@@ -288,7 +289,7 @@ export default function CollectionsScreen() {
                       user to trust a grouping they did not make, and the fastest
                       way to earn that is to let them see what is in it. */}
                   <View style={styles.ideaPreview}>
-                    {idea.items.slice(0, 4).map((item) => (
+                    {idea.items.slice(0, 2).map((item) => (
                       <ItemArt
                         key={item.id}
                         seed={item.id}
@@ -297,10 +298,10 @@ export default function CollectionsScreen() {
                         style={styles.ideaThumb}
                       />
                     ))}
-                    {idea.suggestion.itemIds.length > 4 ? (
+                    {idea.suggestion.itemIds.length > 2 ? (
                       <View style={[styles.ideaThumb, styles.ideaMore]}>
                         <Text style={styles.ideaMoreText}>
-                          +{idea.suggestion.itemIds.length - 4}
+                          +{idea.suggestion.itemIds.length - 2}
                         </Text>
                       </View>
                     ) : null}
@@ -361,7 +362,7 @@ export default function CollectionsScreen() {
         </View>
       ) : null}
 
-      <View style={{ height: spacing.xxl }} />
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
     </View>
   );
@@ -522,9 +523,12 @@ const styles = StyleSheet.create({
 
   ideaList: { gap: spacing.md },
   ideaPreview: { flexDirection: 'row', gap: spacing.xs },
-  ideaThumb: { flex: 1, height: 64, borderRadius: radius.sm },
+  // 128, not 64: three tiles across a full-width card are already wide, and at
+  // 64 the crop was a letterbox strip that showed neither the weapon nor the
+  // face. Two items plus an overflow chip keeps each tile big enough to read.
+  ideaThumb: { flex: 1, height: 128, borderRadius: radius.sm },
   ideaMore: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSunken },
-  ideaMoreText: { ...typography.meta, color: colors.textSecondary },
+  ideaMoreText: { ...typography.cardTitle, color: colors.textSecondary },
   ideaBody: { gap: spacing.xs },
   ideaName: { ...typography.cardTitle, color: colors.textPrimary },
   ideaFooter: {
