@@ -44,3 +44,6 @@ export { ImmersiveRoom3D } from './ImmersiveRoom3D';
  */
 export { BACKDROPS, backdropsReady, resolveBackdrop } from './backdrops';
 export { ITEM_ART, itemArtCoverage, resolveItemArt } from './item-art';
+
+export { AssistantButton } from './AssistantButton';
+export { useHoverLift } from './primitives';

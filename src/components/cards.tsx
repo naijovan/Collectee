@@ -195,6 +195,16 @@ export function CollectionCard({
             <GameBadge title={headline.title} />
           </View>
         ) : null}
+        {/* Attribution sits on the cover, opposite the game badge, so the body
+            below belongs entirely to the collection itself. */}
+        {owner ? (
+          <View style={styles.ownerOverlay}>
+            <Avatar name={owner.displayName} verified={owner.isAccountVerified} size={18} />
+            <Text style={styles.ownerOverlayName} numberOfLines={1}>
+              {owner.displayName}
+            </Text>
+          </View>
+        ) : null}
         {hovered ? (
           <View style={styles.hoverVeil} pointerEvents="none">
             <View style={styles.hoverPill}>
@@ -212,14 +222,6 @@ export function CollectionCard({
           {collection.name}
         </Text>
 
-        {owner ? (
-          <View style={styles.ownerRow}>
-            <Avatar name={owner.displayName} verified={owner.isAccountVerified} size={18} />
-            <Text style={styles.ownerName} numberOfLines={1}>
-              {owner.displayName}
-            </Text>
-          </View>
-        ) : null}
 
         <View style={styles.likeRow}>
           <Text style={styles.like}>♥ {collection.likeCount.toLocaleString()}</Text>
@@ -338,8 +340,15 @@ const styles = StyleSheet.create({
   itemCard: { borderRadius: radius.card, overflow: 'hidden' },
   rarityOverlay: { position: 'absolute', top: spacing.xs, right: spacing.xs },
 
-  itemBody: { paddingTop: spacing.sm, gap: 2 },
-  itemName: { ...typography.cardTitle, color: colors.textPrimary },
+  itemBody: {
+    gap: 2,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  // Two lines' worth of height whether the name needs one or two, so a row of
+  // cards is one height. Without it the grid stair-steps by name length.
+  itemName: { ...typography.cardTitle, color: colors.textPrimary, minHeight: 40 },
   itemMeta: { ...typography.meta, color: colors.textSecondary },
 
   trust: {
@@ -366,6 +375,20 @@ const styles = StyleSheet.create({
   // as slivers. 148 gives each panel a near-square crop.
   collectionArt: { height: 148, borderRadius: 0 },
   badgeOverlay: { position: 'absolute', top: spacing.sm, left: spacing.sm },
+  ownerOverlay: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingLeft: 2,
+    paddingRight: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: scrim.medium,
+  },
+  ownerOverlayName: { ...typography.meta, color: colors.textPrimary, maxWidth: 96 },
   /** Only the top third — a full-height scrim would grey out the artwork. */
   coverScrim: { position: 'absolute', top: 0, left: 0, right: 0, height: '38%' },
   collectionBody: { padding: spacing.md, gap: spacing.xs },
@@ -376,8 +399,9 @@ const styles = StyleSheet.create({
   // than tie with the counts underneath it.
   collectionName: {
     ...typography.sectionHeader,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 21,
+    lineHeight: 27,
+    fontFamily: fonts.display,
     color: colors.textPrimary,
   },
   likeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -286,6 +286,10 @@ export const interaction = {
   pressedScale: 0.97,
   disabledOpacity: 0.4,
   hitSlop: 8,
+  /** Pointer hover — a small lift, not a jump. Web only; touch never fires it. */
+  hoverScale: 1.04,
+  hoverLift: -2,
+  hoverMs: 140,
 } as const;
 
 export const theme = {

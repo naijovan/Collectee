@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
   ideaThumb: { flex: 1, height: 64, borderRadius: radius.sm },
   ideaMore: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSunken },
   ideaMoreText: { ...typography.meta, color: colors.textSecondary },
-  ideaBody: { gap: 2 },
+  ideaBody: { gap: spacing.xs },
   ideaName: { ...typography.cardTitle, color: colors.textPrimary },
   ideaFooter: {
     flexDirection: 'row',
@@ -555,8 +555,8 @@ const styles = StyleSheet.create({
   pressedIdea: { opacity: 0.75 },
   ideaHint: { ...typography.meta, color: colors.textTertiary },
   ideaCard: {
-    gap: spacing.xs,
-    padding: spacing.md,
+    gap: spacing.md,
+    padding: spacing.lg,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,

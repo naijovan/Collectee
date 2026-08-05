@@ -9,7 +9,7 @@
  * rather than an icon font or an image library.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
@@ -221,6 +221,39 @@ export function Avatar({
 }
 
 /** Section title + "See all" — the accent-coloured affordance from §13.2. */
+/**
+ * Pointer-hover lift for anything clickable.
+ *
+ * One hook rather than per-component state, so every interactive surface in the
+ * app rises by the same amount over the same duration — inconsistent hover is
+ * more noticeable than no hover.
+ *
+ * `transitionDuration` is a react-native-web style prop, which is why this is
+ * smooth without an Animated value. Native never fires the hover callbacks, so
+ * the style simply never applies there.
+ */
+export function useHoverLift() {
+  const [hovered, setHovered] = useState(false);
+  return {
+    hoverProps: {
+      onHoverIn: () => setHovered(true),
+      onHoverOut: () => setHovered(false),
+    },
+    hoverStyle: {
+      transitionDuration: `${interaction.hoverMs}ms`,
+      ...(hovered
+        ? {
+            transform: [
+              { scale: interaction.hoverScale },
+              { translateY: interaction.hoverLift },
+            ],
+          }
+        : null),
+    } as ViewStyle,
+    hovered,
+  };
+}
+
 export function SectionHeader({
   title,
   onSeeAll,
@@ -242,6 +275,7 @@ export function SectionHeader({
    */
   actionIcon?: string;
 }) {
+  const hover = useHoverLift();
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -251,7 +285,12 @@ export function SectionHeader({
           hitSlop={interaction.hitSlop}
           accessibilityRole="button"
           accessibilityLabel={`${actionLabel} — ${title}`}
-          style={({ pressed }) => [styles.sectionAction, pressed && styles.pressed]}
+          {...hover.hoverProps}
+          style={({ pressed }) => [
+            styles.sectionAction,
+            hover.hoverStyle,
+            pressed && styles.pressed,
+          ]}
         >
           {actionIcon ? (
             <View style={styles.sectionActionCircle}>

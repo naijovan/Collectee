@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Avatar,
   CollectionCard,
+  useHoverLift,
   ItemArt,
   ItemCard,
   LoadingState,
@@ -84,11 +85,42 @@ export default function ProfileScreen() {
 
       </View>
 
+      {/* Top-right of the identity block: settings changes who you are, so it
+          belongs on the screen that shows it rather than floating app-wide. */}
+      <Pressable
+        accessibilityLabel="Settings"
+        hitSlop={10}
+        onPress={() => router.push('/settings')}
+        style={({ pressed }) => [styles.settings, pressed && { opacity: 0.7 }]}
+      >
+        <Text style={styles.settingsGlyph}>⚙</Text>
+      </Pressable>
+
       <View style={styles.stats}>
-        <Stat label="Items" value={inventory.length} />
-        <Stat label="Collections" value={collections.length} />
-        <Stat label="Followers" value={followers.length} />
-        <Stat label="Following" value={following.length} />
+        <Stat
+          label="Items"
+          value={inventory.length}
+          hint={`${verifiedCount} verified · ${inventory.length - verifiedCount} unverified`}
+          onPress={() => router.push('/inventory')}
+        />
+        <Stat
+          label="Collections"
+          value={collections.length}
+          hint={`${collections.reduce((n, c) => n + c.itemIds.length, 0)} items grouped`}
+          onPress={() => router.navigate('/collections')}
+        />
+        <Stat
+          label="Followers"
+          value={followers.length}
+          hint="Collectors following you"
+          onPress={() => router.push({ pathname: '/connections', params: { tab: 'followers' } })}
+        />
+        <Stat
+          label="Following"
+          value={following.length}
+          hint="Collectors you follow"
+          onPress={() => router.push({ pathname: '/connections', params: { tab: 'following' } })}
+        />
       </View>
 
 
@@ -206,12 +238,38 @@ export default function ProfileScreen() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+/**
+ * A profile stat. Every one is a destination — the number is a summary of a
+ * list that exists elsewhere, so a user who reads it and wants the detail
+ * should not have to hunt for the way in.
+ *
+ * `hint` shows on hover: the breakdown behind the number, which is the question
+ * the number provokes and the reason someone taps it.
+ */
+function Stat({
+  label,
+  value,
+  hint,
+  onPress,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  onPress: () => void;
+}) {
+  const hover = useHoverLift();
   return (
-    <View style={styles.stat}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${value} ${label}. ${hint}`}
+      onPress={onPress}
+      {...hover.hoverProps}
+      style={({ pressed }) => [styles.stat, hover.hoverStyle, pressed && { opacity: 0.7 }]}
+    >
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.muted}>{label}</Text>
-    </View>
+      {hover.hovered ? <Text style={styles.statHint}>{hint}</Text> : null}
+    </Pressable>
   );
 }
 
@@ -252,6 +310,23 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   devLabel: { ...typography.cardTitle, color: colors.textPrimary },
+
+  settings: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.lg,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  settingsGlyph: { color: colors.textPrimary, fontSize: 18, lineHeight: 22 },
+
+  statHint: { ...typography.meta, color: colors.accent, textAlign: 'center', marginTop: 2 },
 
   previewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   previewCell: { width: '22%' },

@@ -43,8 +43,15 @@ const GEMINI_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
 const PROXY_URL = process.env.EXPO_PUBLIC_ASSISTANT_PROXY_URL ?? '';
 const CLIENT_TAG = process.env.EXPO_PUBLIC_ASSISTANT_CLIENT_TAG ?? '';
 
+/**
+ * Configurable, because model availability varies by key and tier — a name that
+ * works on one AI Studio project 404s on another, and quota is per-model. Being
+ * able to switch without a code change is the difference between a 30-second
+ * fix and a rebuild during setup.
+ */
+const GEMINI_MODEL = process.env.EXPO_PUBLIC_GEMINI_MODEL ?? 'gemini-2.0-flash';
 const GEMINI_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 /** Requests allowed per rolling window, and the window. Deliberately tight. */
 const RATE_LIMIT = { requests: 8, windowMs: 60_000 };
@@ -138,9 +145,15 @@ export const assistantService = {
     } catch (error) {
       // Never surface a raw network error: it can carry the endpoint and, in a
       // misconfiguration, the key.
-      const reason = error instanceof Error && error.name === 'AbortError'
-        ? 'That took too long.'
-        : 'I could not reach the model.';
+      const message = error instanceof Error ? error.message : '';
+      const reason =
+        error instanceof Error && error.name === 'AbortError'
+          ? 'That took too long.'
+          : message.includes('429')
+            ? 'The model key is out of quota for today.'
+            : message.includes('404')
+              ? `The model "${GEMINI_MODEL}" is not available on this key.`
+              : 'I could not reach the model.';
       return {
         text: `${reason} Ask me about your items, collections, showrooms or followers and I can answer offline.`,
         source: 'local',

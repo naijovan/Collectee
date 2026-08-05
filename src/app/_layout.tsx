@@ -32,7 +32,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { AppProvider } from '@/state/AppContext';
-import { ThemeModeProvider, ThemeToggle, useThemeMode } from '@/theme/ThemeMode';
+import { ThemeModeProvider, useThemeMode } from '@/theme/ThemeMode';
+import { AssistantButton } from '@/components';
 import { colors, fonts } from '@/theme/theme';
 
 /* Hold the native splash until the fonts resolve, so the first frame is already
@@ -90,6 +91,9 @@ export default function RootLayout() {
             not have to learn that "queue" and "reports" are the same place. */}
         <Stack.Screen name="moderation" options={{ title: 'Reports' }} />
         <Stack.Screen name="assistant" options={{ title: 'Assistant' }} />
+        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="connections" options={{ title: 'Connections' }} />
+        <Stack.Screen name="inventory" options={{ title: 'Inventory' }} />
         <Stack.Screen name="diagnostics" options={{ title: 'Foundation checks' }} />
 
         {/* Dynamic routes need an explicit title or the header prints "room/[id]". */}
@@ -114,7 +118,9 @@ export default function RootLayout() {
         </Stack>
         {/* Fixed to the viewport, so it is reachable from every screen rather
             than duplicated into each header. Renders nothing on native. */}
-        <ThemeToggle />
+        {/* One instance for the whole app; it hides itself on the immersive
+            showroom, which owns its full viewport. */}
+        <AssistantButton />
       </AppProvider>
     </ThemeModeProvider>
   );
