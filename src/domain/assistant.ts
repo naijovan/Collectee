@@ -21,6 +21,7 @@
  * already published, and nothing else. No emails, no ids, no tokens.
  */
 
+import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
 import type { Collection, Item, OwnedItem, RoomTheme, User } from '@/types';
 import { RARITY_RANK } from './rarity';
 
@@ -273,7 +274,121 @@ export function answerLocally(
   const q = question.toLowerCase();
   const has = (...terms: string[]) => terms.some((term) => q.includes(term));
 
-  if (has('how many', 'count', 'number of') && has('item', 'skin')) {
+  // ── Order matters ───────────────────────────────────────────────────────
+  // These are keyword rules, so the specific ones must be tried before the
+  // general ones. "Why is Arya my top match?" contains "top", and the rarest-
+  // items rule below would have answered it with a list of skins.
+
+  // A named collector. Asked by name, answered about that person — and always
+  // with the reason, never a bare percentage (§11 F5).
+  const named = context.matches.find(
+    (match) =>
+      q.includes(match.displayName.toLowerCase()) || q.includes(match.handle.toLowerCase()),
+  );
+  if (named) {
+    return local(
+      `${named.displayName} (@${named.handle}) is a ${named.percent}% match — ${named.reason}. ` +
+        `You have ${named.sharedItemCount} verified item${named.sharedItemCount === 1 ? '' : 's'} in common.`,
+    );
+  }
+
+  if (has('match', 'similar to', 'collectors like', 'people like me')) {
+    if (context.matchState === 'unverified-only') {
+      return local(
+        `Matching counts verified items only, and none of your ${context.itemCount} items are verified yet. ` +
+          'Connect a game account and your matches appear straight away.',
+      );
+    }
+    if (context.matchState === 'cold-start' || context.matches.length === 0) {
+      return local(
+        'You do not have matches yet — import some items and verify them, and collectors with the same skins will surface.',
+      );
+    }
+    const [top, ...rest] = context.matches;
+    const others = rest
+      .slice(0, 2)
+      .map((match) => `${match.displayName} at ${match.percent}%`)
+      .join(', ');
+    return local(
+      `Your top match is ${top!.displayName} at ${top!.percent}% — ${top!.reason}.` +
+        (others ? ` Then ${others}.` : ''),
+    );
+  }
+
+  if (
+    (has('link', 'connect') && has('account', 'game', 'verify')) ||
+    (has('how') && has('verify'))
+  ) {
+    const linked = context.titles.filter((title) => title.accountLinked);
+    const unlinked = context.titles.filter((title) => !title.accountLinked);
+    return local(
+      'Open Connect account, pick a game and sign in — every item that game recognises becomes verified. ' +
+        (linked.length > 0 ? `You have linked ${linked.map((t) => t.label).join(' and ')}. ` : '') +
+        (unlinked.length > 0
+          ? `Not linked yet: ${unlinked.map((t) => t.label).join(', ')}.`
+          : 'All your games are linked.'),
+    );
+  }
+
+  if (has('community', 'communities')) {
+    const joined = context.communities.filter((community) => community.joined);
+    if (joined.length === 0) {
+      return local(
+        `You have not joined a community yet. ${context.communities.length} are open to you, including ${context.communities[0]?.name}.`,
+      );
+    }
+    return local(
+      `You are in ${joined.length} communit${joined.length === 1 ? 'y' : 'ies'}: ` +
+        `${joined.map((c) => `${c.name} (${c.memberCount.toLocaleString()} members)`).join(', ')}.`,
+    );
+  }
+
+  if (has('thread', 'discussion', 'talking about')) {
+    if (context.threads.length === 0) {
+      return local('There are no threads in the communities you have joined yet.');
+    }
+    return local(
+      `Recent threads: ${context.threads
+        .slice(0, 3)
+        .map((thread) => `"${thread.title}" in ${thread.community}`)
+        .join(', ')}.`,
+    );
+  }
+
+  // Before the news rule: "how many articles have I saved" contains "article",
+  // and the news rule would have answered it with headlines.
+  if (has('saved', 'bookmark')) {
+    return local(
+      `You have ${context.savedArticleCount} saved article${context.savedArticleCount === 1 ? '' : 's'}. They are under Saved in Gaming updates.`,
+    );
+  }
+
+  if (has('news', 'happening', 'patch', 'digest', 'headline', 'article')) {
+    const digest = context.digests.find((entry) => matchesGame(q, entry.game));
+    if (digest && digest.bullets.length > 0) {
+      // Three of the four bullets: this lands in a chat bubble, and the fourth
+      // is one tap away in Gaming updates.
+      return local(`In ${digest.game}: ${digest.bullets.slice(0, 3).join(' ')}`);
+    }
+    if (context.headlines.length > 0) {
+      return local(
+        `Top of your feed: ${context.headlines
+          .slice(0, 3)
+          .map((headline) => `"${headline.title}"${headline.reason ? ` — ${headline.reason.toLowerCase()}` : ''}`)
+          .join('; ')}.`,
+      );
+    }
+  }
+
+  if (has('notification', 'unread', 'alert')) {
+    return local(
+      context.unreadNotificationCount === 0
+        ? 'You have no unread notifications.'
+        : `You have ${context.unreadNotificationCount} unread notification${context.unreadNotificationCount === 1 ? '' : 's'}.`,
+    );
+  }
+
+  if (has('how many', 'count', 'number of') && has('item', 'skin', 'verified', 'unverified')) {
     if (has('verified')) {
       return local(
         `${context.verifiedCount} of your ${context.itemCount} items are verified, and ${context.unverifiedCount} are not. Only verified items can go in a Showroom — unverified ones live in 2D collections.`,
@@ -291,15 +406,21 @@ export function answerLocally(
   }
 
   if (has('showroom', 'room')) {
-    if (has('what is', "what's", 'explain', 'mean')) {
+    if (has('what is', "what's", 'explain', 'mean', 'what can go', 'allowed', 'what goes')) {
       return local(
-        `A Showroom is the interactive version of a collection — your items placed in a themed 3D space instead of a grid. There are ${context.themes.length} styles: ${context.themes.join(', ')}. It needs at least 3 verified items.`,
+        `A Showroom is the interactive version of a collection — your items placed in a themed 3D space instead of a grid. There are ${context.themes.length} styles: ${context.themes.join(', ')}. Only verified items can be placed, and it needs at least 3.`,
+      );
+    }
+    if (context.showroomCount > 0) {
+      return local(
+        `You have ${context.showroomCount} Showroom${context.showroomCount === 1 ? '' : 's'}, and ` +
+          `${context.roomEligibleCollections} of your collections have enough verified items to build one.`,
       );
     }
     return local(
-      context.showroomCount > 0
-        ? `You have ${context.showroomCount} Showroom${context.showroomCount === 1 ? '' : 's'}.`
-        : `You have no Showrooms yet. You have ${context.verifiedCount} verified items, so you can build one from any collection with 3 or more of them.`,
+      context.roomEligibleCollections > 0
+        ? `You have no Showrooms yet, but ${context.roomEligibleCollections} of your collections have 3 or more verified items, so you can build one now.`
+        : `You have no Showrooms yet. A room needs 3 verified items from one collection, and you have ${context.verifiedCount} verified in total — connect a game account to verify more.`,
     );
   }
 
@@ -311,13 +432,15 @@ export function answerLocally(
     return local(`You have ${context.collections.length} collections: ${list}.`);
   }
 
-  if (has('follower', 'following')) {
+  if (has('follower', 'following', 'follow me', 'follows me')) {
     return local(
       `You have ${context.followerCount} followers and are following ${context.followingCount} collectors.`,
     );
   }
 
-  if (has('rarest', 'best', 'top', 'valuable')) {
+  // Narrowed from the original `has('rarest','best','top','valuable')`: "top"
+  // alone caught "top match" and "top of my feed", and answered both with skins.
+  if (has('rarest', 'most valuable', 'best skin', 'best item') || (has('top') && has('item', 'skin'))) {
     return local(`Your rarest items are: ${context.topItems.join(', ')}.`);
   }
 
@@ -350,10 +473,28 @@ function local(text: string): AssistantAnswer {
   return { text, source: 'local' };
 }
 
+/**
+ * Does this question name this game?
+ *
+ * The snapshot carries display labels ("Mobile Legends: Bang Bang") but people
+ * type codes ("mlbb"), so both are checked. Short words are skipped so "Call of
+ * Duty: Mobile" is not matched by the word "of" in an unrelated sentence.
+ */
+function matchesGame(question: string, label: string): boolean {
+  const title = GAME_TITLES.find((entry) => GAME_LABELS[entry] === label);
+  if (title && question.includes(GAME_SHORT_LABELS[title].toLowerCase())) return true;
+
+  return label
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter((word) => word.length > 3)
+    .some((word) => question.includes(word));
+}
+
 /** Starter prompts. Every one is answerable offline, so the demo cannot stall. */
 export const SUGGESTED_QUESTIONS = [
   'How many items do I own?',
-  'What can go in a Showroom?',
-  'What are my rarest items?',
-  'How many are verified?',
+  'Who is my top match, and why?',
+  "What's happening in CODM?",
+  'Can I build a Showroom?',
 ] as const;
