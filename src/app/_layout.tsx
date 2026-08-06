@@ -14,6 +14,11 @@
  *
  * `/create` is the §13.5 action sheet (Scan inventory / Create collection /
  * Create room), presented as a modal because it appears in every flow.
+ *
+ * The first run (§16 Q8, reversed 6 Aug) sits in front of all of it — see
+ * `FirstRunGate` at the bottom of this file. It is a redirect rather than a
+ * separate navigator because the app underneath is unchanged: once the run is
+ * done, this layout is exactly what it was.
  */
 
 import {
@@ -26,12 +31,12 @@ import {
   SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
-import { AppProvider } from '@/state/AppContext';
+import { AppProvider, useApp } from '@/state/AppContext';
 import { AssistantDockProvider } from '@/state/AssistantDock';
 import { ThemeModeProvider, useThemeMode } from '@/theme/ThemeMode';
 import { AssistantButton } from '@/components';
@@ -69,6 +74,7 @@ export default function RootLayout() {
       <AppProvider>
         <AssistantDockProvider>
         <ThemedChrome />
+        <FirstRunGate />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
@@ -79,6 +85,10 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        {/* The first run draws its own full-bleed compositions — a native
+            header over the sign-in screen would put a back chevron on the
+            app's front door, pointing at nothing. */}
+        <Stack.Screen name="sign-in" options={{ title: 'Sign in', headerShown: false }} />
         <Stack.Screen
           name="create"
           options={{ presentation: 'modal', title: 'Create', headerShown: false }}
@@ -128,6 +138,48 @@ export default function RootLayout() {
       </AppProvider>
     </ThemeModeProvider>
   );
+}
+
+/**
+ * Keeps the route in step with `firstRunStage` — the §16 Q8 flow, in one place.
+ *
+ * ── Why a redirect and not a second navigator ─────────────────────────────
+ * The app underneath is unchanged by the first run. Wrapping it in a
+ * conditional navigator would mean the whole `Stack` above remounts the moment
+ * someone signs in, which throws away any state the tabs had and costs a
+ * visible flash. A redirect leaves the tree alone.
+ *
+ * ── Why here and not in each screen ───────────────────────────────────────
+ * The same rule as the onboarding gate (§13.4): one place decides, screens do
+ * not re-derive it. A sign-in screen that navigated on its own would have to
+ * know whether the quiz flag is on, and the quiz would have to know about the
+ * tour — three screens each holding a copy of the order, which is three places
+ * to get it wrong.
+ *
+ * It renders nothing. It is a subscription to `firstRunStage` that happens to
+ * live in the tree, and it sits inside `AppProvider` because that is where the
+ * stage does.
+ */
+function FirstRunGate() {
+  const { firstRunStage } = useApp();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    const atFrontDoor = pathname === '/sign-in';
+
+    if (firstRunStage === 'sign-in') {
+      /* `replace`, never `push`: the front door must not be reachable by a back
+         gesture from inside the app, and signing in must not leave it on the
+         stack to swipe back to. */
+      if (!atFrontDoor) router.replace('/sign-in');
+      return;
+    }
+
+    if (atFrontDoor) router.replace('/');
+  }, [firstRunStage, pathname, router]);
+
+  return null;
 }
 
 /**
