@@ -21,7 +21,7 @@
  *   plus 3 discarded, surfaced separately as "3 items we couldn't read".
  */
 
-import type { ScanResult } from '@/types';
+import type { GameTitle, ScanResult } from '@/types';
 
 /** The hero demo scan — Call of Duty: Mobile (Garena SEA). */
 const CODM_SCAN = {
@@ -108,10 +108,53 @@ const MLBB_SCAN = {
   ],
 } as const satisfies ScanResult;
 
-export const SCAN_RESULTS: readonly ScanResult[] = [CODM_SCAN, VALORANT_SCAN, MLBB_SCAN];
+/**
+ * The fallback for a scan of a REAL upload, as opposed to the walkthrough.
+ *
+ * The three scans above describe a full inventory grid, which is the honest
+ * answer when nobody uploaded anything and the user asked to see the flow. It
+ * is the WRONG answer when someone uploads a one-item screenshot and the
+ * scanner is unreachable: reporting 24 items for a picture of one is not a
+ * degraded reading, it is a different picture, and it is the specific bug that
+ * sent this flow back for rework.
+ *
+ * So a failed live scan falls back to this instead — one item, the one in
+ * `assets/collectee/sample input 1.png`. It is still not a reading of the
+ * user's file and the Review screen still says so in a warning banner; it is
+ * merely the shape a single-tile upload could plausibly have, so the numbers on
+ * screen stay defensible while the banner explains itself.
+ *
+ * ⚠️ This is a fallback, not a fixture to demo from. If it is on screen, the
+ * live path failed and `sourceDetail` says why. Fix that instead of admiring
+ * this.
+ */
+const SAMPLE_SCAN = {
+  id: 'scan-sample-upload',
+  title: 'codm',
+  durationMs: 2400,
+  detections: [
+    { id: 'sdet-01', itemId: 'codm-rvr8-wyrmfire', confidence: 0.94, outcome: 'matched', ocrText: 'RVR-8 — WYRMFIRE', candidateItemIds: [], frameIndex: 1 },
+  ],
+} as const satisfies ScanResult;
 
+export const SCAN_RESULTS: readonly ScanResult[] = [CODM_SCAN, VALORANT_SCAN, MLBB_SCAN, SAMPLE_SCAN];
+
+/** The full-grid walkthrough, served when nobody uploaded anything. */
 export const SCAN_RESULTS_BY_TITLE = {
   codm: CODM_SCAN,
   valorant: VALORANT_SCAN,
   mlbb: MLBB_SCAN,
 } as const;
+
+/**
+ * Single-item fallbacks, keyed by title. Partial ON PURPOSE.
+ *
+ * A title is in here only once someone has prepared a one-item screenshot and
+ * the catalogue entry to go with it. Where a title is absent, `scanService`
+ * falls back to the walkthrough above — which mis-states the item count, but at
+ * least names items from the right game, and still labels itself a fallback.
+ * Add a title here rather than widening the CODM entry to cover it.
+ */
+export const SAMPLE_SCANS_BY_TITLE: Partial<Record<GameTitle, ScanResult>> = {
+  codm: SAMPLE_SCAN,
+};

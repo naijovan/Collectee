@@ -82,6 +82,28 @@ export const FEATURES = {
   assistantChat: true,
 
   /**
+   * §12.1 — the scanner's real vision call, on the same `/api/assistant` proxy
+   * and the same key as `liveSummarisation`.
+   *
+   * This one reverses a §12.1 decision rather than implementing it: the PRD
+   * says the F1 pipeline is "specified, not built" and that the demo serves
+   * canned results. It is built now. Raise it with the team before the
+   * rehearsal — the pitch line "no model is running" is no longer true of the
+   * import flow, and §12.1's reasoning (a live call on conference wifi is a
+   * worse demo than a deterministic one) has not stopped being correct.
+   *
+   * FALSE IS STILL A COMPLETE FEATURE. Off, or with no proxy URL, the scanner
+   * serves the prepared result for the title exactly as it did for the first
+   * six days of this project — and it does that on ANY live-path failure too,
+   * so a dead network on the day degrades to the old demo rather than a broken
+   * screen. Flipping this off is the safe move if anything wobbles.
+   *
+   * Only screenshots take the live path. Video input stays prepared: sampling
+   * frames client-side is a §14 rung-4 feature, not a vision problem.
+   */
+  liveScan: true,
+
+  /**
    * §16 Q8 — THE ANSWER REVERSED ON 6 AUG.
    *
    * Q8 asked whether the demo opens logged-in and recommended "yes, skip auth

@@ -113,13 +113,21 @@ const STAGE_TITLE: Record<Stage, string> = {
   complete: 'Import complete',
 };
 
-/** Review sections. `All` shows every section stacked, matching the Figma tabs. */
-const REVIEW_FILTERS = ['All', 'Matched', 'Needs review', 'Duplicates'] as const;
+/**
+ * Review sections. `All` shows every section stacked, matching the Figma tabs.
+ *
+ * "Not in catalogue" is not in the Figma, because the mock could not produce
+ * the outcome it shows — a fixture only ever names items that exist. A real
+ * scan of a real inventory produces it constantly, and a scan that read
+ * sixteen items and can import none of them has to say so somewhere.
+ */
+const REVIEW_FILTERS = ['All', 'Matched', 'Needs review', 'Duplicates', 'Not in catalogue'] as const;
 type ReviewFilter = (typeof REVIEW_FILTERS)[number];
 
 /** How many of each section the `All` tab previews before "See all". */
 const PREVIEW_MATCHED = 3;
 const PREVIEW_NEEDS_REVIEW = 2;
+const PREVIEW_UNMATCHED = 3;
 
 export default function ImportScreen() {
   const router = useRouter();
@@ -154,6 +162,17 @@ export default function ImportScreen() {
 
   const detections = result?.detections ?? [];
 
+  /**
+   * Which path "Start scan" will take, asked of the service rather than
+   * re-derived here — the flag, the endpoint and the video rule all live in
+   * one place and this screen must not grow a second opinion about them.
+   */
+  const scanMode = scanService.modeFor({
+    kind,
+    uri: upload?.uri ?? `demo://${title}-inventory`,
+    title,
+  });
+
   // Recomputed on every resolution — this is what makes the CTA count live.
   const counts = useMemo(
     () => scanService.counts(detections, resolutions),
@@ -184,6 +203,15 @@ export default function ImportScreen() {
   );
 
   const matchedGroups = useMemo(() => groupByRarity(matchedEntries), [matchedEntries]);
+
+  /**
+   * Read cleanly, no catalogue match. These carry `reading` rather than an
+   * `Item`, because there is no item — that is the whole point of the bucket.
+   */
+  const unmatchedEntries = useMemo(
+    () => detections.filter((d) => d.outcome === 'unmatched' && d.reading !== undefined),
+    [detections],
+  );
 
   const duplicateEntries = useMemo(
     () =>
@@ -443,10 +471,34 @@ export default function ImportScreen() {
 
           {uploadNote ? <Text style={styles.warn}>{uploadNote}</Text> : null}
 
-          <PrimaryButton label="Start scan" onPress={() => void runScan()} />
+          {/*
+            An image scan needs an image. Without this gate the screen happily
+            "scans" nothing — it substitutes a `demo://` URI, fails the live
+            predicate on the way past, and lands on a Review screen full of
+            items the user never uploaded. That is not a scan with no input, it
+            is a scan of a different inventory, and it read as a bug to everyone
+            who tried it. Video keeps its own path: there is no file to pick.
+          */}
+          <PrimaryButton
+            label="Start scan"
+            onPress={() => void runScan()}
+            disabled={kind === 'image' && !upload}
+          />
+          {/*
+            §12.1's honesty rule, and the one piece of copy on this screen that
+            must never drift from the code: the two paths look identical once
+            the Review screen renders, so this is the only place the user is
+            told which one they are about to take. It reads the same predicate
+            the service does rather than a second guess at it.
+          */}
           <Text style={styles.footnote}>
-            The vision pipeline is specified, not built — your file is read off the device, but the
-            results below are the prepared set for this title (§12.1).
+            {kind === 'image' && !upload
+              ? 'Choose a screenshot first — there is nothing to scan yet.'
+              : scanMode === 'live'
+                ? 'Your screenshot is sent to a vision model, which reads the item names and rarity borders. If it cannot be reached, a prepared result is shown instead and says so.'
+                : kind === 'video'
+                  ? 'Screen recordings use the prepared set for this title — frame sampling is not built (§12.1, §14 rung 4).'
+                  : 'No scanner endpoint is configured, so the results below are prepared rather than read from your upload (§12.1).'}
           </Text>
         </View>
       ) : null}
@@ -516,7 +568,31 @@ export default function ImportScreen() {
               </View>
               <View style={styles.rowBody}>
                 <Text style={styles.countHead}>{counts.detected} items detected</Text>
-                <Text style={styles.muted}>Review the results before importing.</Text>
+                {/*
+                  WHERE THESE NUMBERS CAME FROM, on the screen that shows them.
+                  Without this line a failed live scan is pixel-identical to a
+                  successful one, so nobody can tell a broken endpoint from a
+                  working demo — and the fallback quietly presents a canned
+                  scan as a reading of the file the user just picked. §12.1
+                  says label every mocked surface; this is that label.
+                */}
+                <Text style={result.source === 'fallback' ? styles.warn : styles.muted}>
+                  {result.source === 'live'
+                    ? 'Read from your upload just now.'
+                    : result.source === 'fallback'
+                      ? "Couldn't reach the scanner — this is a prepared result, not a reading of your upload."
+                      : 'Prepared set for this title — no scanner endpoint is configured.'}
+                </Text>
+                {/*
+                  The cause, not just the symptom. Every fallback looks the same
+                  from here — stale deploy, wrong URL, timeout, an image that
+                  would not encode — and they have four different fixes. This
+                  was already going to the console; the person holding the phone
+                  during a demo is not reading the console.
+                */}
+                {result.sourceDetail ? (
+                  <Text style={styles.muted}>Reason: {result.sourceDetail}.</Text>
+                ) : null}
               </View>
             </View>
 
@@ -549,6 +625,20 @@ export default function ImportScreen() {
               <Text style={styles.warn}>
                 {counts.discarded} items we couldn&apos;t read — below the {CONFIDENCE_REVIEW_FLOOR}{' '}
                 floor, so not in the total
+              </Text>
+            ) : null}
+            {/*
+              Deliberately a separate line from the one above, and deliberately
+              worded as "we don't have" rather than "we couldn't read". These
+              were read correctly; the catalogue is the thing that is missing
+              (§16 Q1 — ~60 seeded items per title, not an exhaustive one).
+              Collapsing the two would tell the user their screenshot was bad
+              when in fact our data was.
+            */}
+            {counts.unmatched > 0 ? (
+              <Text style={styles.warn}>
+                {counts.unmatched} we read but don&apos;t have in the {GAME_LABELS[title]} catalogue
+                yet — not in the total, and they can&apos;t be imported
               </Text>
             ) : null}
           </View>
@@ -639,6 +729,37 @@ export default function ImportScreen() {
             <EmptyState
               title="Nothing left to review"
               body="Every uncertain detection has a decision."
+            />
+          ) : null}
+
+          {/* ── Read, not in the catalogue ──────────────────────────────── */}
+          {(reviewFilter === 'All' || reviewFilter === 'Not in catalogue') &&
+          unmatchedEntries.length > 0 ? (
+            <View style={styles.block}>
+              {reviewFilter === 'All' ? (
+                <SeeAllRow
+                  title="Not in catalogue"
+                  count={unmatchedEntries.length}
+                  onSeeAll={() => setReviewFilter('Not in catalogue')}
+                />
+              ) : (
+                <Text style={styles.footnote}>
+                  We read these clearly, but they aren&apos;t in our{' '}
+                  {GAME_LABELS[title]} catalogue, so there&apos;s nothing to import them as.
+                </Text>
+              )}
+              {(reviewFilter === 'All' ? unmatchedEntries.slice(0, PREVIEW_UNMATCHED) : unmatchedEntries).map(
+                (detection) => (
+                  <UnmatchedRow key={detection.id} detection={detection} title={title} />
+                ),
+              )}
+            </View>
+          ) : null}
+
+          {reviewFilter === 'Not in catalogue' && unmatchedEntries.length === 0 ? (
+            <EmptyState
+              title="Everything matched"
+              body="Every item we read is in the catalogue."
             />
           ) : null}
 
@@ -1277,6 +1398,42 @@ function PossibleMatch({
         <Pressable onPress={onChange} style={[styles.miniButton, styles.miniSecondary]}>
           <Text style={styles.miniSecondaryText}>Change</Text>
         </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Something the scanner read but the catalogue does not stock.
+ *
+ * No `ItemCard` and no art, because there is no item — rendering a placeholder
+ * card would imply we have an entry for it. What we do have is the name we
+ * read and the tier we inferred from the tile's border, so both are shown: a
+ * user checking whether the scan actually worked needs to see the name that
+ * came off THEIR screenshot, not a count.
+ *
+ * No Confirm action either. §11 F1 step 6 imports catalogue items, and there is
+ * nothing here to import — offering a button that cannot work would be worse
+ * than offering none.
+ */
+function UnmatchedRow({ detection, title }: { detection: ScanDetection; title: GameTitle }) {
+  const reading = detection.reading;
+  if (reading === undefined) return null;
+
+  return (
+    <View style={styles.pendingRow}>
+      <View style={[styles.dupeThumb, styles.possibleThumbEmpty]}>
+        <Text style={styles.muted}>—</Text>
+      </View>
+      <View style={styles.rowBody}>
+        <Text style={styles.rowTitle} numberOfLines={2}>
+          {reading.name}
+        </Text>
+        <Text style={styles.muted}>
+          {reading.rarityTier === null
+            ? 'Not in catalogue'
+            : `Looks ${rarityLabelFor(reading.rarityTier, title)} · not in catalogue`}
+        </Text>
       </View>
     </View>
   );

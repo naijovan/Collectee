@@ -29,6 +29,29 @@ export interface PickedImage {
   mimeType: string;
 }
 
+/**
+ * Longest edge we send to the scanner, in pixels.
+ *
+ * 2576 is the high-resolution vision tier's ceiling on the model the scan runs
+ * on — above it the image is downscaled server-side anyway, so sending more is
+ * paying to transmit detail that gets thrown away. Below it, tile labels in a
+ * phone screenshot stay legible, which is the entire job.
+ */
+const SCAN_MAX_EDGE = 2576;
+
+/**
+ * JPEG quality for the re-encode. High enough that small condensed type stays
+ * sharp, low enough that a 2MB PNG screenshot lands around 300KB.
+ */
+const SCAN_JPEG_QUALITY = 0.85;
+
+/** An image ready to POST: base64 with no data-URL prefix, plus its type. */
+export interface ScanImage {
+  data: string;
+  mediaType: 'image/jpeg';
+  bytes: number;
+}
+
 export type PickImageResult =
   | { status: 'picked'; image: PickedImage }
   | { status: 'cancelled' }
@@ -71,6 +94,55 @@ export const mediaService = {
       },
     };
   },
+
+  /**
+   * Downscale and re-encode a picked image for the scanner. Null when the
+   * platform cannot do it, which is every non-web target today.
+   *
+   * This exists because of a hard limit rather than a preference: the proxy is
+   * a Vercel function and those cap a request body at 4.5MB, while the picker
+   * accepts files up to 8MB — base64 inflates by a third on top of that. An
+   * unmodified 8MB PNG is a guaranteed 413 with a confusing error, so the
+   * client shrinks it first and the server keeps its own cap as a backstop.
+   *
+   * The re-encode does most of the work even when no downscaling is needed: a
+   * lossless phone screenshot is mostly flat UI, which JPEG eats.
+   *
+   * Takes a URI rather than a `PickedImage` so the scanner can hand it whatever
+   * it was given — including the `demo://` placeholder used when no file was
+   * picked, which fails to decode and returns null, which is exactly the
+   * "no live scan, use the prepared result" path the caller already handles.
+   */
+  async prepareForScan(uri: string): Promise<ScanImage | null> {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return null;
+
+    try {
+      const bitmap = await loadImage(uri);
+      const scale = Math.min(1, SCAN_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+
+      const context = canvas.getContext('2d');
+      if (context === null) return null;
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+      // toDataURL rather than toBlob: the base64 is what we are actually
+      // sending, so going via a Blob would mean decoding it straight back.
+      const dataUrl = canvas.toDataURL('image/jpeg', SCAN_JPEG_QUALITY);
+      const data = dataUrl.slice(dataUrl.indexOf(',') + 1);
+      if (data.length === 0) return null;
+
+      // Base64 is 4 characters per 3 bytes, minus whatever padding is present.
+      const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0;
+      return { data, mediaType: 'image/jpeg', bytes: (data.length * 3) / 4 - padding };
+    } catch {
+      // A canvas that refuses to export is not worth distinguishing from an
+      // image that refuses to decode: both mean "no live scan", and the caller
+      // falls back to the prepared result either way.
+      return null;
+    }
+  },
 };
 
 export type MediaService = typeof mediaService;
@@ -110,6 +182,23 @@ function openFileDialog(accept: string): Promise<File | null> {
     window.addEventListener('focus', onFocus);
 
     input.click();
+  });
+}
+
+/**
+ * Decode a data URL into something canvas can draw.
+ *
+ * A plain `Image` rather than `createImageBitmap`, which Safari only grew
+ * recently enough to be worth avoiding three days before a demo. The source is
+ * always a data URL from `pickImage`, so there is no cross-origin taint to
+ * worry about and `toDataURL` stays callable afterwards.
+ */
+function loadImage(uri: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Could not decode the selected image'));
+    image.src = uri;
   });
 }
 

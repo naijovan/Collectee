@@ -51,6 +51,7 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "validate:fixtures": "tsx scripts/validate-fixtures.ts",
+    "probe:scan": "tsx --env-file=.env scripts/probe-scan.ts",
     "audit:art": "tsx scripts/audit-art.ts",
     "bake:depth": "tsx scripts/bake-depth.ts",
     "bake:mesh": "tsx scripts/bake-mesh.ts",
