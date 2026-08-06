@@ -26,7 +26,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useLoader } from '@react-three/fiber/native';
 import { Asset } from 'expo-asset';
 import { Box3, LinearFilter, SRGBColorSpace, TextureLoader, Vector3 } from 'three';
-import type { Group, Mesh, MeshStandardMaterial } from 'three';
+import type { Group, Mesh, MeshStandardMaterial, Object3D, Texture } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 /**
@@ -63,16 +63,53 @@ export function CollectibleGLTF({
 }) {
   const uri = useMemo(() => sourceUri(module), [module]);
   const gltf = useLoader(GLTFLoader, uri);
-  const holder = useRef<Group>(null);
-  const skin = useLoader(
-    TextureLoader,
-    (textureModule ?? module) as unknown as string,
-  );
 
   // `scene` is shared across every instance of the same model, so it is cloned
   // before being scaled — otherwise two rooms showing the same item fight over
-  // one transform and the second one to mount wins.
-  const scene = useMemo(() => gltf.scene.clone(true), [gltf]);
+  // one transform and the second one to mount wins. Materials must be cloned as
+  // well: Object3D.clone() keeps them shared, and projecting art onto one legacy
+  // model would otherwise mutate every other instance of that GLB.
+  const scene = useMemo(() => cloneScene(gltf.scene), [gltf]);
+
+  return textureModule == null ? (
+    <PreparedCollectible scene={scene} skin={null} accent={accent} size={size} />
+  ) : (
+    <ProjectedCollectible
+      scene={scene}
+      textureModule={textureModule}
+      accent={accent}
+      size={size}
+    />
+  );
+}
+
+function ProjectedCollectible({
+  scene,
+  textureModule,
+  accent,
+  size,
+}: {
+  scene: Object3D;
+  textureModule: number;
+  accent: string;
+  size: number;
+}) {
+  const skin = useLoader(TextureLoader, textureModule as unknown as string);
+  return <PreparedCollectible scene={scene} skin={skin} accent={accent} size={size} />;
+}
+
+function PreparedCollectible({
+  scene,
+  skin,
+  accent,
+  size,
+}: {
+  scene: Object3D;
+  skin: Texture | null;
+  accent: string;
+  size: number;
+}) {
+  const holder = useRef<Group>(null);
 
   useLayoutEffect(() => {
     const group = holder.current;
@@ -91,25 +128,47 @@ export function CollectibleGLTF({
     const centre = bounds.getCenter(new Vector3()).multiplyScalar(scale);
     scene.position.set(-centre.x, -centre.y, -centre.z);
 
+    let hasProjectedMaterial = false;
+    scene.traverse((child) => {
+      const mesh = child as Mesh;
+      if (!mesh.isMesh) return;
+      if (materialsFor(mesh).some((material) => material.name === 'projected-art')) {
+        hasProjectedMaterial = true;
+      }
+    });
+
     scene.traverse((child) => {
       const mesh = child as Mesh;
       if (!mesh.isMesh) return;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
-      if (textureModule == null) return;
+      if (skin == null) return;
       // UVs are a straight projection of the source image, so the render lands
       // on the front exactly as drawn — and wraps onto the mirrored back, which
       // is what makes an inferred back read as the same object.
-      const material = mesh.material as MeshStandardMaterial;
       skin.colorSpace = SRGBColorSpace;
       skin.minFilter = LinearFilter;
       skin.magFilter = LinearFilter;
       skin.anisotropy = 8;
-      material.map = skin;
-      material.needsUpdate = true;
+      const materials = materialsFor(mesh);
+      const projected = materials.filter((material) => material.name === 'projected-art');
+      // Legacy baked meshes have one unnamed geometry material. Hybrid models
+      // explicitly name the skin layer so structural gold/ivory materials keep
+      // their PBR response instead of receiving the complete 2D render.
+      for (const material of hasProjectedMaterial ? projected : materials) {
+        material.map = skin;
+        // The projected art doubles as a restrained micro-relief map. Bright
+        // engraved trim catches the showroom lights while the shallow baked
+        // silhouette supplies the actual thickness.
+        if (material.name === 'projected-art') {
+          material.bumpMap = skin;
+          material.bumpScale = 0.018;
+        }
+        material.needsUpdate = true;
+      }
     });
-  }, [scene, size, skin, textureModule]);
+  }, [scene, size, skin]);
 
   return (
     <group ref={holder}>
@@ -124,4 +183,20 @@ export function CollectibleGLTF({
       />
     </group>
   );
+}
+
+function cloneScene(source: Object3D): Object3D {
+  const clone = source.clone(true);
+  clone.traverse((child) => {
+    const mesh = child as Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = Array.isArray(mesh.material)
+      ? mesh.material.map((material) => material.clone())
+      : mesh.material.clone();
+  });
+  return clone;
+}
+
+function materialsFor(mesh: Mesh): MeshStandardMaterial[] {
+  return (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as MeshStandardMaterial[];
 }

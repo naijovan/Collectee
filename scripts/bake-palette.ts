@@ -59,7 +59,7 @@ function dominantColour(pixels: Buffer, channels: number): [number, number, numb
 }
 
 async function main() {
-  const sources = SOURCE_DIRS.flatMap((dir) =>
+  const sourceCandidates = SOURCE_DIRS.flatMap((dir) =>
     existsSync(dir)
       ? readdirSync(dir)
           .filter((f) => f.endsWith('.png'))
@@ -67,11 +67,23 @@ async function main() {
       : [],
   );
 
+  // Keep original renders beside upgraded variants, but publish one colour per
+  // catalogue id. A `-vN` asset wins over the unversioned source, and the
+  // highest version wins when several iterations exist.
+  const sources = new Map<string, { path: string; version: number }>();
+  for (const src of sourceCandidates) {
+    const fileId = basename(src, '.png');
+    const match = fileId.match(/^(.*)-v(\d+)$/);
+    const id = match?.[1] ?? fileId;
+    const version = match ? Number(match[2]) : 0;
+    const current = sources.get(id);
+    if (!current || version > current.version) sources.set(id, { path: src, version });
+  }
+
   const entries: string[] = [];
-  for (const src of sources.sort()) {
-    const id = basename(src, '.png');
+  for (const [id, source] of [...sources.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     // 64px is plenty for an average and keeps 93 images fast.
-    const { data, info } = await sharp(src)
+    const { data, info } = await sharp(source.path)
       .flatten({ background: '#000000' })
       .resize(64, 64, { fit: 'fill' })
       .raw()

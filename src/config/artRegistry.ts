@@ -62,35 +62,42 @@ const object = (source: ImageSourcePropType, alt: string): ArtEntry => ({
   alt,
 });
 
+/** Full-bleed key art: the environment is part of the collectible artwork. */
+const scene = (source: ImageSourcePropType, alt: string): ArtEntry => ({
+  source,
+  fit: 'cover',
+  alt,
+});
+
 /** Catalogue item id → bundled render. Generated; see the header. */
 const ART = {
   // ── Call of Duty: Mobile ──────────────────────────────────────
-  'codm-dlq33-lightbringer': object(
-    require('../../assets/collectee/items/codm-dlq33-lightbringer.png'),
+  'codm-dlq33-lightbringer': scene(
+    require('../../assets/collectee/items/codm-dlq33-lightbringer-v2.png'),
     'Original prototype concept art — DL Q33 — Lightbringer',
   ),
-  'codm-fennec-ascended': object(
-    require('../../assets/collectee/items/codm-fennec-ascended.png'),
+  'codm-fennec-ascended': scene(
+    require('../../assets/collectee/items/codm-fennec-ascended-v2.png'),
     'Original prototype concept art — Fennec — Ascended',
   ),
   'codm-ak117-cordite-storm': object(
     require('../../assets/collectee/items/codm-ak117-cordite-storm.png'),
     'Original prototype concept art — AK117 — Cordite Storm',
   ),
-  'codm-drh-cerberus': object(
-    require('../../assets/collectee/items/codm-drh-cerberus.png'),
+  'codm-drh-cerberus': scene(
+    require('../../assets/collectee/items/codm-drh-cerberus-v2.png'),
     'Original prototype concept art — DR-H — Cerberus',
   ),
-  'codm-qq9-diavolo': object(
-    require('../../assets/collectee/items/codm-qq9-diavolo.png'),
+  'codm-qq9-diavolo': scene(
+    require('../../assets/collectee/items/codm-qq9-diavolo-v2.png'),
     'Original prototype concept art — QQ9 — Diavolo',
   ),
   'codm-ghost-nightfall': portrait(
     require('../../assets/collectee/subjects/codm-ghost-nightfall.png'),
     'Original prototype concept art — Ghost — Nightfall',
   ),
-  'codm-kilo141-glacier': object(
-    require('../../assets/collectee/items/codm-kilo141-glacier.png'),
+  'codm-kilo141-glacier': scene(
+    require('../../assets/collectee/items/codm-kilo141-glacier-v2.png'),
     'Original prototype concept art — KILO 141 — Glacier',
   ),
   'codm-m4-arctic-hunter': object(
@@ -105,16 +112,16 @@ const ART = {
     require('../../assets/collectee/items/codm-rus79u-molten.png'),
     'Original prototype concept art — RUS-79U — Molten Core',
   ),
-  'codm-hbra3-tidal': object(
-    require('../../assets/collectee/items/codm-hbra3-tidal.png'),
+  'codm-hbra3-tidal': scene(
+    require('../../assets/collectee/items/codm-hbra3-tidal-v2.png'),
     'Original prototype concept art — HBRa3 — Tidal Wave',
   ),
   'codm-pdw57-abyss': object(
     require('../../assets/collectee/items/codm-pdw57-abyss.png'),
     'Original prototype concept art — PDW-57 — Abyssal',
   ),
-  'codm-mac10-riptide': object(
-    require('../../assets/collectee/items/codm-mac10-riptide.png'),
+  'codm-mac10-riptide': scene(
+    require('../../assets/collectee/items/codm-mac10-riptide-v2.png'),
     'Original prototype concept art — MAC-10 — Riptide',
   ),
   'codm-price-monsoon': portrait(
@@ -171,8 +178,8 @@ const ART = {
   ),
 
   // ── Valorant ──────────────────────────────────────────────────
-  'val-elderflame-vandal': object(
-    require('../../assets/collectee/items/val-elderflame-vandal.png'),
+  'val-elderflame-vandal': scene(
+    require('../../assets/collectee/items/val-elderflame-vandal-v2.png'),
     'Original prototype concept art — Elderflame Vandal',
   ),
   'val-elderflame-operator': object(
@@ -211,8 +218,8 @@ const ART = {
     require('../../assets/collectee/items/val-champions-2022-phantom.png'),
     'Original prototype concept art — Champions 2022 Phantom',
   ),
-  'val-prime-vandal': object(
-    require('../../assets/collectee/items/val-prime-vandal.png'),
+  'val-prime-vandal': scene(
+    require('../../assets/collectee/items/val-prime-vandal-v2.png'),
     'Original prototype concept art — Prime Vandal',
   ),
   'val-prime-karambit': object(
@@ -223,8 +230,8 @@ const ART = {
     require('../../assets/collectee/items/val-prime-spectre.png'),
     'Original prototype concept art — Prime Spectre',
   ),
-  'val-reaver-vandal': object(
-    require('../../assets/collectee/items/val-reaver-vandal.png'),
+  'val-reaver-vandal': scene(
+    require('../../assets/collectee/items/val-reaver-vandal-v2.png'),
     'Original prototype concept art — Reaver Vandal',
   ),
   'val-reaver-sheriff': object(
@@ -235,8 +242,8 @@ const ART = {
     require('../../assets/collectee/items/val-reaver-knife.png'),
     'Original prototype concept art — Reaver Knife',
   ),
-  'val-oni-phantom': object(
-    require('../../assets/collectee/items/val-oni-phantom.png'),
+  'val-oni-phantom': scene(
+    require('../../assets/collectee/items/val-oni-phantom-v2.png'),
     'Original prototype concept art — Oni Phantom',
   ),
   'val-ion-operator': object(
@@ -251,8 +258,8 @@ const ART = {
     require('../../assets/collectee/items/val-sovereign-ghost.png'),
     'Original prototype concept art — Sovereign Ghost',
   ),
-  'val-origin-vandal': object(
-    require('../../assets/collectee/items/val-origin-vandal.png'),
+  'val-origin-vandal': scene(
+    require('../../assets/collectee/items/val-origin-vandal-v2.png'),
     'Original prototype concept art — Origin Vandal',
   ),
   'val-origin-phantom': object(
@@ -557,19 +564,19 @@ const DEPTH: Record<string, ImageSourcePropType> = {
   'codm-charm-dog-tag': require('../../assets/collectee/depth/codm-charm-dog-tag.png'),
   'codm-charm-golden-skull': require('../../assets/collectee/depth/codm-charm-golden-skull.png'),
   'codm-charm-sweetheart-prism': require('../../assets/collectee/depth/codm-charm-sweetheart-prism.png'),
-  'codm-dlq33-lightbringer': require('../../assets/collectee/depth/codm-dlq33-lightbringer.png'),
-  'codm-drh-cerberus': require('../../assets/collectee/depth/codm-drh-cerberus.png'),
-  'codm-fennec-ascended': require('../../assets/collectee/depth/codm-fennec-ascended.png'),
+  'codm-dlq33-lightbringer': require('../../assets/collectee/depth/codm-dlq33-lightbringer-v2.png'),
+  'codm-drh-cerberus': require('../../assets/collectee/depth/codm-drh-cerberus-v2.png'),
+  'codm-fennec-ascended': require('../../assets/collectee/depth/codm-fennec-ascended-v2.png'),
   'codm-ghost-nightfall': require('../../assets/collectee/depth/codm-ghost-nightfall.png'),
-  'codm-hbra3-tidal': require('../../assets/collectee/depth/codm-hbra3-tidal.png'),
-  'codm-kilo141-glacier': require('../../assets/collectee/depth/codm-kilo141-glacier.png'),
+  'codm-hbra3-tidal': require('../../assets/collectee/depth/codm-hbra3-tidal-v2.png'),
+  'codm-kilo141-glacier': require('../../assets/collectee/depth/codm-kilo141-glacier-v2.png'),
   'codm-locus-ironclad': require('../../assets/collectee/depth/codm-locus-ironclad.png'),
   'codm-m4-arctic-hunter': require('../../assets/collectee/depth/codm-m4-arctic-hunter.png'),
-  'codm-mac10-riptide': require('../../assets/collectee/depth/codm-mac10-riptide.png'),
+  'codm-mac10-riptide': require('../../assets/collectee/depth/codm-mac10-riptide-v2.png'),
   'codm-mansk-blackout': require('../../assets/collectee/depth/codm-mansk-blackout.png'),
   'codm-pdw57-abyss': require('../../assets/collectee/depth/codm-pdw57-abyss.png'),
   'codm-price-monsoon': require('../../assets/collectee/depth/codm-price-monsoon.png'),
-  'codm-qq9-diavolo': require('../../assets/collectee/depth/codm-qq9-diavolo.png'),
+  'codm-qq9-diavolo': require('../../assets/collectee/depth/codm-qq9-diavolo-v2.png'),
   'codm-rus79u-molten': require('../../assets/collectee/depth/codm-rus79u-molten.png'),
   'codm-soap-recruit': require('../../assets/collectee/depth/codm-soap-recruit.png'),
   'mlbb-akai-panda-warrior': require('../../assets/collectee/depth/mlbb-akai-panda-warrior.png'),
@@ -614,22 +621,22 @@ const DEPTH: Record<string, ImageSourcePropType> = {
   'val-champions-2022-phantom': require('../../assets/collectee/depth/val-champions-2022-phantom.png'),
   'val-elderflame-dagger': require('../../assets/collectee/depth/val-elderflame-dagger.png'),
   'val-elderflame-operator': require('../../assets/collectee/depth/val-elderflame-operator.png'),
-  'val-elderflame-vandal': require('../../assets/collectee/depth/val-elderflame-vandal.png'),
+  'val-elderflame-vandal': require('../../assets/collectee/depth/val-elderflame-vandal-v2.png'),
   'val-glitchpop-vandal': require('../../assets/collectee/depth/val-glitchpop-vandal.png'),
   'val-infantry-bulldog': require('../../assets/collectee/depth/val-infantry-bulldog.png'),
   'val-ion-operator': require('../../assets/collectee/depth/val-ion-operator.png'),
   'val-luxe-classic': require('../../assets/collectee/depth/val-luxe-classic.png'),
   'val-nebula-sheriff': require('../../assets/collectee/depth/val-nebula-sheriff.png'),
-  'val-oni-phantom': require('../../assets/collectee/depth/val-oni-phantom.png'),
+  'val-oni-phantom': require('../../assets/collectee/depth/val-oni-phantom-v2.png'),
   'val-origin-phantom': require('../../assets/collectee/depth/val-origin-phantom.png'),
-  'val-origin-vandal': require('../../assets/collectee/depth/val-origin-vandal.png'),
+  'val-origin-vandal': require('../../assets/collectee/depth/val-origin-vandal-v2.png'),
   'val-prime-karambit': require('../../assets/collectee/depth/val-prime-karambit.png'),
   'val-prime-spectre': require('../../assets/collectee/depth/val-prime-spectre.png'),
-  'val-prime-vandal': require('../../assets/collectee/depth/val-prime-vandal.png'),
+  'val-prime-vandal': require('../../assets/collectee/depth/val-prime-vandal-v2.png'),
   'val-prism-spectre': require('../../assets/collectee/depth/val-prism-spectre.png'),
   'val-reaver-knife': require('../../assets/collectee/depth/val-reaver-knife.png'),
   'val-reaver-sheriff': require('../../assets/collectee/depth/val-reaver-sheriff.png'),
-  'val-reaver-vandal': require('../../assets/collectee/depth/val-reaver-vandal.png'),
+  'val-reaver-vandal': require('../../assets/collectee/depth/val-reaver-vandal-v2.png'),
   'val-riftblade-katana': require('../../assets/collectee/depth/val-riftblade-katana.png'),
   'val-ruination-sword': require('../../assets/collectee/depth/val-ruination-sword.png'),
   'val-sarmad-guardian': require('../../assets/collectee/depth/val-sarmad-guardian.png'),

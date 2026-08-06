@@ -14,6 +14,7 @@
  *
  * ── Layout on disk ────────────────────────────────────────────────────────
  *   assets/collectee/models/<itemId>.glb
+ *   assets/collectee/models/characters/<itemId>.glb
  *
  * **The filename IS the id**, same rule as `artRegistry`. That is what keeps
  * this map generatable and lets `audit-art` treat coverage as a set comparison.
@@ -37,18 +38,41 @@
 /** Catalogue item id → bundled .glb. Empty until the first model lands. */
 export const ITEM_MODELS: Record<string, number> = {
   'codm-dlq33-lightbringer': require('../../assets/collectee/models/codm-dlq33-lightbringer.glb'),
-  'codm-fennec-ascended': require('../../assets/collectee/models/codm-fennec-ascended.glb'),
-  // Character art is deliberately NOT registered. The `subjects/` renders are
-  // head-and-shoulders crops on busy backgrounds, so a baked mesh is a floating
-  // bust — worse than the procedural full-body statue it would replace. Register
-  // one only when a full-body render on a plain background exists to bake from.
+  'codm-fennec-ascended': require('../../assets/collectee/models/weapons/codm-fennec-ascended.glb'),
+  'mlbb-gusion-cyber-faust': require('../../assets/collectee/models/characters/mlbb-gusion-cyber-faust.glb'),
   'val-elderflame-vandal': require('../../assets/collectee/models/val-elderflame-vandal.glb'),
   'val-prime-karambit': require('../../assets/collectee/models/val-prime-karambit.glb'),
 };
 
+/**
+ * Hybrid procedural models use a clean transparent reconstruction input rather
+ * than the dramatic inventory-card art. Only the GLB material named
+ * `projected-art` receives this texture; its structural PBR materials remain.
+ */
+const ITEM_MODEL_TEXTURES: Record<string, number> = {
+  'codm-fennec-ascended': require('../../assets/collectee/trellis-inputs/crown-jewels-weapons/codm-fennec-ascended.png'),
+};
+
+/**
+ * Generated PBR models own their complete material. Legacy depth-baked models
+ * only contain geometry/UVs and still need the 2D item render projected onto
+ * them by `CollectibleGLTF`.
+ */
+const EMBEDDED_MATERIAL_MODELS = new Set<string>(['mlbb-gusion-cyber-faust']);
+
 /** The bundled mesh for an item, or null when it has none yet. */
 export function modelFor(itemId: string): number | null {
   return ITEM_MODELS[itemId] ?? null;
+}
+
+/** Whether the model should retain the textures and PBR maps inside its GLB. */
+export function modelUsesEmbeddedMaterials(itemId: string): boolean {
+  return EMBEDDED_MATERIAL_MODELS.has(itemId);
+}
+
+/** Optional clean texture prepared specifically for a hybrid model. */
+export function modelTextureFor(itemId: string): number | null {
+  return ITEM_MODEL_TEXTURES[itemId] ?? null;
 }
 
 /** Whether an item has real geometry. Lets a surface prefer it over a relief. */

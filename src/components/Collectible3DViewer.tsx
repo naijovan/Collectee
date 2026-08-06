@@ -12,11 +12,22 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber/native';
 import { MathUtils } from 'three';
 import type { Group } from 'three';
 
-import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
+import {
+  colors,
+  DARK_PALETTE,
+  radius,
+  rarityColors,
+  spacing,
+  typography,
+} from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Item } from '@/types';
 
-import { modelFor } from '@/config/modelRegistry';
+import {
+  modelFor,
+  modelTextureFor,
+  modelUsesEmbeddedMaterials,
+} from '@/config/modelRegistry';
 
 import { ArtworkRelief3D, itemDepth, itemTexture } from './ArtworkRelief3D';
 import { CollectibleGLTF } from './CollectibleGLTF';
@@ -156,20 +167,29 @@ export function Collectible3DViewer({
               camera={{ position: [0, 1.2, 9.5], fov: 38, near: 0.1, far: 100 }}
               style={StyleSheet.absoluteFill}
             >
-              <color attach="background" args={[colors.surfaceSunken]} />
-              <fog attach="fog" args={[colors.surfaceSunken, 10, 18]} />
+              <color attach="background" args={[DARK_PALETTE.surfaceSunken]} />
+              <fog attach="fog" args={[DARK_PALETTE.surfaceSunken, 10, 18]} />
               <ambientLight intensity={1.2} />
               <hemisphereLight
-                args={[colors.textPrimary, colors.surfaceSunken, 2.2]}
+                args={[DARK_PALETTE.textPrimary, DARK_PALETTE.surfaceSunken, 2.2]}
               />
-              <directionalLight position={[4, 6, 5]} intensity={4.5} color={colors.textPrimary} />
+              <directionalLight
+                position={[4, 6, 5]}
+                intensity={4.5}
+                color={DARK_PALETTE.textPrimary}
+              />
               <pointLight
                 position={[-4, 1, 3]}
                 intensity={8}
                 distance={12}
                 color={rarityColors[item.rarityTier]}
               />
-              <pointLight position={[3, -2, 2]} intensity={5} distance={10} color={colors.accent} />
+              <pointLight
+                position={[3, -2, 2]}
+                intensity={5}
+                distance={10}
+                color={DARK_PALETTE.accent}
+              />
               <Suspense fallback={<CollectibleRig item={item} controls={controls} />}>
                 <CollectibleRig item={item} controls={controls} preferArtwork />
               </Suspense>
@@ -211,7 +231,9 @@ export function Collectible3DViewer({
               {!item
                 ? '—'
                 : modelFor(item.id)
-                  ? 'Generated 3D model'
+                  ? modelUsesEmbeddedMaterials(item.id)
+                    ? 'Generated 3D model'
+                    : 'Interactive 3D relief'
                   : itemTexture(item)
                     ? '3D artwork relief'
                     : labelForKind(kindFor(item))}
@@ -298,7 +320,16 @@ function CollectibleRig({
       position={[0, art ? 0.45 : kind === 'hero' ? 0.25 : 0.65, 0]}
     >
       {mesh ? (
-        <CollectibleGLTF module={mesh} texture={itemTexture(item)} accent={accent} size={4.6} />
+        <CollectibleGLTF
+          module={mesh}
+          texture={
+            modelUsesEmbeddedMaterials(item.id)
+              ? null
+              : (modelTextureFor(item.id) ?? itemTexture(item))
+          }
+          accent={accent}
+          size={4.6}
+        />
       ) : art ? (
         <ArtworkRelief3D
           source={art}
@@ -326,7 +357,7 @@ export function CollectibleModel3D({ item }: { item: Item }) {
 
 function SciFiRifle({ accent, seed }: { accent: string; seed: string }) {
   const variation = (hash(seed) % 4) * 0.08;
-  const metal = colors.textTertiary;
+  const metal = DARK_PALETTE.textTertiary;
 
   return (
     <group rotation={[0.05, 0, -0.05]} scale={0.9}>
@@ -336,7 +367,7 @@ function SciFiRifle({ accent, seed }: { accent: string; seed: string }) {
       </mesh>
       <mesh position={[0.25, 0.45, 0]}>
         <boxGeometry args={[2.2, 0.16, 0.52]} />
-        <meshStandardMaterial color={colors.textSecondary} metalness={0.82} roughness={0.28} />
+        <meshStandardMaterial color={DARK_PALETTE.textSecondary} metalness={0.82} roughness={0.28} />
       </mesh>
       <mesh position={[-1.85, 0.05, 0]}>
         <boxGeometry args={[1.05, 0.42, 0.56]} />
@@ -344,11 +375,11 @@ function SciFiRifle({ accent, seed }: { accent: string; seed: string }) {
       </mesh>
       <mesh position={[-2.42, -0.02, 0]} rotation={[0, 0, 0.1]}>
         <boxGeometry args={[0.48, 0.8, 0.5]} />
-        <meshStandardMaterial color={colors.surfaceElevated} metalness={0.65} roughness={0.38} />
+        <meshStandardMaterial color={DARK_PALETTE.surfaceElevated} metalness={0.65} roughness={0.38} />
       </mesh>
       <mesh position={[-0.65, -0.62, 0]} rotation={[0, 0, -0.24]}>
         <boxGeometry args={[0.42, 1.05, 0.5]} />
-        <meshStandardMaterial color={colors.surfaceElevated} metalness={0.7} roughness={0.36} />
+        <meshStandardMaterial color={DARK_PALETTE.surfaceElevated} metalness={0.7} roughness={0.36} />
       </mesh>
       <mesh position={[0.35, -0.62, 0]} rotation={[0, 0, 0.12]}>
         <boxGeometry args={[0.58, 0.96, 0.5]} />
@@ -356,7 +387,7 @@ function SciFiRifle({ accent, seed }: { accent: string; seed: string }) {
       </mesh>
       <mesh position={[2.15, 0.12, 0]} rotation={[0, 0, -Math.PI / 2]}>
         <cylinderGeometry args={[0.12, 0.12, 1.75, 20]} />
-        <meshStandardMaterial color={colors.textSecondary} metalness={0.95} roughness={0.12} />
+        <meshStandardMaterial color={DARK_PALETTE.textSecondary} metalness={0.95} roughness={0.12} />
       </mesh>
       <mesh position={[3.05, 0.12, 0]} rotation={[0, Math.PI / 2, 0]}>
         <torusGeometry args={[0.22, 0.08, 10, 28]} />
@@ -378,7 +409,7 @@ function SciFiRifle({ accent, seed }: { accent: string; seed: string }) {
       </mesh>
       <mesh position={[-0.15, 0.66, 0]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.18, 0.18, 0.75, 18]} />
-        <meshStandardMaterial color={colors.textTertiary} metalness={0.9} roughness={0.18} />
+        <meshStandardMaterial color={DARK_PALETTE.textTertiary} metalness={0.9} roughness={0.18} />
       </mesh>
       <mesh position={[-0.15, 0.66, 0]} rotation={[0, 0, Math.PI / 2]}>
         <cylinderGeometry args={[0.1, 0.1, 0.82, 18]} />
@@ -393,16 +424,16 @@ function RingBlade({ accent }: { accent: string }) {
     <group rotation={[0.16, 0.08, -0.38]} scale={1.18}>
       <mesh position={[-1.25, -0.25, 0]} rotation={[0, 0, Math.PI / 2]}>
         <torusGeometry args={[0.54, 0.15, 16, 40]} />
-        <meshStandardMaterial color={colors.textTertiary} metalness={0.95} roughness={0.16} />
+        <meshStandardMaterial color={DARK_PALETTE.textTertiary} metalness={0.95} roughness={0.16} />
       </mesh>
       <mesh position={[-0.5, 0, 0]}>
         <boxGeometry args={[1.25, 0.34, 0.34]} />
-        <meshStandardMaterial color={colors.surfaceElevated} metalness={0.88} roughness={0.22} />
+        <meshStandardMaterial color={DARK_PALETTE.surfaceElevated} metalness={0.88} roughness={0.22} />
       </mesh>
       <mesh position={[0.95, 0.12, 0]} rotation={[0, 0, -Math.PI / 2]}>
         <coneGeometry args={[0.54, 2.8, 3]} />
         <meshStandardMaterial
-          color={colors.textSecondary}
+          color={DARK_PALETTE.textSecondary}
           emissive={accent}
           emissiveIntensity={0.65}
           metalness={0.92}
@@ -428,11 +459,11 @@ function HeroStatue({ accent, seed }: { accent: string; seed: string }) {
     <group scale={0.92}>
       <mesh position={[0, 1.62, 0]}>
         <sphereGeometry args={[0.42, 24, 24]} />
-        <meshStandardMaterial color={colors.textSecondary} metalness={0.72} roughness={0.28} />
+        <meshStandardMaterial color={DARK_PALETTE.textSecondary} metalness={0.72} roughness={0.28} />
       </mesh>
       <mesh position={[0, 0.55, 0]}>
         <capsuleGeometry args={[0.5, 1.3, 10, 20]} />
-        <meshStandardMaterial color={colors.textTertiary} metalness={0.86} roughness={0.24} />
+        <meshStandardMaterial color={DARK_PALETTE.textTertiary} metalness={0.86} roughness={0.24} />
       </mesh>
       {[-1, 1].map((side) => (
         <group key={side}>
@@ -442,11 +473,11 @@ function HeroStatue({ accent, seed }: { accent: string; seed: string }) {
           </mesh>
           <mesh position={[side * 0.72, 0.15, 0]} rotation={[0, 0, side * 0.1]}>
             <capsuleGeometry args={[0.17, 1.15, 8, 14]} />
-            <meshStandardMaterial color={colors.surfaceElevated} metalness={0.78} roughness={0.32} />
+            <meshStandardMaterial color={DARK_PALETTE.surfaceElevated} metalness={0.78} roughness={0.32} />
           </mesh>
           <mesh position={[side * 0.33, -0.95, 0]} rotation={[0, 0, side * 0.08]}>
             <capsuleGeometry args={[0.2, 1.35, 8, 14]} />
-            <meshStandardMaterial color={colors.surfaceElevated} metalness={0.82} roughness={0.26} />
+            <meshStandardMaterial color={DARK_PALETTE.surfaceElevated} metalness={0.82} roughness={0.26} />
           </mesh>
         </group>
       ))}
@@ -467,7 +498,7 @@ function DisplayPedestal({ accent }: { accent: string }) {
     <group position={[0, -2.05, 0]}>
       <mesh>
         <cylinderGeometry args={[1.55, 1.78, 0.42, 64]} />
-        <meshStandardMaterial color={colors.surfaceElevated} metalness={0.88} roughness={0.24} />
+        <meshStandardMaterial color={DARK_PALETTE.surfaceElevated} metalness={0.88} roughness={0.24} />
       </mesh>
       <mesh position={[0, 0.23, 0]} rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[1.42, 0.06, 10, 64]} />
@@ -475,7 +506,7 @@ function DisplayPedestal({ accent }: { accent: string }) {
       </mesh>
       <mesh position={[0, -0.25, 0]}>
         <cylinderGeometry args={[2.05, 2.05, 0.08, 64]} />
-        <meshStandardMaterial color={colors.surfaceSunken} metalness={0.5} roughness={0.5} />
+        <meshStandardMaterial color={DARK_PALETTE.surfaceSunken} metalness={0.5} roughness={0.5} />
       </mesh>
     </group>
   );

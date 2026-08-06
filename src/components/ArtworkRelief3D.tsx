@@ -7,7 +7,7 @@ import {
 } from 'three';
 
 import { artFor, depthFor } from '@/config/artRegistry';
-import { colors } from '@/theme/theme';
+import { DARK_PALETTE } from '@/theme/theme';
 import type { Item } from '@/types';
 
 import { resolveItemArt } from './item-art';
@@ -91,7 +91,7 @@ export function ArtworkRelief3D({
       <mesh position={[0, 0, -depth * 0.55]}>
         <boxGeometry args={[width + rail * 3, height + rail * 3, depth]} />
         <meshStandardMaterial
-          color={colors.surfaceElevated}
+          color={DARK_PALETTE.surfaceElevated}
           metalness={0.88}
           roughness={0.22}
         />
@@ -113,7 +113,7 @@ export function ArtworkRelief3D({
           // Bias recentres it so the plane sits mid-relief rather than in front.
           displacementBias={-depth * (hasRealDepth ? 1.15 : 0.08)}
           displacementScale={depth * (hasRealDepth ? 2.3 : 0.52)}
-          emissive={colors.textPrimary}
+          emissive={DARK_PALETTE.textPrimary}
           emissiveMap={texture}
           emissiveIntensity={0.12}
           metalness={0.12}

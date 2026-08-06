@@ -6,11 +6,15 @@ import { Image } from 'expo-image';
 import { MathUtils } from 'three';
 import type { Group } from 'three';
 
-import { colors, radius, rarityColors, spacing } from '@/theme/theme';
+import { colors, DARK_PALETTE, radius, rarityColors, spacing } from '@/theme/theme';
 import type { Item, Room, RoomTheme, Slot } from '@/types';
 
 import { backdropFor } from '@/config/artRegistry';
-import { modelFor } from '@/config/modelRegistry';
+import {
+  modelFor,
+  modelTextureFor,
+  modelUsesEmbeddedMaterials,
+} from '@/config/modelRegistry';
 
 import { ArtworkRelief3D, itemDepth, itemTexture } from './ArtworkRelief3D';
 import { CollectibleGLTF } from './CollectibleGLTF';
@@ -297,19 +301,19 @@ export function ImmersiveRoom3D({
         style={StyleSheet.absoluteFill}
       >
         <ambientLight intensity={1.45} />
-        <hemisphereLight args={[colors.textPrimary, colors.surfaceSunken, 2]} />
+        <hemisphereLight args={[DARK_PALETTE.textPrimary, DARK_PALETTE.surfaceSunken, 2]} />
         <directionalLight position={[0, 6, 5]} intensity={4.8} />
         <pointLight
           position={[-5, 2, 3]}
           intensity={7}
           distance={13}
-          color={theme?.palette[1] ?? colors.accent}
+          color={theme?.palette[1] ?? DARK_PALETTE.accent}
         />
         <pointLight
           position={[5, 1, 4]}
           intensity={7}
           distance={13}
-          color={theme?.palette[2] ?? colors.warning}
+          color={theme?.palette[2] ?? DARK_PALETTE.warning}
         />
         <RoomAtmosphere
           palette={theme?.palette ?? []}
@@ -491,7 +495,11 @@ function GalleryCollectible({
           {mesh ? (
             <CollectibleGLTF
               module={mesh}
-              texture={art}
+              texture={
+                modelUsesEmbeddedMaterials(entry.item.id)
+                  ? null
+                  : (modelTextureFor(entry.item.id) ?? art)
+              }
               accent={accent}
               size={Math.max(size.width, size.height) * 0.92}
             />

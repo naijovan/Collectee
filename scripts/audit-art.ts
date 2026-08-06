@@ -33,7 +33,9 @@ const BRIEF = 'assets/collectee/MISSING-ART.md';
 // ── Which ids have a render ────────────────────────────────────────────────
 const registrySource = readFileSync(REGISTRY, 'utf8');
 const covered = new Set<string>(
-  [...registrySource.matchAll(/^ {2}'([a-z0-9-]+)':\s*(?:portrait|object)\(/gm)].map((m) => m[1]!),
+  [...registrySource.matchAll(/^ {2}'([a-z0-9-]+)':\s*(?:portrait|object|scene)\(/gm)].map(
+    (m) => m[1]!,
+  ),
 );
 if (covered.size === 0) throw new Error('Parsed 0 registry keys — the regex no longer matches.');
 
