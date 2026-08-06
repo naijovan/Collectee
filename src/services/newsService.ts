@@ -357,6 +357,56 @@ export const newsService = {
     return followedGamesFor(userId);
   },
 
+  /**
+   * Replace the followed-game set outright.
+   *
+   * Exists because the first-run quiz asks "which of these do you play?" and
+   * that is an ASSIGNMENT, not a series of toggles. The viewer is seeded
+   * following all three titles (§12.3), so a quiz answer of "just CODM" run
+   * through `toggleFollowedGame` for each pick would unfollow CODM and leave
+   * Valorant and MLBB followed — the exact inverse of the answer. The bug is
+   * invisible in a screen that toggles one chip at a time, which is why the
+   * fix belongs here rather than in a loop at the call site.
+   *
+   * Writes the same two overlays as the toggle, so seeded data stays untouched
+   * (§12.1) and `resetSessionFollowing` still undoes it.
+   */
+  async setFollowedGames(userId: string, titles: readonly GameTitle[]): Promise<GameTitle[]> {
+    const seeded = USERS_BY_ID.get(userId)?.followedGames ?? [];
+    const wanted = new Set(titles);
+
+    // Adds are what the seed does not already give us; drops are what the seed
+    // gives us and the answer did not ask for. Expressed against the seed
+    // rather than the current overlay so calling this twice is idempotent.
+    followedGameAdds.set(userId, new Set(titles.filter((t) => !seeded.includes(t))));
+    unfollowedGames.set(userId, new Set(seeded.filter((t) => !wanted.has(t))));
+
+    return delay(followedGamesFor(userId), LATENCY_INSTANT);
+  },
+
+  /**
+   * Drop every session change to following, back to the seeded state.
+   *
+   * The first run is the one flow that cannot be rehearsed twice without this.
+   * Everything the quiz writes lands in the four overlays above, and there is
+   * no persistence layer to clear instead (§12.1) — so without a reset the
+   * second take through the quiz starts with the first take's answers already
+   * applied, and picking "just VALORANT" after picking "just CODM" produces a
+   * feed that matches neither.
+   *
+   * A Promise like every other service method, even though the work is four
+   * `Map.delete` calls — the caller is a synchronous state reset and voids it.
+   * Phase 2 makes this a real request, and the alternative is that this is the
+   * one method that has to change shape when it does.
+   */
+  async resetSessionFollowing(userId: string): Promise<void> {
+    addedTopics.delete(userId);
+    removedTopics.delete(userId);
+    followedGameAdds.delete(userId);
+    unfollowedGames.delete(userId);
+    return delay(undefined, LATENCY_INSTANT);
+  },
+
   async toggleFollowedGame(userId: string, title: GameTitle): Promise<boolean> {
     const dropped = unfollowedGames.get(userId) ?? new Set<GameTitle>();
     const extra = followedGameAdds.get(userId) ?? new Set<GameTitle>();
