@@ -153,6 +153,39 @@ export function ImmersiveRoom3D({
     placements.find((entry) => entry.slot.id === room.settings.focusedSlotId) ?? null;
 
   /**
+   * Scale that guarantees every placed item is inside the frame.
+   *
+   * Previously a guess — 0.62 in portrait, 1 otherwise — which cut the outer
+   * displays off whenever a theme's slot map was wider than that guess assumed.
+   * This measures the actual extent of the placed slots, including each one's
+   * own half-size, and compares it against what the camera can see at this fov
+   * and distance. Nothing can be cropped, whatever the theme or placement count.
+   */
+  const fitScale = (() => {
+    if (placements.length === 0) return 1;
+
+    let halfX = 0;
+    let halfY = 0;
+    for (const entry of placements) {
+      const [x, y] = slotToWorld(entry.slot);
+      const size = slotToSize(entry.slot);
+      halfX = Math.max(halfX, Math.abs(x) + size.width / 2);
+      halfY = Math.max(halfY, Math.abs(y) + size.height / 2);
+    }
+
+    // Visible half-extents at the focal plane, with a margin so nothing sits
+    // flush against the edge.
+    const visibleHalfHeight = cameraZ * Math.tan((fov * Math.PI) / 360) * 0.86;
+    const visibleHalfWidth = visibleHalfHeight * aspect;
+
+    return Math.min(
+      1,
+      halfX > 0 ? visibleHalfWidth / halfX : 1,
+      halfY > 0 ? visibleHalfHeight / halfY : 1,
+    );
+  })();
+
+  /**
    * One responder, two gestures on the same surface:
    *   two fingers → pinch the room closer or further away
    *   one finger  → orbit
@@ -325,7 +358,7 @@ export function ImmersiveRoom3D({
           focusedSlotId={room.settings.focusedSlotId}
           focusTarget={focusedEntry ? slotToWorld(focusedEntry.slot) : null}
           placements={placements}
-          spread={aspect < 1 ? 0.62 : 1}
+          spread={fitScale}
           onSelect={select}
         />
       </Canvas>

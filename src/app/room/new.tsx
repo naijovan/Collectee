@@ -133,7 +133,13 @@ export default function CreateRoomScreen() {
   const [unverifiedCount, setUnverifiedCount] = useState(0);
   const { viewerId } = useApp();
   const { width } = useWindowDimensions();
-  const sceneWidth = Math.min(width, 520) - spacing.lg * 2;
+  /**
+   * Matches the content column, not an arbitrary 520. The scene sat visibly
+   * narrower than the buttons underneath it because this capped at 520 while
+   * `styles.content` caps at 720 — the room read as a cropped thumbnail rather
+   * than the thing the step is about.
+   */
+  const sceneWidth = Math.min(width, 720) - spacing.lg * 2;
 
   const [step, setStep] = useState(param || draftItemIds.length > 0 ? 1 : 0);
   /** Every step opens at the top — the flow is one route, so nothing remounts. */
@@ -1107,19 +1113,51 @@ export default function CreateRoomScreen() {
                 Changing style rebuilds the room: geometry comes from the style, so placements are
                 re-arranged from scratch.
               </Text>
-              {themes.map((theme) => (
-                <Pressable
-                  key={theme.id}
-                  onPress={() => {
-                    setThemeId(theme.id);
-                    void generate();
-                  }}
-                  style={[styles.option, room.themeId === theme.id && styles.optionActive]}
-                >
-                  <Text style={styles.rowTitle}>{theme.name}</Text>
-                  <Text style={styles.muted}>{theme.description}</Text>
-                </Pressable>
-              ))}
+              {/* Show the room, not its name. Choosing a backdrop from a list of
+                  titles asks the user to remember what "Cyber Shrine" looks
+                  like — and the whole point of the step is the look. */}
+              <View style={styles.bgGrid}>
+                {themes.map((theme) => {
+                  const art = themeBackdrop(theme);
+                  const active = room.themeId === theme.id;
+                  return (
+                    <Pressable
+                      key={theme.id}
+                      onPress={() => {
+                        setThemeId(theme.id);
+                        void generate();
+                      }}
+                      style={[styles.bgCell, active && styles.bgCellActive]}
+                    >
+                      <View style={styles.bgArtWrap}>
+                        {art ? (
+                          <Image source={art} style={StyleSheet.absoluteFill} contentFit="cover" />
+                        ) : (
+                          <View style={[StyleSheet.absoluteFill, styles.bgFallback]} />
+                        )}
+                        {/* Palette strip: two themes can share a room shape and
+                            differ entirely in colour, which the crop may not show. */}
+                        <View style={styles.bgSwatches}>
+                          {theme.palette.map((tone) => (
+                            <View key={tone} style={[styles.bgSwatch, { backgroundColor: tone }]} />
+                          ))}
+                        </View>
+                        {active ? (
+                          <View style={styles.bgTick}>
+                            <Text style={styles.bgTickText}>✓</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {theme.name}
+                      </Text>
+                      <Text style={styles.muted} numberOfLines={2}>
+                        {theme.description}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           ) : null}
 
@@ -1332,6 +1370,41 @@ const styles = StyleSheet.create({
   },
   verifyNudgeTitle: { ...typography.cardTitle, color: colors.accent },
   verifyNudgeBody: { ...typography.meta, color: colors.textSecondary },
+
+  bgGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  bgCell: { width: '48%', gap: 2 },
+  bgCellActive: { opacity: 1 },
+  bgArtWrap: {
+    width: '100%',
+    aspectRatio: 1.5,
+    overflow: 'hidden',
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSunken,
+    marginBottom: spacing.xs,
+  },
+  bgFallback: { backgroundColor: colors.surfaceSunken },
+  bgSwatches: {
+    position: 'absolute',
+    left: spacing.sm,
+    bottom: spacing.sm,
+    flexDirection: 'row',
+    gap: 3,
+  },
+  bgSwatch: { width: 12, height: 12, borderRadius: 2 },
+  bgTick: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
+  bgTickText: { color: colors.textOnAccent, fontSize: 15, fontWeight: '700' },
 
   pickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   /** Three across. Narrower cells are taller for the same art height, which is
