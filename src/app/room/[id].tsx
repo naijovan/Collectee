@@ -374,7 +374,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    marginTop: -spacing.xl - spacing.xs,
+    // No negative margin. It used to pull this pill up over the scene's bottom
+    // edge, which worked while the pill sat directly under the room — but once
+    // "Enter the room" was added between them it overlapped that button
+    // instead, and a CTA sitting on another CTA is unclickable in the overlap.
   },
   sourceCtaText: { ...typography.meta, color: colors.textOnAccent },
 
