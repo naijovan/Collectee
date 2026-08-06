@@ -338,7 +338,22 @@ export function CommunityCard({
 }) {
   const [hovered, setHovered] = useState(false);
 
+  /**
+   * The card and its action are SIBLINGS, not parent and child.
+   *
+   * react-native-web renders `accessibilityRole="button"` as a real `<button>`
+   * element, so an action nested inside a tappable card is a `<button>` inside
+   * a `<button>` — invalid HTML, and React says so in an error overlay. It also
+   * behaves badly on its own terms: a tap on the inner control bubbles to the
+   * outer one, so joining a community would also navigate into it.
+   *
+   * Dropping the role on either would silence the warning and cost the thing
+   * the role buys — keyboard focus, Enter/Space, and a screen reader announcing
+   * two controls. So the action is lifted out and positioned over the card
+   * instead. Two siblings, two roles, no bubbling to stop.
+   */
   return (
+    <View style={[styles.communityWrap, width ? { width } : null]}>
     <Pressable
       onPress={onPress}
       onHoverIn={() => setHovered(true)}
@@ -347,7 +362,6 @@ export function CommunityCard({
       accessibilityLabel={`${community.name}, ${memberCount.toLocaleString()} members`}
       style={({ pressed }) => [
         styles.collectionCard,
-        width ? { width } : null,
         hovered && styles.collectionCardHovered,
         pressed && styles.pressed,
       ]}
@@ -378,9 +392,16 @@ export function CommunityCard({
             {reason}
           </Text>
         ) : null}
-        {action ? <View style={styles.communityAction}>{action}</View> : null}
       </View>
     </Pressable>
+    {/* Over the image, opposite the tag. Outside the Pressable above, so it is
+        a sibling in the DOM as well as in the layout. */}
+    {action ? (
+      <View style={styles.communityAction} pointerEvents="box-none">
+        {action}
+      </View>
+    ) : null}
+    </View>
   );
 }
 
@@ -545,7 +566,10 @@ const styles = StyleSheet.create({
   },
   communityTagText: { ...typography.meta, color: colors.textPrimary },
   communityReason: { ...typography.meta, color: colors.textTertiary },
-  communityAction: { marginTop: spacing.sm },
+  /* `relative` so the absolutely-positioned action anchors to the card and not
+     to whatever scroll container happens to be above it. */
+  communityWrap: { position: 'relative' },
+  communityAction: { position: 'absolute', top: spacing.sm, right: spacing.sm },
   badgeOverlay: { position: 'absolute', top: spacing.sm, left: spacing.sm },
   ownerOverlay: {
     position: 'absolute',
