@@ -38,6 +38,7 @@ import { useEffect } from 'react';
 
 import { AppProvider, useApp } from '@/state/AppContext';
 import { AssistantDockProvider } from '@/state/AssistantDock';
+import { TourAnchorsProvider } from '@/state/TourAnchors';
 import { ThemeModeProvider, useThemeMode } from '@/theme/ThemeMode';
 import { AssistantButton, TourOverlay } from '@/components';
 import { colors, fonts } from '@/theme/theme';
@@ -73,6 +74,7 @@ export default function RootLayout() {
     <ThemeModeProvider>
       <AppProvider>
         <AssistantDockProvider>
+        <TourAnchorsProvider>
         <ThemedChrome />
         <FirstRunGate />
       <Stack
@@ -144,6 +146,7 @@ export default function RootLayout() {
             fifth stop is about that button, and a tour card underneath the
             thing it is describing is worse than no card. */}
         <FirstRunTour />
+        </TourAnchorsProvider>
         </AssistantDockProvider>
       </AppProvider>
     </ThemeModeProvider>

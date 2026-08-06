@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import * as haptics from '@/lib/haptics';
 import { useApp } from '@/state/AppContext';
+import { useTourAnchor } from '@/state/TourAnchors';
 import { colors, fonts, interaction, radius, spacing, typography } from '@/theme/theme';
 
 interface Tab {
@@ -101,6 +102,13 @@ export function TabBar() {
   const pathname = usePathname();
   const { hasImported } = useApp();
   const insets = useSafeAreaInsets();
+  /* Two targets for the first-run walkthrough. A ref each, no wrapper — the
+     bar is a flex row and the tabs are `flex: 1`, so an extra View here would
+     change the layout purely so the tour has something to hold. Inert when the
+     tour is not mounted (see `TourAnchors`), so nothing in this component is
+     now conditional on a §14-cuttable feature. */
+  const barAnchor = useTourAnchor('tabbar');
+  const importAnchor = useTourAnchor('tab-import');
 
   const [left, right] = [TABS.slice(0, 2), TABS.slice(2)];
 
@@ -139,6 +147,8 @@ export function TabBar() {
 
   return (
     <View
+      ref={barAnchor}
+      collapsable={false}
       style={[styles.bar, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
       accessibilityRole="tablist"
     >
@@ -150,6 +160,8 @@ export function TabBar() {
           activation event the whole product depends on (J1). Labelling it and
           levelling it costs the flourish and buys a tab that explains itself. */}
       <Pressable
+        ref={importAnchor}
+        collapsable={false}
         onPress={() => {
           haptics.tap();
           router.push('/import');

@@ -22,6 +22,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname } from 'expo-router';
 
 import { useAssistantDock } from '@/state/AssistantDock';
+import { useTourAnchor } from '@/state/TourAnchors';
 import { colors, interaction, radius, spacing, typography } from '@/theme/theme';
 
 import { AssistantPanel } from './AssistantPanel';
@@ -48,6 +49,8 @@ export function AssistantButton() {
   const pathname = usePathname();
   const hover = useHoverLift();
   const { open, openPanel, closePanel } = useAssistantDock();
+  /* Final stop of the first-run walkthrough. Inert without the tour mounted. */
+  const tourAnchor = useTourAnchor('assistant-button');
 
   if (HIDDEN_ON.some((route) => pathname.startsWith(route))) return null;
 
@@ -55,6 +58,8 @@ export function AssistantButton() {
     <>
       {open ? <AssistantPanel /> : null}
       <Pressable
+        ref={tourAnchor}
+        collapsable={false}
         accessibilityRole="button"
         accessibilityLabel={open ? 'Close the assistant' : 'Ask the assistant about your collection'}
         onPress={open ? closePanel : openPanel}

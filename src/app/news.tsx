@@ -34,6 +34,7 @@ import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { newsService } from '@/services';
 import type { DigestResult } from '@/services';
 import { useApp } from '@/state/AppContext';
+import { useTourAnchor } from '@/state/TourAnchors';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
 import type { Article, GameTitle } from '@/types';
@@ -80,6 +81,12 @@ function DigestCard({ title, digest }: { title: GameTitle; digest: DigestResult 
 
 export default function NewsScreen() {
   const router = useRouter();
+  /* First-run walkthrough targets. The digest is the one target in the app
+     that is not reliably on screen when the tour arrives — it resolves
+     asynchronously and can take the full model timeout — so the tab row is
+     registered as its fallback. See `TourStop.fallbackTargetIds`. */
+  const digestAnchor = useTourAnchor('news-digest');
+  const tabsAnchor = useTourAnchor('news-tabs');
   const { viewerId, unreadNotifications } = useApp();
 
   const [tab, setTab] = useState<string>(TABS[0]);
@@ -147,14 +154,21 @@ export default function NewsScreen() {
         </Pressable>
       </View>
 
-      <FilterChips options={TABS} value={tab} onChange={setTab} />
+      <View ref={tabsAnchor} collapsable={false}>
+        <FilterChips options={TABS} value={tab} onChange={setTab} />
+      </View>
 
+      {/* Wrapped so both branches share one measurable box: the walkthrough
+          can then land its spotlight on the digest while it is still loading
+          and keep it there as the real card replaces the placeholder. */}
       {title !== null ? (
-        digest?.title === title ? (
-          <DigestCard title={title} digest={digest.result} />
-        ) : (
-          <LoadingState height={120} />
-        )
+        <View ref={digestAnchor} collapsable={false}>
+          {digest?.title === title ? (
+            <DigestCard title={title} digest={digest.result} />
+          ) : (
+            <LoadingState height={120} />
+          )}
+        </View>
       ) : null}
 
       {busy ? <LoadingState height={200} /> : null}
