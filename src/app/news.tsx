@@ -23,19 +23,29 @@
  * between rehearsal and the live run.
  */
 
-import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ArticleCard, EmptyState, FilterChips, LoadingState } from '@/components';
 import { DEMO_NOW, FEATURES } from '@/config/features';
 import type { RankedArticle } from '@/domain/news';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { newsService } from '@/services';
 import type { DigestResult } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useTourAnchor } from '@/state/TourAnchors';
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import { colors, motion, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
 import type { Article, GameTitle } from '@/types';
 
@@ -58,24 +68,90 @@ const TITLE_BY_TAB = new Map<string, GameTitle>(
  * flag that is on but timed out must still say "prepared", or the one honest
  * claim this build makes about AI stops being true (§12.1).
  */
+/**
+ * The digest, which upgrades in place.
+ *
+ * Shows the prepared bullets the moment they arrive and cross-fades to the
+ * model's when those land. The label reads off what is CURRENTLY on screen, not
+ * off what was requested — so it says "prepared" while prepared bullets are
+ * showing and changes only when the text underneath it does. That is the whole
+ * §12.1 rule: never imply a model ran when none has, and never imply one has
+ * not when it did.
+ *
+ * ── Why the height only ever grows ────────────────────────────────────────
+ * The live digest is SHORTER than the prepared one — measured, two bullets
+ * against four — so upgrading shrinks the card. That is a layout jump under
+ * text the reader is mid-sentence through, and the first-run spotlight is
+ * measured against this exact box, so the cutout would be left too tall until
+ * it re-measured. Locking the floor to the tallest render costs some empty
+ * space and buys a card that never moves.
+ */
 function DigestCard({ title, digest }: { title: GameTitle; digest: DigestResult }) {
-  if (digest.bullets.length === 0) return null;
+  const reduceMotion = useReduceMotion();
+  const [shown, setShown] = useState<DigestResult>(digest);
+  const [floor, setFloor] = useState<number>();
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const unchanged =
+      digest.live === shown.live &&
+      digest.bullets.length === shown.bullets.length &&
+      digest.bullets.every((bullet, i) => bullet === shown.bullets[i]);
+    // Live failing returns the prepared bullets verbatim, so the common
+    // no-network case swaps nothing and animates nothing.
+    if (unchanged) return;
+
+    /* Reduce Motion: swap outright. The fade carries no information the text
+       does not — it is there to stop the change being startling, which is the
+       definition of decoration in this codebase. */
+    if (reduceMotion) {
+      setShown(digest);
+      return;
+    }
+
+    Animated.timing(opacity, {
+      toValue: 0,
+      duration: motion.fast,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: NATIVE_DRIVER,
+    }).start(({ finished }) => {
+      // Interrupted means a newer digest started its own transition.
+      if (!finished) return;
+      setShown(digest);
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: motion.base,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: NATIVE_DRIVER,
+      }).start();
+    });
+  }, [digest, shown, opacity, reduceMotion]);
+
+  if (shown.bullets.length === 0) return null;
 
   return (
-    <View style={styles.digest}>
+    <Animated.View
+      style={[styles.digest, floor !== undefined && { minHeight: floor }, { opacity }]}
+      onLayout={(event) => {
+        const { height } = event.nativeEvent.layout;
+        // Monotonic, so this settles after the first render rather than
+        // oscillating: once the floor is applied the height stops changing.
+        setFloor((current) => (current === undefined || height > current ? height : current));
+      }}
+    >
       <Text style={styles.digestTitle}>What&apos;s happening in {GAME_LABELS[title]}</Text>
-      {digest.bullets.map((bullet) => (
+      {shown.bullets.map((bullet) => (
         <View key={bullet} style={styles.bulletRow}>
           <Text style={styles.bulletDot}>•</Text>
           <Text style={styles.bulletText}>{bullet}</Text>
         </View>
       ))}
       <Text style={styles.footnote}>
-        {digest.live
+        {shown.live
           ? 'Digest by Claude, from the articles below.'
           : 'Prepared digest — no model call ran (§12.1).'}
       </Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -84,6 +160,9 @@ function DigestCard({ title, digest }: { title: GameTitle; digest: DigestResult 
  * the layout does not jump under the first-run walkthrough's spotlight.
  */
 const DIGEST_PLACEHOLDER_HEIGHT = 172;
+
+/* No native animated module on web — matches `primitives` and `import`. */
+const NATIVE_DRIVER = Platform.OS !== 'web';
 
 export default function NewsScreen() {
   const router = useRouter();
@@ -131,7 +210,19 @@ export default function NewsScreen() {
     // The digest is not awaited alongside the feed: it is the one call on this
     // screen that really hits a model, so it can take the full 5s timeout, and
     // holding the articles hostage to it would make a working feed look broken.
+    /* Two stages, not one. The prepared bullets land with the articles; the
+       model's replace them when they arrive. Measured against the deployed
+       proxy the live call takes 1.1-1.5s, and the slot used to hold a grey
+       rectangle for every millisecond of it — which the first-run spotlight
+       then pointed at. */
     setDigest(null);
+    void newsService.getSeededDigest(title).then((result) =>
+      /* Only fills an empty slot. If the live result somehow wins the race,
+         the prepared one must not overwrite it on arrival. */
+      setDigest((current) =>
+        current !== null && current.title === title ? current : { title, result },
+      ),
+    );
     void newsService.getDigest(title).then((result) => setDigest({ title, result }));
 
     // Nothing sets `busy` here. The articles resolve at LATENCY_INSTANT and

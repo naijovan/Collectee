@@ -26,7 +26,16 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -65,6 +74,10 @@ const REMEASURE_MS = 500;
 const HOLE_PAD = 8;
 /** Gap between the hole and the card beside it. */
 const CARD_GAP = spacing.md;
+
+/* Web has no native animated module, so asking for one only prints a warning
+ * and falls back anyway. Same expression `primitives` and `import` already use. */
+const NATIVE_DRIVER = Platform.OS !== 'web';
 
 type Phase = 'moving' | 'shown';
 
@@ -164,7 +177,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
         toValue: 0,
         duration: motion.fast,
         easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
+        useNativeDriver: NATIVE_DRIVER,
       }).start();
 
       goToRoute(target.route);
@@ -197,7 +210,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
             toValue: 1,
             duration: motion.base,
             easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
+            useNativeDriver: NATIVE_DRIVER,
           }).start();
         };
 
@@ -236,13 +249,13 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
           toValue: 1,
           duration: 900,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: NATIVE_DRIVER,
         }),
         Animated.timing(pulse, {
           toValue: 0,
           duration: 900,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: NATIVE_DRIVER,
         }),
       ]),
     );
