@@ -306,10 +306,19 @@ export const roomService = {
       slots,
       placements,
       settings: {
-        // The room opens on its focal item, which is what makes the look-at
-        // transition visible on arrival rather than only after a tap (§11 F4).
         parallaxEnabled: true,
-        focusedSlotId: hero?.id ?? null,
+        /**
+         * Opens wide, not on the hero item.
+         *
+         * Focusing on arrival applied the look-at dolly immediately, so a room
+         * the user had just generated appeared already zoomed into its centre
+         * with the outer items half out of frame — they never saw what they
+         * had made. §11 F4 wants the look-at transition to be visible, and it
+         * still is: it plays on the first tap, from a wide shot, which is
+         * where a transition reads as a transition rather than as a starting
+         * position.
+         */
+        focusedSlotId: null,
         lightingPreset: 'cool-blue',
         brightness: 0.68,
         animatedLighting: true,

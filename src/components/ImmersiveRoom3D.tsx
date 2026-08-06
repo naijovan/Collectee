@@ -175,7 +175,11 @@ export function ImmersiveRoom3D({
 
     // Visible half-extents at the focal plane, with a margin so nothing sits
     // flush against the edge.
-    const visibleHalfHeight = cameraZ * Math.tan((fov * Math.PI) / 360) * 0.86;
+    // 0.72, not 0.86. A slot is the box an item is placed in, but what renders
+    // is bigger than that box: a plinth sits below it, a GLTF is normalised to
+    // the slot's LONGEST side in both axes, and a relief carries a frame. Fitting
+    // to the slot alone still clipped the outer displays.
+    const visibleHalfHeight = cameraZ * Math.tan((fov * Math.PI) / 360) * 0.72;
     const visibleHalfWidth = visibleHalfHeight * aspect;
 
     return Math.min(
