@@ -33,6 +33,9 @@ import { SCAN_RESULTS } from '../src/fixtures/scan-results';
 import { ARTICLES } from '../src/fixtures/articles';
 import { COMMENTS, COMMUNITIES, FLAGS, FOLLOWS, NOTIFICATIONS, SAVED_ARTICLES } from '../src/fixtures/social';
 import { USERS, USERS_BY_ID, GAME_ACCOUNTS } from '../src/fixtures/users';
+/* avatarRoster, NOT avatarRegistry. The registry require()s PNGs and only
+   Metro resolves those — importing it here crashes on the first image. */
+import { AVATARS } from '../src/config/avatarRoster';
 
 const errors: string[] = [];
 const warnings: string[] = [];
@@ -332,6 +335,28 @@ for (const user of USERS) {
   warn(count < 1000, `§15: ${user.displayName} owns ${count} items — keep counts plausible`);
 }
 check(USERS_BY_ID.size === USERS.length, 'Duplicate user id');
+
+// ── Avatars ────────────────────────────────────────────────────────────
+/**
+ * Every seeded user shows a distinct face from the roster.
+ *
+ * Neither property survives on good intentions. TypeScript sees `avatar` as a
+ * string, so a typo'd id renders as a colour block that looks deliberate, and
+ * two users sharing an id is invisible until a collector card and a comment
+ * author on the same screen turn out to be the same person.
+ */
+const avatarIds = new Set(AVATARS.map((a) => a.id));
+for (const user of USERS) {
+  check(
+    avatarIds.has(user.avatar),
+    `User ${user.displayName}: avatar '${user.avatar}' is not in the roster (config/avatarRoster)`,
+  );
+}
+check(
+  new Set(USERS.map((u) => u.avatar)).size === USERS.length,
+  'Two seeded users share an avatar — every face must be distinct',
+);
+check(avatarIds.size === AVATARS.length, 'Duplicate id in the avatar roster');
 check(ITEMS_BY_ID.size === ALL_ITEMS.length, 'Duplicate item id in ITEMS_BY_ID');
 
 // ── Stray files ────────────────────────────────────────────────────────
@@ -392,6 +417,7 @@ if (errors.length > 0) {
 
 console.log(
   `Fixtures OK — ${ALL_ITEMS.length} items, ${ALL_SETS.length} sets, ${USERS.length} users, ` +
+  `${AVATARS.length} avatars, ` +
     `${OWNED_ITEMS.length} owned, ${COLLECTIONS.length} collections, ${ROOMS.length} rooms, ` +
     `${ROOM_THEMES.length} themes, ${ARTICLES.length} articles, ${GAME_DIGESTS.length} digests, ` +
     `${SCAN_RESULTS.length} scans, ${THREADS.length} threads, ${THREAD_REPLIES.length} replies.`,

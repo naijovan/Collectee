@@ -153,7 +153,12 @@ export default function CollectorScreen() {
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.identity}>
-        <Avatar name={user.displayName} verified={user.isAccountVerified} size={72} />
+        <Avatar
+          name={user.displayName}
+          avatarId={user.avatar}
+          verified={user.isAccountVerified}
+          size={72}
+        />
         <Text style={styles.title}>{user.displayName}</Text>
         <Text style={styles.muted}>@{user.handle}</Text>
         <Text style={styles.body}>{user.bio}</Text>

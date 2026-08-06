@@ -12,19 +12,21 @@
  */
 
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { DimensionValue } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { DimensionValue, StyleProp, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { communityArtFor } from '@/config/communityArt';
 import { FEATURES } from '@/config/features';
 import { rarityLabelFor } from '@/domain/rarity';
 import { GAME_SHORT_LABELS } from '@/types';
-import type { Article, Collection, Item, TrustLevel, User } from '@/types';
+import type { Article, Collection, Community, Item, TrustLevel, User } from '@/types';
 import {
   colors,
   fonts,
   interaction,
   radius,
+  rarityColors,
   rarityTreatments,
   scrim,
   spacing,
@@ -136,6 +138,20 @@ export function ItemCard({
  * §13.4 section 5 — game badge top-left, art, collector avatar + name + tick,
  * collection name, heart + like count.
  */
+/** Stable per-string index, mirroring the one in `primitives`. */
+function communityHash(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/**
+ * Placeholder tints for communities. Accent and the neutral end of the rarity
+ * scale — never a high tier, because a mythic-red community block would imply a
+ * rarity a community does not have.
+ */
+const COMMUNITY_TINTS = [colors.accent, rarityColors.rare, rarityColors.epic, rarityColors.common];
+
 export function CollectionCard({
   collection,
   owner,
@@ -199,7 +215,12 @@ export function CollectionCard({
             below belongs entirely to the collection itself. */}
         {owner ? (
           <View style={styles.ownerOverlay}>
-            <Avatar name={owner.displayName} verified={owner.isAccountVerified} size={18} />
+            <Avatar
+              name={owner.displayName}
+              avatarId={owner.avatar}
+              verified={owner.isAccountVerified}
+              size={18}
+            />
             <Text style={styles.ownerOverlayName} numberOfLines={1}>
               {owner.displayName}
             </Text>
@@ -236,6 +257,133 @@ export function CollectionCard({
  * §11 F5 — the reason is part of the feature, not a tooltip. A percentage
  * without its reason next to it is a broken card.
  */
+/**
+ * Community art — the bundled header image, or the deterministic tinted block
+ * `ItemArt` falls back to.
+ *
+ * Communities have no rarity, so the tint comes from the id rather than a tier:
+ * a community is not on the value ladder and borrowing a rarity colour for one
+ * would say something untrue about it (§12.2). The geometry is `ItemArt`'s, so
+ * a card with art and a card without read as the same component.
+ */
+export function CommunityArt({
+  communityId,
+  name,
+  style,
+}: {
+  communityId: string;
+  name: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const art = communityArtFor(communityId);
+  if (art !== null) {
+    return (
+      <View style={[styles.communityArt, style]}>
+        <Image
+          source={art}
+          style={styles.communityArtFill}
+          resizeMode="cover"
+          accessible
+          accessibilityLabel={`${name} community artwork`}
+          accessibilityIgnoresInvertColors
+        />
+      </View>
+    );
+  }
+
+  const tint = COMMUNITY_TINTS[communityHash(communityId) % COMMUNITY_TINTS.length]!;
+  const angle = communityHash(name) % 3;
+  return (
+    <View style={[styles.communityArt, style]}>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: tint, opacity: 0.16 }]} />
+      <View
+        style={[
+          styles.communityStripe,
+          { backgroundColor: tint, opacity: 0.5, transform: [{ rotate: `${-28 + angle * 14}deg` }] },
+        ]}
+      />
+      <View style={[styles.communityGlow, { backgroundColor: tint, opacity: 0.22 }]} />
+    </View>
+  );
+}
+
+/**
+ * A community, as a card: image on top, name and member count below.
+ *
+ * The same shape as `CollectionCard`, deliberately. Communities and collections
+ * are both browsable tiles on Explore, and until now one was a picture and the
+ * other a 44px circle beside two lines of text — which read as two tiers of
+ * content rather than two kinds of it.
+ *
+ * `action` is a slot rather than a baked-in Join button: Explore's recommended
+ * list needs one, the "your communities" list does not, and the detail screen
+ * has its own.
+ */
+export function CommunityCard({
+  community,
+  memberCount,
+  reason,
+  width,
+  onPress,
+  action,
+}: {
+  community: Community;
+  /** Passed in, never read off the fixture — membership is a session overlay. */
+  memberCount: number;
+  /** Why it was recommended (§11 F5 — a score without its reason is broken). */
+  reason?: string;
+  width?: DimensionValue;
+  onPress?: () => void;
+  action?: React.ReactNode;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      accessibilityRole="button"
+      accessibilityLabel={`${community.name}, ${memberCount.toLocaleString()} members`}
+      style={({ pressed }) => [
+        styles.collectionCard,
+        width ? { width } : null,
+        hovered && styles.collectionCardHovered,
+        pressed && styles.pressed,
+      ]}
+    >
+      <View>
+        <CommunityArt communityId={community.id} name={community.name} />
+        <LinearGradient
+          colors={[scrim.medium, scrim.clear]}
+          style={styles.coverScrim}
+          pointerEvents="none"
+        />
+        {community.tags[0] ? (
+          <View style={styles.badgeOverlay}>
+            <View style={styles.communityTag}>
+              <Text style={styles.communityTagText}>{community.tags[0]}</Text>
+            </View>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.collectionBody}>
+        <Text style={styles.collectionName} numberOfLines={2}>
+          {community.name}
+        </Text>
+        <Text style={styles.ownerName}>{memberCount.toLocaleString()} members</Text>
+        {reason ? (
+          <Text style={styles.communityReason} numberOfLines={2}>
+            {reason}
+          </Text>
+        ) : null}
+        {action ? <View style={styles.communityAction}>{action}</View> : null}
+      </View>
+    </Pressable>
+  );
+}
+
 export function CollectorCard({
   user,
   percent,
@@ -256,7 +404,12 @@ export function CollectorCard({
       onPress={onPress}
       style={({ pressed }) => [styles.collectorCard, { width }, pressed && styles.pressed]}
     >
-      <Avatar name={user.displayName} verified={user.isAccountVerified} size={44} />
+      <Avatar
+        name={user.displayName}
+        avatarId={user.avatar}
+        verified={user.isAccountVerified}
+        size={44}
+      />
       <Text style={styles.collectorName} numberOfLines={1}>
         {user.displayName}
       </Text>
@@ -374,6 +527,25 @@ const styles = StyleSheet.create({
   // one narrow, and at 104 they were wider than they were tall — weapons read
   // as slivers. 148 gives each panel a near-square crop.
   collectionArt: { height: 148, borderRadius: 0 },
+  communityArt: {
+    height: 148,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  communityArtFill: { width: '100%', height: '100%' },
+  communityStripe: { position: 'absolute', width: '150%', height: 26 },
+  communityGlow: { position: 'absolute', width: 90, height: 90, borderRadius: 45 },
+  communityTag: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: scrim.heavy,
+  },
+  communityTagText: { ...typography.meta, color: colors.textPrimary },
+  communityReason: { ...typography.meta, color: colors.textTertiary },
+  communityAction: { marginTop: spacing.sm },
   badgeOverlay: { position: 'absolute', top: spacing.sm, left: spacing.sm },
   ownerOverlay: {
     position: 'absolute',

@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
+import { avatarArtFor } from '@/config/avatarRegistry';
 import { resolveItemArt } from './item-art';
 
 import { useReduceMotion } from '@/hooks/useReduceMotion';
@@ -179,23 +180,48 @@ export function GameBadge({ title }: { title: GameTitle }) {
   );
 }
 
-/** Initials avatar with the account-level blue tick (§9.3 — NOT item trust). */
+/**
+ * Avatar — a roster portrait when one has landed, initials over a deterministic
+ * hue when it has not. Carries the account-level blue tick (§9.3 — NOT item
+ * trust).
+ *
+ * ── Why `avatarId` is optional ────────────────────────────────────────────
+ * Not every caller has one. A comment knows its author's name before it knows
+ * whether that author is a seeded user, and the assistant renders a face for a
+ * string. Those keep the initials treatment rather than being forced to invent
+ * an id, so this stayed an additive prop across twenty-odd call sites instead
+ * of a breaking one.
+ *
+ * ── Why the hue is seeded on the id when there is one ─────────────────────
+ * It used to be seeded on the display name, which meant the colour was a
+ * property of what someone was called. Two roster faces with similar names
+ * could land on neighbouring hues, and renaming yourself in Settings changed
+ * your face. Seeding on the avatar id makes the placeholder stable and distinct
+ * per roster slot — which is what makes fifteen colour circles usable as a
+ * picker today, before any art exists.
+ */
 export function Avatar({
   name,
+  avatarId,
   verified,
   size = 36,
 }: {
   name: string;
+  /** Roster id from `config/avatarRegistry`. Omit for a name-only face. */
+  avatarId?: string | null;
   verified?: boolean;
   size?: number;
 }) {
+  const art = avatarArtFor(avatarId);
   const initials = name
     .split(' ')
     .map((part) => part[0])
     .slice(0, 2)
     .join('')
     .toUpperCase();
-  const hue = hash(name) % 360;
+  // The id wins when present, so a face is a property of the avatar chosen and
+  // not of the name attached to it.
+  const hue = hash(avatarId ?? name) % 360;
   return (
     <View>
       <View
@@ -209,7 +235,18 @@ export function Avatar({
           },
         ]}
       >
-        <Text style={[styles.avatarText, { fontSize: size * 0.38 }]}>{initials}</Text>
+        {art ? (
+          <Image
+            source={art}
+            style={styles.avatarImage}
+            resizeMode="cover"
+            accessible
+            accessibilityLabel={`${name}'s avatar`}
+            accessibilityIgnoresInvertColors
+          />
+        ) : (
+          <Text style={[styles.avatarText, { fontSize: size * 0.38 }]}>{initials}</Text>
+        )}
       </View>
       {verified ? (
         <View style={[styles.tick, { width: size * 0.4, height: size * 0.4, borderRadius: size }]}>
@@ -588,7 +625,9 @@ const styles = StyleSheet.create({
   },
   gameBadgeText: { ...typography.meta, fontSize: 10, color: colors.textPrimary, letterSpacing: 0.5 },
 
-  avatar: { alignItems: 'center', justifyContent: 'center' },
+  avatar: {
+    overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  avatarImage: { width: '100%', height: '100%' },
   avatarText: { color: colors.textPrimary, fontWeight: '700' },
   tick: {
     position: 'absolute',

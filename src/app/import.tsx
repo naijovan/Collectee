@@ -318,7 +318,12 @@ export default function ImportScreen() {
         <Text style={styles.navTitle} numberOfLines={1}>
           {STAGE_TITLE[stage]}
         </Text>
-        <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={36} />
+        <Avatar
+            name={viewer?.displayName ?? '?'}
+            avatarId={viewer?.avatar}
+            verified={viewer?.isAccountVerified}
+            size={36}
+          />
       </View>
 
       <FlowStepper steps={IMPORT_STEPS} current={STAGE_STEP[stage]} />

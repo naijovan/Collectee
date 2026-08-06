@@ -70,6 +70,27 @@ let nextId = 1;
 
 const DEFAULT_NOTIFICATION_PREF: CommunityNotificationPref = 'all';
 
+/**
+ * Avatars chosen this session, per user.
+ *
+ * A session overlay, the same shape as `created[]` in collectionService and the
+ * following overlays in newsService (§12.1 — no backend). `USERS` is `as const`
+ * and `User` is the merge contract (§12.3): picking a face is not a schema
+ * change and must not mutate either.
+ *
+ * Applied on the way OUT rather than at each call site, so a chosen avatar
+ * follows the user everywhere they are read — their own profile, a collector
+ * card, a member list, the author line on a comment they left — instead of only
+ * where someone remembered to check.
+ */
+const avatarOverrides = new Map<string, string>();
+
+/** A user with this session's avatar choice applied. Never mutates the fixture. */
+function withAvatar(user: User): User {
+  const chosen = avatarOverrides.get(user.id);
+  return chosen ? { ...user, avatar: chosen } : user;
+}
+
 function prefKey(userId: string, communityId: string): string {
   return `${userId}:${communityId}`;
 }
@@ -172,12 +193,18 @@ export const socialService = {
   // ── Follows ──────────────────────────────────────────────────────────
   async getFollowing(userId: string): Promise<User[]> {
     const ids = follows.filter((f) => f.followerId === userId).map((f) => f.followeeId);
-    return delay(ids.map((id) => USERS_BY_ID.get(id)).filter((u): u is User => !!u), LATENCY_FETCH);
+    return delay(
+      ids.map((id) => USERS_BY_ID.get(id)).filter((u): u is User => !!u).map(withAvatar),
+      LATENCY_FETCH,
+    );
   },
 
   async getFollowers(userId: string): Promise<User[]> {
     const ids = follows.filter((f) => f.followeeId === userId).map((f) => f.followerId);
-    return delay(ids.map((id) => USERS_BY_ID.get(id)).filter((u): u is User => !!u), LATENCY_FETCH);
+    return delay(
+      ids.map((id) => USERS_BY_ID.get(id)).filter((u): u is User => !!u).map(withAvatar),
+      LATENCY_FETCH,
+    );
   },
 
   isFollowing(followerId: string, followeeId: string): boolean {
@@ -197,11 +224,38 @@ export const socialService = {
   },
 
   async getUser(id: string): Promise<User | null> {
-    return delay(USERS_BY_ID.get(id) ?? null, LATENCY_INSTANT);
+    const user = USERS_BY_ID.get(id);
+    return delay(user ? withAvatar(user) : null, LATENCY_INSTANT);
+  },
+
+  /**
+   * Choose an avatar for this session.
+   *
+   * Session-only and in memory, like every other write in this build. A reload
+   * restores the seeded face, and the note on the picker says so rather than
+   * implying a save that never happens.
+   */
+  async setAvatar(userId: string, avatarId: string): Promise<void> {
+    avatarOverrides.set(userId, avatarId);
+    return delay(undefined, LATENCY_INSTANT);
+  },
+
+  /**
+   * The avatar a user is currently showing. Synchronous, like `memberCountFor`
+   * and `isFollowing` — it reads two in-memory maps and is called during render.
+   */
+  avatarFor(userId: string): string | null {
+    return avatarOverrides.get(userId) ?? USERS_BY_ID.get(userId)?.avatar ?? null;
+  },
+
+  /** Drop this session's avatar choices. Part of the first-run reset. */
+  async resetSessionAvatars(): Promise<void> {
+    avatarOverrides.clear();
+    return delay(undefined, LATENCY_INSTANT);
   },
 
   async getUsers(): Promise<User[]> {
-    return delay([...USERS], LATENCY_FETCH);
+    return delay(USERS.map(withAvatar), LATENCY_FETCH);
   },
 
   // ── Communities ──────────────────────────────────────────────────────
