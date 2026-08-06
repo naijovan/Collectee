@@ -168,6 +168,16 @@ function callDigester(title: GameTitle, articles: readonly Article[]): Promise<s
   });
 }
 
+/**
+ * The prepared bullets for a title. A game with no digest fixture cannot happen
+ * — `validate-fixtures` requires one per title — but if one ever did, this
+ * returns no bullets rather than inventing any, and the card hides itself.
+ */
+function seededDigest(title: GameTitle): DigestResult {
+  const seeded = DIGESTS_BY_GAME.get(title);
+  return { bullets: seeded ? [...seeded.bullets] : [], live: false };
+}
+
 function followedGamesFor(userId: string): GameTitle[] {
   const seeded = USERS_BY_ID.get(userId)?.followedGames ?? [];
   const dropped = unfollowedGames.get(userId) ?? new Set<GameTitle>();
@@ -296,14 +306,31 @@ export const newsService = {
    * one per title — but if one ever did, this returns no bullets rather than
    * inventing any, and the card hides itself.
    */
+  /**
+   * The prepared digest, with no model call — the first half of the card's
+   * two-stage load.
+   *
+   * Exists so the slot is never empty while the live call is in flight.
+   * Measured against the deployed proxy, that call takes 1.1-1.5s; the screen
+   * used to hold a grey rectangle for all of it, and under the first-run
+   * spotlight that rectangle was the thing being pointed at.
+   *
+   * This is not a second-class result. `liveSummarisation` off means these
+   * bullets ARE the digest, which is what they were for the first five days of
+   * that flag's life — so showing them first and upgrading is the same content
+   * in a better order, not a placeholder pretending to be an answer.
+   */
+  async getSeededDigest(title: GameTitle): Promise<DigestResult> {
+    return delay(seededDigest(title), LATENCY_INSTANT);
+  },
+
   async getDigest(title: GameTitle): Promise<DigestResult> {
-    const seeded = DIGESTS_BY_GAME.get(title);
     // Widened deliberately: `ARTICLES` is `as const`, so `relatedGames` is a
     // tuple of literals and `.includes` narrows its argument to `never`.
     const all: readonly Article[] = ARTICLES;
     const articles = all.filter((a) => a.relatedGames.includes(title));
 
-    const fallback: DigestResult = { bullets: seeded ? [...seeded.bullets] : [], live: false };
+    const fallback: DigestResult = seededDigest(title);
 
     if (liveEnabled() && articles.length > 0) {
       // Grounded in the same articles the tab below is showing, so the digest
