@@ -130,6 +130,7 @@ export default function CreateRoomScreen() {
       an item the flow would drop at generate time. */
   const [pickable, setPickable] = useState<{ owned: OwnedItem; item: Item }[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
+  const [unverifiedCount, setUnverifiedCount] = useState(0);
   const { viewerId } = useApp();
   const { width } = useWindowDimensions();
   const sceneWidth = Math.min(width, 520) - spacing.lg * 2;
@@ -177,12 +178,25 @@ export default function CreateRoomScreen() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const [mine, library] = await Promise.all([
+      const [mine, library, owned, catalogue] = await Promise.all([
         collectionService.getCollectionsByUser(viewerId, true),
         roomService.getThemes(),
+        inventoryService.getOwnedItems(viewerId),
+        catalogueService.getCatalogueMap(),
       ]);
       if (cancelled) return;
       setCollections(mine);
+
+      // The inventory source offers verified items only (§9.4). `unverified` is
+      // kept as a count so the screen can nudge toward verification rather than
+      // silently omitting most of what the user owns.
+      const verified = owned.filter((entry) => entry.trustLevel === 'verified');
+      setPickable(
+        verified
+          .map((entry) => ({ owned: entry, item: catalogue.get(entry.itemId) }))
+          .filter((pair): pair is { owned: OwnedItem; item: Item } => pair.item !== undefined),
+      );
+      setUnverifiedCount(owned.length - verified.length);
       setThemes(library);
       setBusy(false);
     }
@@ -574,6 +588,26 @@ export default function CreateRoomScreen() {
                 {picked.length} of {pickable.length} verified items selected · {MIN_ROOM_ITEMS}{' '}
                 minimum
               </Text>
+
+              {/* The nudge only appears when there is something to nudge about.
+                  Telling someone with nothing unverified to go verify things is
+                  noise, and it is the reason this is a count rather than a
+                  permanent banner. */}
+              {unverifiedCount > 0 ? (
+                <Pressable
+                  onPress={() => router.push('/link-account')}
+                  style={({ pressed }) => [styles.verifyNudge, pressed && { opacity: 0.8 }]}
+                >
+                  <Text style={styles.verifyNudgeTitle}>
+                    ⚿ {unverifiedCount} more items you own are unverified
+                  </Text>
+                  <Text style={styles.verifyNudgeBody}>
+                    Unverified items cannot be placed in a Showroom — they stay in 2D
+                    collections. Connect a game account to verify them and unlock all{' '}
+                    {pickable.length + unverifiedCount} for display. →
+                  </Text>
+                </Pressable>
+              ) : null}
               <View style={styles.pickGrid}>
                 {pickable.map(({ item }) => {
                   const on = picked.includes(item.id);
@@ -1278,6 +1312,17 @@ const styles = StyleSheet.create({
   recommendLine: { ...typography.meta, color: colors.accent },
   bestMatch: { ...typography.meta, color: colors.textOnAccent },
   tick: { color: colors.textOnAccent, fontSize: 16, lineHeight: 18 },
+
+  verifyNudge: {
+    gap: 2,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentMuted,
+  },
+  verifyNudgeTitle: { ...typography.cardTitle, color: colors.accent },
+  verifyNudgeBody: { ...typography.meta, color: colors.textSecondary },
 
   pickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   pickCell: { width: '48%' },

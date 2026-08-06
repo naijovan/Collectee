@@ -20,6 +20,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { Platform } from 'react-native';
 
 import { FEATURES, SKIP_FIRST_RUN } from '@/config/features';
 import type { CollectorIntensity } from '@/domain/onboarding';
@@ -110,6 +111,49 @@ interface AppState {
   resetFirstRun: () => void;
 }
 
+/**
+ * First-run persistence.
+ *
+ * `localStorage` on web and nothing on native — Expo Go has no synchronous
+ * storage, and an async read here would mean a frame where the app does not yet
+ * know whether to show the sign-in screen, which is exactly the flash the
+ * lazy-initialised state above exists to avoid. Native keeps the previous
+ * per-launch behaviour.
+ */
+const FIRST_RUN_PREFIX = 'collectee.firstRun.';
+
+function firstRunRead(key: string): boolean | null {
+  if (Platform.OS !== 'web') return null;
+  try {
+    const raw = globalThis.localStorage?.getItem(FIRST_RUN_PREFIX + key);
+    return raw === null || raw === undefined ? null : raw === 'true';
+  } catch {
+    // Private browsing throws on access. Falling through to the default is
+    // correct: the first run simply runs again.
+    return null;
+  }
+}
+
+function firstRunWrite(key: string, value: boolean) {
+  if (Platform.OS !== 'web') return;
+  try {
+    globalThis.localStorage?.setItem(FIRST_RUN_PREFIX + key, String(value));
+  } catch {
+    // Non-fatal — the flag still holds for this session.
+  }
+}
+
+function firstRunClear() {
+  if (Platform.OS !== 'web') return;
+  try {
+    for (const key of ['signedIn', 'quizDone', 'tourDone']) {
+      globalThis.localStorage?.removeItem(FIRST_RUN_PREFIX + key);
+    }
+  } catch {
+    // Non-fatal.
+  }
+}
+
 const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -124,9 +168,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * in on mount — the sign-in route then never mounts at all and there is no
    * frame where it could flash before a redirect takes it away.
    */
-  const [signedIn, setSignedIn] = useState(!(FEATURES.firstRunAuth && !SKIP_FIRST_RUN));
-  const [quizDone, setQuizDone] = useState(false);
-  const [tourDone, setTourDone] = useState(false);
+  const [signedIn, setSignedIn] = useState(
+    () => firstRunRead('signedIn') ?? !(FEATURES.firstRunAuth && !SKIP_FIRST_RUN),
+  );
+  const [quizDone, setQuizDone] = useState(() => firstRunRead('quizDone') ?? false);
+  const [tourDone, setTourDone] = useState(() => firstRunRead('tourDone') ?? false);
+
+  /**
+   * Persisted so a reload does not put you back at the front door.
+   *
+   * The first run is a one-time flow by definition; making it survive a refresh
+   * is the difference between developing on this app and signing in twenty
+   * times a day. `resetFirstRun` clears the same keys, so the rehearsal escape
+   * hatch still works — it just now has something real to clear.
+   */
+  useEffect(() => {
+    firstRunWrite('signedIn', signedIn);
+  }, [signedIn]);
+  useEffect(() => {
+    firstRunWrite('quizDone', quizDone);
+  }, [quizDone]);
+  useEffect(() => {
+    firstRunWrite('tourDone', tourDone);
+  }, [tourDone]);
   const [intensity, setIntensity] = useState<CollectorIntensity | null>(null);
 
   const refreshInventory = useCallback(async () => {
@@ -216,6 +280,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const replayTour = useCallback(() => setTourDone(false), []);
 
   const resetFirstRun = useCallback(() => {
+    // Clear the persisted copy first: the state writes below would otherwise
+    // race the effects and leave a stale `true` behind.
+    firstRunClear();
     setSignedIn(false);
     setQuizDone(false);
     setTourDone(false);
