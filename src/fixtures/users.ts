@@ -11,6 +11,20 @@
 
 import type { GameAccount, User } from '@/types';
 
+/**
+ * `User.avatar` holds an AVATAR ROSTER ID (`config/avatarRegistry`), not a path.
+ *
+ * It used to hold `avatars/<name>.png` — a path to a file that never existed
+ * and that nothing ever read, because `Avatar` drew initials from the display
+ * name. Now that there is a real roster the field points into it, which is what
+ * makes "no duplicate faces" a property this file can guarantee rather than
+ * hope for: `validate-fixtures` fails on a repeat or an unknown id.
+ *
+ * Assignments are by game affinity — someone who only plays Valorant gets a
+ * Valorant face. `User` is unchanged, so this is a fixture edit and not a §12.3
+ * merge-contract change.
+ */
+
 /** The signed-in demo account. §16 Q8: the demo opens logged-in; auth is skipped. */
 export const VIEWER_ID = 'user-jovan';
 
@@ -19,7 +33,7 @@ export const USERS = [
     id: 'user-jovan',
     handle: 'jovan',
     displayName: 'Jovan',
-    avatar: 'avatars/jovan.png',
+    avatar: 'avatar-codm-ghost', // viewer; follows all three, CODM is the hero title
     bio: 'Cross-game collector. CODM blueprints and Valorant knives mostly.',
     followedGames: ['codm', 'valorant', 'mlbb'],
     isAccountVerified: true,
@@ -28,7 +42,7 @@ export const USERS = [
     id: 'user-rei',
     handle: 'reiplays',
     displayName: 'Rei',
-    avatar: 'avatars/rei.png',
+    avatar: 'avatar-codm-price', // codm + mlbb
     bio: 'Mythic hunter. If it glows, I want it.',
     followedGames: ['codm', 'mlbb'],
     isAccountVerified: true,
@@ -37,7 +51,7 @@ export const USERS = [
     id: 'user-syafiq',
     handle: 'syafiqq',
     displayName: 'Syafiq',
-    avatar: 'avatars/syafiq.png',
+    avatar: 'avatar-codm-soap', // codm only
     bio: 'CODM since season 1. Blueprint completionist.',
     followedGames: ['codm'],
     isAccountVerified: true,
@@ -46,7 +60,7 @@ export const USERS = [
     id: 'user-mei',
     handle: 'meilin',
     displayName: 'Mei Lin',
-    avatar: 'avatars/mei.png',
+    avatar: 'avatar-val-jett', // valorant only
     bio: 'Valorant knives and nothing else. Ask me about Elderflame.',
     followedGames: ['valorant'],
     isAccountVerified: true,
@@ -55,7 +69,7 @@ export const USERS = [
     id: 'user-danish',
     handle: 'danish.exe',
     displayName: 'Danish',
-    avatar: 'avatars/danish.png',
+    avatar: 'avatar-mlbb-gusion', // mlbb only
     bio: 'MLBB Collector skins. Land of Dawn since 2018.',
     followedGames: ['mlbb'],
     isAccountVerified: false,
@@ -64,7 +78,7 @@ export const USERS = [
     id: 'user-arya',
     handle: 'aryaaa',
     displayName: 'Arya',
-    avatar: 'avatars/arya.png',
+    avatar: 'avatar-val-reyna', // follows all three
     bio: 'Three games, one shelf. Building the cross-game room.',
     followedGames: ['codm', 'valorant', 'mlbb'],
     isAccountVerified: true,
@@ -73,7 +87,7 @@ export const USERS = [
     id: 'user-kai',
     handle: 'kaizen',
     displayName: 'Kai',
-    avatar: 'avatars/kai.png',
+    avatar: 'avatar-val-neon', // valorant + codm
     bio: 'Set completion or nothing.',
     followedGames: ['valorant', 'codm'],
     isAccountVerified: false,
@@ -82,7 +96,7 @@ export const USERS = [
     id: 'user-nadia',
     handle: 'nadiaaa',
     displayName: 'Nadia',
-    avatar: 'avatars/nadia.png',
+    avatar: 'avatar-mlbb-fanny', // mlbb + valorant
     bio: 'Here for the patch notes, staying for the rooms.',
     followedGames: ['mlbb', 'valorant'],
     isAccountVerified: false,
