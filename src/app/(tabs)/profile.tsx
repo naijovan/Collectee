@@ -23,6 +23,7 @@ import {
   SectionHeader,
   ASSISTANT_CLEARANCE,
 } from '@/components';
+import { intensityOption } from '@/domain/onboarding';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { collectionService, inventoryService, roomService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
@@ -32,7 +33,7 @@ import type { Collection, Item, RarityTier, Room, User } from '@/types';
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { viewer, viewerId, inventory, resetOnboardingGate } = useApp();
+  const { viewer, viewerId, inventory, intensity, resetOnboardingGate } = useApp();
 
   const scrollRef = useTopOnFocus();
 
@@ -83,7 +84,16 @@ export default function ProfileScreen() {
         <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={72} />
         <Text style={styles.name}>{viewer?.displayName ?? '—'}</Text>
         <Text style={styles.muted}>@{viewer?.handle ?? '—'}</Text>
-
+        {/* Quiz step 3, and the only place it surfaces. It is self-reported
+            flavour — nothing is gated on it — but if it appeared nowhere the
+            quiz would be asking a question with no answer, which is exactly
+            the kind of dead control the rest of the first run avoids. Absent
+            when the quiz was skipped, which is the common case. */}
+        {intensity ? (
+          <View style={styles.intensityPill}>
+            <Text style={styles.intensityText}>{intensityOption(intensity).profileFlavour}</Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Top-right of the identity block: settings changes who you are, so it
@@ -291,6 +301,16 @@ const styles = StyleSheet.create({
   name: { ...typography.screenTitle, color: colors.textPrimary, marginTop: spacing.sm },
   muted: { ...typography.meta, color: colors.textSecondary },
   bio: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xs },
+  intensityPill: {
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  intensityText: { ...typography.meta, color: colors.textSecondary },
 
   stats: {
     flexDirection: 'row',
