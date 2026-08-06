@@ -1,5 +1,5 @@
 /**
- * Fixture integrity check. Run with `npm run validate:fixtures`.
+ * Fixture and source-tree integrity check. Run with `npm run validate:fixtures`.
  *
  * TypeScript catches shape errors at compile time (every fixture is written
  * `as const satisfies readonly T[]`). What it cannot catch is REFERENTIAL
@@ -7,9 +7,15 @@
  * placing an item in a slot the theme does not have, a scan fixture whose
  * confidence values disagree with the routing thresholds.
  *
+ * It also cannot catch a file that should not be there at all. See the
+ * stray-file section at the bottom.
+ *
  * Those are exactly the bugs that surface at 2am on the 6th, so they get a
  * script. Run it before every merge to main.
  */
+
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { assertRoomValid } from '../src/domain/room';
 import { assertScanConsistent, countScan } from '../src/domain/scan';
@@ -327,6 +333,53 @@ for (const user of USERS) {
 }
 check(USERS_BY_ID.size === USERS.length, 'Duplicate user id');
 check(ITEMS_BY_ID.size === ALL_ITEMS.length, 'Duplicate item id in ITEMS_BY_ID');
+
+// ── Stray files ────────────────────────────────────────────────────────
+/**
+ * File-sync services fork a file they see changing under them, keeping the
+ * original and writing a sibling called "name 2.ext", then "name 3.ext".
+ * iCloud does this, and on 5 Aug it did it to five files in this repo while
+ * they were being edited — including `src/app/assistant 2.tsx`.
+ *
+ * ⚠️ ANYTHING under `src/app/` IS A ROUTE. A stray `news 2.tsx` is not clutter,
+ * it is a second live screen serving whatever that file contained when the
+ * fork happened — a dead route with stale code, reachable in the demo, and
+ * invisible in `git status` if it is untracked or gitignored.
+ *
+ * Cheap to detect, so it is checked here rather than hoped about: the codebase
+ * has no legitimate filename containing a space.
+ */
+const SCANNED_DIRS = ['src', 'api', 'scripts'];
+const DUPLICATE_SUFFIX = / \d+\.[A-Za-z0-9]+$/;
+
+function walk(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...walk(path));
+    else found.push(path);
+  }
+  return found;
+}
+
+for (const dir of SCANNED_DIRS) {
+  for (const path of walk(dir)) {
+    const name = path.split('/').pop() ?? path;
+    if (!name.includes(' ')) continue;
+
+    const isRoute = path.startsWith('src/app/');
+    const looksForked = DUPLICATE_SUFFIX.test(name);
+
+    check(
+      false,
+      isRoute && looksForked
+        ? `GHOST ROUTE: "${path}" is a sync-service duplicate inside src/app/ — Expo Router will serve it. Delete it, and see the stray-file note in this script.`
+        : looksForked
+          ? `Stray duplicate "${path}" — a sync service forked this file. Delete it.`
+          : `Filename contains a space: "${path}". No source file in this repo should.`,
+    );
+  }
+}
 
 // ── Report ─────────────────────────────────────────────────────────────
 for (const warning of warnings) console.warn(`warn  ${warning}`);
