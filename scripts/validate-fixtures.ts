@@ -33,7 +33,9 @@ import { SCAN_RESULTS } from '../src/fixtures/scan-results';
 import { ARTICLES } from '../src/fixtures/articles';
 import { COMMENTS, COMMUNITIES, FLAGS, FOLLOWS, NOTIFICATIONS, SAVED_ARTICLES } from '../src/fixtures/social';
 import { USERS, USERS_BY_ID, GAME_ACCOUNTS } from '../src/fixtures/users';
-import { AVATARS } from '../src/config/avatarRegistry';
+/* avatarRoster, NOT avatarRegistry. The registry require()s PNGs and only
+   Metro resolves those — importing it here crashes on the first image. */
+import { AVATARS } from '../src/config/avatarRoster';
 
 const errors: string[] = [];
 const warnings: string[] = [];
@@ -347,7 +349,7 @@ const avatarIds = new Set(AVATARS.map((a) => a.id));
 for (const user of USERS) {
   check(
     avatarIds.has(user.avatar),
-    `User ${user.displayName}: avatar '${user.avatar}' is not in the roster (config/avatarRegistry)`,
+    `User ${user.displayName}: avatar '${user.avatar}' is not in the roster (config/avatarRoster)`,
   );
 }
 check(

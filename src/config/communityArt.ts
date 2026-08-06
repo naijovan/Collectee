@@ -20,12 +20,11 @@
  * the shape the wider of the two wants, and the card crops to it with `cover`.
  * Two files per community would double the art order for one aspect ratio.
  *
- * ── Why `COMMUNITY_ART` is empty right now ────────────────────────────────
- * Metro resolves `require()` at BUILD time and a line pointing at a missing
- * file is a build error, so the map cannot be pre-filled ahead of the art.
- * Until an id is present, `CommunityArt` draws the same deterministic tinted
- * block `ItemArt` falls back to, so every card is image-led today and the
- * layout does not change when the art lands.
+ * ── The fallback stays ────────────────────────────────────────────────────
+ * All four have art now. `CommunityArt` keeps its deterministic tinted block
+ * for the same reason the avatar one does: a new community can be seeded and
+ * browsed before anyone draws its banner, and the card's layout is identical
+ * either way.
  *
  * ── Art policy (PRD §15 IP row) ───────────────────────────────────────────
  * ORIGINAL prototype art. No publisher logos, no invented game marks, no text
@@ -38,15 +37,22 @@ import type { ImageSourcePropType } from 'react-native';
 /**
  * Community id → bundled header image.
  *
- * EMPTY UNTIL THE ART LANDS. To wire one up:
+ * All four landed 7 Aug at 1200x800. To add a fifth:
  *   1. Drop `assets/collectee/communities/<communityId>.png` (1200x800).
- *   2. Add one line here, keyed by that exact id.
+ *   2. Add one line here, keyed by that exact COMMUNITY ID — see below.
  *   3. Nothing else changes — the card and the detail header both pick it up.
- *
- * Example, once the file exists:
- *   'comm-blueprint-vault': require('../../assets/collectee/communities/comm-blueprint-vault.png'),
  */
-export const COMMUNITY_ART: Record<string, ImageSourcePropType> = {};
+export const COMMUNITY_ART: Record<string, ImageSourcePropType> = {
+  'comm-blueprint-vault': require('../../assets/collectee/communities/comm-blueprint-vault.png'),
+  'comm-knife-collectors': require('../../assets/collectee/communities/comm-knife-collectors.png'),
+  'comm-land-of-dawn': require('../../assets/collectee/communities/comm-land-of-dawn.png'),
+  /* KEY AND FILENAME DIFFER, deliberately. The community is called "One Shelf"
+     and its art is named for that, but its id has been `comm-cross-game` since
+     the fixture was written. The key must be the id — this is the one line in
+     either registry that cannot be derived from the filename, so changing it to
+     match would silently un-wire the card. */
+  'comm-cross-game': require('../../assets/collectee/communities/comm-one-shelf.png'),
+};
 
 /** The bundled image for a community, or null while it is still a block. */
 export function communityArtFor(communityId: string): ImageSourcePropType | null {

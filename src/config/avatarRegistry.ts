@@ -1,5 +1,5 @@
 /**
- * The avatar roster — fifteen faces, five per launch title.
+ * Avatar portraits — the bundled bitmap for each roster face.
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
  * │  THIS IS THE SEAM FOR AVATAR ART. Adding a portrait is adding a     │
@@ -13,111 +13,70 @@
  * is what keeps this map generatable and auditable as a set comparison rather
  * than a judgement call.
  *
- * ── Why `AVATAR_ART` is empty right now ───────────────────────────────────
- * Metro resolves `require()` at BUILD time. A line pointing at a file that is
- * not on disk is a build error, not a runtime fallback — so the map cannot be
- * pre-filled ahead of the art landing. `components/item-art.ts` and
- * `components/backdrops.ts` ship the same way and for the same reason.
+ * ── This file cannot be imported from Node ────────────────────────────────
+ * It `require()`s PNGs, and only Metro resolves those. A script that imports it
+ * crashes on the first byte of the first image — which is what happened to
+ * `validate-fixtures` the moment the art landed. The roster itself therefore
+ * lives in `avatarRoster.ts`, which is pure data, and everything there is
+ * re-exported below so no call site has to know about the split.
  *
- * Until an id is present here, `Avatar` draws initials over a hue derived from
- * the avatar id, so the roster is fully usable today: every user has a distinct,
- * stable face and the picker works. Art turns that from a colour into a
- * portrait with no other change.
+ * ── The fallback stays ────────────────────────────────────────────────────
+ * All fifteen have portraits now. `Avatar`'s initials-over-a-hue path is kept
+ * anyway: Metro resolves `require()` at BUILD time, so an id added here before
+ * its file exists is a build error rather than a graceful degrade, and the
+ * fallback is what lets a sixteenth face be declared and picked before its
+ * portrait is drawn.
  *
  * ── Art policy (PRD §15 IP row) ───────────────────────────────────────────
- * ORIGINAL prototype character art. These are ROLE-INSPIRED archetypes named
- * for recognisable roster slots so the demo reads as game-adjacent — they are
- * not publisher character art, must not be traced from it, and must never be
- * presented as official. Same rule §11 F4 applies to room themes: "Ancient
- * Dojo" yes, a named franchise no.
+ * ORIGINAL prototype character art. Role-inspired archetypes, not publisher
+ * character art, and never presented as such. See `avatarRoster.ts`.
  */
 
 import type { ImageSourcePropType } from 'react-native';
 
-import type { GameTitle } from '@/types';
+import { AVATARS } from './avatarRoster';
 
-export interface AvatarOption {
-  /** `avatar-<title>-<slug>`. Also the filename on disk. */
-  id: string;
-  /** What the picker prints under the face. */
-  label: string;
-  /** Which roster it belongs to. Drives the game-matched ordering in the picker. */
-  title: GameTitle;
-}
-
-/**
- * Five per title. `val-` rather than `valorant-` deliberately: the catalogue
- * uses `val-*` for every Valorant id and `artRegistry` records renaming the art
- * packs to match, so a second convention here would be the one thing the audit
- * cannot see.
- */
-export const AVATARS: readonly AvatarOption[] = [
-  // ── Call of Duty: Mobile ───────────────────────────────────────
-  { id: 'avatar-codm-ghost', label: 'Ghost', title: 'codm' },
-  { id: 'avatar-codm-price', label: 'Price', title: 'codm' },
-  { id: 'avatar-codm-soap', label: 'Soap', title: 'codm' },
-  { id: 'avatar-codm-urban-tracker', label: 'Urban Tracker', title: 'codm' },
-  { id: 'avatar-codm-scylla', label: 'Scylla', title: 'codm' },
-
-  // ── VALORANT ───────────────────────────────────────────────────
-  { id: 'avatar-val-jett', label: 'Jett', title: 'valorant' },
-  { id: 'avatar-val-clove', label: 'Clove', title: 'valorant' },
-  { id: 'avatar-val-reyna', label: 'Reyna', title: 'valorant' },
-  { id: 'avatar-val-neon', label: 'Neon', title: 'valorant' },
-  { id: 'avatar-val-sage', label: 'Sage', title: 'valorant' },
-
-  // ── Mobile Legends: Bang Bang ──────────────────────────────────
-  { id: 'avatar-mlbb-gusion', label: 'Gusion', title: 'mlbb' },
-  { id: 'avatar-mlbb-ling', label: 'Ling', title: 'mlbb' },
-  { id: 'avatar-mlbb-lancelot', label: 'Lancelot', title: 'mlbb' },
-  { id: 'avatar-mlbb-fanny', label: 'Fanny', title: 'mlbb' },
-  { id: 'avatar-mlbb-miya', label: 'Miya', title: 'mlbb' },
-] as const;
-
-const AVATARS_BY_ID = new Map(AVATARS.map((option) => [option.id, option]));
+/* Re-exported so nothing has to know the roster moved out. The split exists
+   only because this file requires PNGs — see the header. */
+export type { AvatarOption } from './avatarRoster';
+export { AVATARS, avatarOption, avatarsForGames } from './avatarRoster';
 
 /**
  * Avatar id → bundled portrait.
  *
- * EMPTY UNTIL THE ART LANDS — see the header for why it cannot be pre-filled.
- * To wire a portrait up:
+ * All fifteen landed 7 Aug at 512x512. To add a sixteenth:
  *   1. Drop `assets/collectee/avatars/<avatarId>.png` (512x512).
- *   2. Add one line here, keyed by that exact id.
+ *   2. Add it to `AVATARS` in `avatarRoster.ts`, and one line here keyed by
+ *      that exact id.
  *   3. Nothing else changes. Every avatar in the app picks it up at once.
- *
- * Example, once the file exists:
- *   'avatar-codm-ghost': require('../../assets/collectee/avatars/avatar-codm-ghost.png'),
  */
-export const AVATAR_ART: Record<string, ImageSourcePropType> = {};
+export const AVATAR_ART: Record<string, ImageSourcePropType> = {
+  // ── Call of Duty: Mobile ───────────────────────────────────────
+  'avatar-codm-ghost': require('../../assets/collectee/avatars/avatar-codm-ghost.png'),
+  'avatar-codm-price': require('../../assets/collectee/avatars/avatar-codm-price.png'),
+  'avatar-codm-soap': require('../../assets/collectee/avatars/avatar-codm-soap.png'),
+  'avatar-codm-urban-tracker': require('../../assets/collectee/avatars/avatar-codm-urban-tracker.png'),
+  'avatar-codm-scylla': require('../../assets/collectee/avatars/avatar-codm-scylla.png'),
 
-/** The bundled portrait for an avatar id, or null while it is still a colour. */
+  // ── VALORANT ───────────────────────────────────────────────────
+  'avatar-val-jett': require('../../assets/collectee/avatars/avatar-val-jett.png'),
+  'avatar-val-clove': require('../../assets/collectee/avatars/avatar-val-clove.png'),
+  'avatar-val-reyna': require('../../assets/collectee/avatars/avatar-val-reyna.png'),
+  'avatar-val-neon': require('../../assets/collectee/avatars/avatar-val-neon.png'),
+  'avatar-val-sage': require('../../assets/collectee/avatars/avatar-val-sage.png'),
+
+  // ── Mobile Legends: Bang Bang ──────────────────────────────────
+  'avatar-mlbb-gusion': require('../../assets/collectee/avatars/avatar-mlbb-gusion.png'),
+  'avatar-mlbb-ling': require('../../assets/collectee/avatars/avatar-mlbb-ling.png'),
+  'avatar-mlbb-lancelot': require('../../assets/collectee/avatars/avatar-mlbb-lancelot.png'),
+  'avatar-mlbb-fanny': require('../../assets/collectee/avatars/avatar-mlbb-fanny.png'),
+  'avatar-mlbb-miya': require('../../assets/collectee/avatars/avatar-mlbb-miya.png'),
+};
+
+/** The bundled portrait for an avatar id, or null when it has none. */
 export function avatarArtFor(avatarId: string | null | undefined): ImageSourcePropType | null {
   if (!avatarId) return null;
   return AVATAR_ART[avatarId] ?? null;
-}
-
-/** Roster metadata for an id, or null if it is not one of the fifteen. */
-export function avatarOption(avatarId: string | null | undefined): AvatarOption | null {
-  if (!avatarId) return null;
-  return AVATARS_BY_ID.get(avatarId) ?? null;
-}
-
-/**
- * The roster, with the games the viewer plays first.
- *
- * The first-run quiz asks which titles someone plays one step before it offers
- * a face, so opening on their own roster is the whole reason that ordering
- * exists. Every avatar stays browsable — this is a sort, never a filter, so no
- * answer to the quiz can hide ten of the fifteen.
- */
-export function avatarsForGames(games: readonly GameTitle[]): AvatarOption[] {
-  if (games.length === 0) return [...AVATARS];
-  const preferred = new Set(games);
-  return [...AVATARS].sort((a, b) => {
-    const aMatch = preferred.has(a.title) ? 0 : 1;
-    const bMatch = preferred.has(b.title) ? 0 : 1;
-    return aMatch - bMatch;
-  });
 }
 
 /** How many of the fifteen have art. Surfaced in /diagnostics. */

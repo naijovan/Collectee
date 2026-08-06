@@ -17,7 +17,7 @@
 
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { avatarsForGames } from '@/config/avatarRegistry';
+import { avatarsForGames } from '@/config/avatarRoster';
 import * as haptics from '@/lib/haptics';
 import { colors, interaction, radius, spacing, typography } from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
