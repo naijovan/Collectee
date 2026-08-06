@@ -84,6 +84,15 @@ interface AppState {
   completeQuiz: (intensity: CollectorIntensity | null) => void;
   /** Tour finished, dismissed or declined — all three end it for the session. */
   completeTour: () => void;
+  /**
+   * Show the walkthrough again, from Settings.
+   *
+   * The tour never auto-repeats, so this is the only way back to it — which is
+   * the whole reason help has an entry for it. Deliberately does not touch
+   * sign-in or the quiz: someone asking to see the tour again is not asking to
+   * be signed out.
+   */
+  replayTour: () => void;
 
   /** Call after a scan import so every screen sees the new items. */
   refreshInventory: () => Promise<void>;
@@ -197,6 +206,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const completeTour = useCallback(() => setTourDone(true), []);
 
+  /* Only reachable when the tour flag is on — with it off the stage skips
+     straight past 'tour' and this would be a control that does nothing, so
+     Settings hides its row rather than relying on this to no-op. */
+  const replayTour = useCallback(() => setTourDone(false), []);
+
   const resetFirstRun = useCallback(() => {
     setSignedIn(false);
     setQuizDone(false);
@@ -224,6 +238,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signIn,
       completeQuiz,
       completeTour,
+      replayTour,
       refreshInventory,
       markNotificationsRead,
       resetOnboardingGate: () => setGateOverride(true),
@@ -241,6 +256,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       signIn,
       completeQuiz,
       completeTour,
+      replayTour,
       refreshInventory,
       markNotificationsRead,
       resetFirstRun,

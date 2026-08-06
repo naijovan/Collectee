@@ -39,7 +39,7 @@ import { useEffect } from 'react';
 import { AppProvider, useApp } from '@/state/AppContext';
 import { AssistantDockProvider } from '@/state/AssistantDock';
 import { ThemeModeProvider, useThemeMode } from '@/theme/ThemeMode';
-import { AssistantButton } from '@/components';
+import { AssistantButton, TourOverlay } from '@/components';
 import { colors, fonts } from '@/theme/theme';
 
 /* Hold the native splash until the fonts resolve, so the first frame is already
@@ -140,6 +140,10 @@ export default function RootLayout() {
             header. It hides itself on the immersive showroom, which owns its
             full viewport. */}
         <AssistantButton />
+        {/* Last in the tree so it draws over the assistant launcher too — the
+            fifth stop is about that button, and a tour card underneath the
+            thing it is describing is worse than no card. */}
+        <FirstRunTour />
         </AssistantDockProvider>
       </AppProvider>
     </ThemeModeProvider>
@@ -203,6 +207,20 @@ function FirstRunGate() {
  * 'done'.
  */
 const FIRST_RUN_ROUTES: ReadonlySet<string> = new Set(['/sign-in', '/onboarding/quiz']);
+
+/**
+ * Mounts the walkthrough when the stage says so, and nowhere else.
+ *
+ * The 'tour' stage has no route of its own — the whole point is that it draws
+ * over the real app — so unlike the other two stages it is rendered rather than
+ * redirected to. `completeTour` is the only way out, and every dismissal in the
+ * overlay calls it, so it cannot reappear for the rest of the session.
+ */
+function FirstRunTour() {
+  const { firstRunStage, completeTour } = useApp();
+  if (firstRunStage !== 'tour') return null;
+  return <TourOverlay onDone={completeTour} />;
+}
 
 /**
  * The status bar is the one piece of chrome the CSS variables cannot reach — it
