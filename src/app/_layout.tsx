@@ -192,13 +192,14 @@ function FirstRunGate() {
       return;
     }
 
-    /* 'tour' does not redirect. The tour draws over whatever is underneath —
-       that is the entire idea — so it has no route to send anyone to, and
-       sending them somewhere would defeat it. It renders itself from the same
-       stage value. */
-    if (firstRunStage === 'done' && FIRST_RUN_ROUTES.has(pathname)) {
-      router.replace('/');
-    }
+    /* 'tour' has no route of its own — it draws over the real app, which is the
+       entire idea — but it must still not draw over the quiz. Finishing the
+       quiz moves the stage to 'tour' without moving the route, so without this
+       the walkthrough's first card appears on top of the step-3 screen the user
+       just completed. Same for sign-in when the quiz flag is off.
+       'tour' and 'done' therefore share one rule: never sit on a first-run
+       route. */
+    if (FIRST_RUN_ROUTES.has(pathname)) router.replace('/');
   }, [firstRunStage, pathname, router]);
 
   return null;
