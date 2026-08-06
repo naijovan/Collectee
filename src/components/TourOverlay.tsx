@@ -43,9 +43,11 @@ import { FEATURES } from '@/config/features';
 import { buildTourStops } from '@/domain/tour';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import * as haptics from '@/lib/haptics';
+import { newsService } from '@/services';
 import { useTourAnchors } from '@/state/TourAnchors';
 import type { AnchorRect } from '@/state/TourAnchors';
 import { colors, interaction, motion, radius, scrim, spacing, typography } from '@/theme/theme';
+import { GAME_TITLES } from '@/types';
 
 /**
  * How long to let a screen settle after navigating before measuring it.
@@ -94,6 +96,25 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
   const reduceMotion = useReduceMotion();
 
   const stops = useMemo(() => buildTourStops({ news: FEATURES.news }), []);
+
+  /**
+   * Start the digests resolving the moment the tour appears.
+   *
+   * The News stop is roughly ten seconds away — the prompt, then four stops —
+   * and the live call takes 1.1-1.5s against the deployed proxy. Starting it
+   * here means the stop renders the model's bullets on its first frame instead
+   * of a shimmer, which is the difference between the spotlight landing on an
+   * answer and landing on a grey rectangle.
+   *
+   * All three titles, not just the one the stop opens on: the tabs are right
+   * there under the spotlight and whoever is driving may well tap one. Three
+   * calls once per session, deduplicated and cached by the service, and a
+   * failure is already the prepared fallback.
+   */
+  useEffect(() => {
+    if (!FEATURES.news) return;
+    for (const title of GAME_TITLES) void newsService.prefetchDigest(title);
+  }, []);
 
   /* -1 is the "would you like a tour?" prompt. Same component as the stops so
      there is one exit path — two components would be two ways to be half

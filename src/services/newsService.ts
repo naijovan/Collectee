@@ -178,6 +178,56 @@ function seededDigest(title: GameTitle): DigestResult {
   return { bullets: seeded ? [...seeded.bullets] : [], live: false };
 }
 
+/**
+ * Digests resolved this session, per game.
+ *
+ * Deliberately NOT cleared by `resetSessionFollowing`. This is a response
+ * cache, not user state — the bullets do not depend on who follows what — so
+ * keeping it across a first-run reset is both correct and what makes the second
+ * rehearsal run of the News stop instant.
+ */
+const digestCache = new Map<GameTitle, DigestResult>();
+/** One request per game, however many callers ask for it at once. */
+const digestInFlight = new Map<GameTitle, Promise<DigestResult>>();
+
+async function produceDigest(title: GameTitle): Promise<DigestResult> {
+  // Widened deliberately: `ARTICLES` is `as const`, so `relatedGames` is a
+  // tuple of literals and `.includes` narrows its argument to `never`.
+  const all: readonly Article[] = ARTICLES;
+  const articles = all.filter((a) => a.relatedGames.includes(title));
+  const fallback = seededDigest(title);
+
+  if (liveEnabled() && articles.length > 0) {
+    // Grounded in the same articles the tab below is showing, so the digest
+    // cannot describe news the user then fails to find (§11 F6).
+    const live = await callDigester(title, articles);
+    if (live) return { bullets: live, live: true };
+
+    // No mock latency on this path. `LATENCY_GENERATE` exists to make mocked
+    // generation feel like generation; adding it after a real 5s timeout just
+    // makes the card empty for nearly seven seconds.
+    return fallback;
+  }
+
+  return delay(fallback, LATENCY_GENERATE);
+}
+
+function digestFor(title: GameTitle): Promise<DigestResult> {
+  const cached = digestCache.get(title);
+  if (cached) return Promise.resolve(cached);
+
+  const inFlight = digestInFlight.get(title);
+  if (inFlight) return inFlight;
+
+  const pending = produceDigest(title).then((result) => {
+    digestCache.set(title, result);
+    digestInFlight.delete(title);
+    return result;
+  });
+  digestInFlight.set(title, pending);
+  return pending;
+}
+
 function followedGamesFor(userId: string): GameTitle[] {
   const seeded = USERS_BY_ID.get(userId)?.followedGames ?? [];
   const dropped = unfollowedGames.get(userId) ?? new Set<GameTitle>();
@@ -307,47 +357,43 @@ export const newsService = {
    * inventing any, and the card hides itself.
    */
   /**
-   * The prepared digest, with no model call — the first half of the card's
-   * two-stage load.
+   * The digest, cached per game for the session.
    *
-   * Exists so the slot is never empty while the live call is in flight.
-   * Measured against the deployed proxy, that call takes 1.1-1.5s; the screen
-   * used to hold a grey rectangle for all of it, and under the first-run
-   * spotlight that rectangle was the thing being pointed at.
-   *
-   * This is not a second-class result. `liveSummarisation` off means these
-   * bullets ARE the digest, which is what they were for the first five days of
-   * that flag's life — so showing them first and upgrading is the same content
-   * in a better order, not a placeholder pretending to be an answer.
+   * Resolves from the cache when a prefetch has already run, so the screen can
+   * render the model's bullets on its first frame instead of showing anything
+   * else first. Concurrent callers share one in-flight request rather than each
+   * paying for their own model call.
    */
-  async getSeededDigest(title: GameTitle): Promise<DigestResult> {
-    return delay(seededDigest(title), LATENCY_INSTANT);
+  async getDigest(title: GameTitle): Promise<DigestResult> {
+    return digestFor(title);
   },
 
-  async getDigest(title: GameTitle): Promise<DigestResult> {
-    // Widened deliberately: `ARTICLES` is `as const`, so `relatedGames` is a
-    // tuple of literals and `.includes` narrows its argument to `never`.
-    const all: readonly Article[] = ARTICLES;
-    const articles = all.filter((a) => a.relatedGames.includes(title));
+  /**
+   * What is already resolved for this game, or null. Synchronous on purpose.
+   *
+   * The service rule is that every method returns a Promise so a fixture read
+   * can become a `fetch` in phase 2 without rewriting a screen. This one never
+   * can: it is a peek at a Map this module already holds, and awaiting it would
+   * defeat the only reason it exists — a Promise resolves a microtask later,
+   * which is a frame the screen would have to fill with something that is not
+   * the answer. `followedGamesFor` and `catalogueService.getCatalogueMap` are
+   * the same shape for the same reason.
+   */
+  cachedDigest(title: GameTitle): DigestResult | null {
+    return digestCache.get(title) ?? null;
+  },
 
-    const fallback: DigestResult = seededDigest(title);
-
-    if (liveEnabled() && articles.length > 0) {
-      // Grounded in the same articles the tab below is showing, so the digest
-      // cannot describe news the user then fails to find (§11 F6).
-      const live = await callDigester(title, articles);
-      if (live) return { bullets: live, live: true };
-
-      // No mock latency on this path. `LATENCY_GENERATE` exists to make mocked
-      // generation feel like generation; adding it AFTER a real 5s timeout just
-      // makes the card empty for nearly seven seconds. Measured: 6.8s with the
-      // delay, 5.0s without. The article screen keeps its delay because opening
-      // a summary is a deliberate action where a wait reads as work — this is a
-      // header the user did not ask for.
-      return fallback;
-    }
-
-    return delay(fallback, LATENCY_GENERATE);
+  /**
+   * Start resolving a digest now, to be read later.
+   *
+   * The live call takes 1.1-1.5s against the deployed proxy. Anything that
+   * knows the user is heading for the news — the first-run walkthrough, ten
+   * seconds ahead of its News stop — can start it early and turn that wait into
+   * no wait at all. Fire and forget: the result lands in the cache, and a
+   * failure is already the fallback.
+   */
+  async prefetchDigest(title: GameTitle): Promise<void> {
+    await digestFor(title);
   },
 
   // ── Following management (§11 F6) ────────────────────────────────────
