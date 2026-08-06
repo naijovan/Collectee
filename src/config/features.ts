@@ -46,26 +46,35 @@ export const FEATURES = {
   trustUi: true,
 
   /**
-   * §12.1 — the one real model call under consideration: F6 article
-   * summarisation behind a serverless function, ~2 hours. It is the only thing
-   * that makes "there is a real model call in this build" a true statement.
-   * DECIDE BY 5 AUG. False = seeded summaries, and the pitch says so plainly.
+   * §12.1 — the real model call. DECIDED 6 AUG: it ships.
+   *
+   * Article summaries AND the per-game news digests, both through the deployed
+   * `/api/assistant` proxy. "There is a real model call in this build" is now a
+   * true statement, which was the whole point of building it.
+   *
+   * Turning this off is still the safe move if anything goes wrong on the day:
+   * every surface falls back to seeded copy with an honest label, which is what
+   * it did for the first five days of this flag's life.
    */
-  liveSummarisation: false,
+  liveSummarisation: true,
 
   /**
    * §12.1 — the in-app assistant's model path, on the same proxy as
    * `liveSummarisation` and the same key.
    *
-   * FALSE IS A COMPLETE FEATURE, not a disabled one. The assistant answers from
-   * `domain/assistant` either way, and most questions about your own account are
-   * arithmetic over data already in memory — 25 of 27 test questions never touch
-   * a model. This flag only decides whether the questions the snapshot cannot
-   * answer get phrased by a model or answered with an honest "I don't have that".
+   * DECIDED 6 AUG: it ships, alongside `liveSummarisation`.
+   *
+   * FALSE REMAINS A COMPLETE FEATURE, not a disabled one — which is why turning
+   * it off is a safe response to trouble rather than a retreat. The assistant
+   * answers from `domain/assistant` either way, and most questions about your
+   * own account are arithmetic over data already in memory: 25 of 27 test
+   * questions never touch a model. This flag only decides whether the questions
+   * the snapshot cannot answer get phrased by a model or answered with an
+   * honest "I don't have that".
    *
    * Nothing AI-powered ships unflagged, and the reply says which path answered.
    */
-  assistantChat: false,
+  assistantChat: true,
 
   /** [ROADMAP] §11 F2 — Collection Insights. Build only if all four flows land early. */
   collectionInsights: false,
