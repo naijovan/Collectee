@@ -307,9 +307,15 @@ export const interaction = {
   pressedScale: 0.97,
   disabledOpacity: 0.4,
   hitSlop: 8,
-  /** Pointer hover — a small lift, not a jump. Web only; touch never fires it. */
-  hoverScale: 1.04,
-  hoverLift: -2,
+  /**
+   * Pointer hover — web only; touch never fires it.
+   *
+   * No scale. Scaling grew a card past its own layout box, so it overlapped its
+   * neighbours and pushed its border outside whatever contained it. A lift and
+   * a border highlight read as "this is clickable" without changing the element's
+   * footprint, which is the property that made scale unusable in a grid.
+   */
+  hoverLift: -3,
   hoverMs: 140,
 } as const;
 

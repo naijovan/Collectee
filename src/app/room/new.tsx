@@ -50,11 +50,13 @@ import {
   SectionHeader,
   StepperHeader,
   resolveBackdrop,
+  FilterChips,
+  CollectionCard,
 } from '@/components';
 import { backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { ROOM_STEPS, VISIBILITY_DESCRIPTIONS, VISIBILITY_LABELS } from '@/domain/collections';
-import { roomEligibility } from '@/domain/trust';
+import { MIN_ROOM_ITEMS, roomEligibility } from '@/domain/trust';
 import type { RoomEligibility } from '@/domain/trust';
 import {
   ROOM_STAGES,
@@ -110,8 +112,24 @@ export default function CreateRoomScreen() {
     itemIds: suggestedItemIds,
   } = useLocalSearchParams<{ collectionId?: string; name?: string; itemIds?: string }>();
 
-  const draftItemIds = suggestedItemIds ? suggestedItemIds.split(',').filter(Boolean) : [];
+  /**
+   * Draft item ids — from the URL when a suggestion was accepted, or from the
+   * inventory picker below. State rather than a derived constant so both
+   * sources feed the same downstream path: a Showroom does not care whether its
+   * items arrived via a collection, a suggestion or a hand-picked list.
+   */
+  const [draftItemIds, setDraftItemIds] = useState<string[]>(
+    suggestedItemIds ? suggestedItemIds.split(',').filter(Boolean) : [],
+  );
+  const [draftName, setDraftName] = useState(suggestedName ?? '');
   const isDraft = !param && draftItemIds.length > 0;
+
+  /** Which source the picker is showing. Only used before a source is chosen. */
+  const [source, setSource] = useState<'collection' | 'inventory'>('collection');
+  /** Verified-only, because §9.4 gates the room and there is no point offering
+      an item the flow would drop at generate time. */
+  const [pickable, setPickable] = useState<{ owned: OwnedItem; item: Item }[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
   const { viewerId } = useApp();
   const { width } = useWindowDimensions();
   const sceneWidth = Math.min(width, 520) - spacing.lg * 2;
@@ -500,29 +518,103 @@ export default function CreateRoomScreen() {
         >
           <Text style={styles.pickerBack}>‹ Back</Text>
         </Pressable>
-        <Text style={styles.title}>Which collection?</Text>
-        <Text style={styles.body}>A Showroom is built from one collection.</Text>
+        <Text style={styles.title}>Build a Showroom</Text>
+        <Text style={styles.body}>
+          Start from a collection you have already made, or pick items straight from your
+          inventory — a Showroom does not require a collection first.
+        </Text>
+
+        <FilterChips
+          options={['From a collection', 'From my inventory'] as const}
+          value={source === 'collection' ? 'From a collection' : 'From my inventory'}
+          onChange={(next: string) =>
+            setSource(next === 'From a collection' ? 'collection' : 'inventory')
+          }
+        />
+
         {busy ? <LoadingState height={160} /> : null}
-        {!busy && collections.length === 0 ? (
-          <EmptyState
-            title="No collections yet"
-            body="Create a collection first — a room is a way of showing one."
-            actionLabel="Create a collection"
-            onAction={() => router.replace('/collection/new')}
-          />
+
+        {!busy && source === 'collection' ? (
+          collections.length === 0 ? (
+            <EmptyState
+              title="No collections yet"
+              body="Pick items from your inventory instead, or create a collection first."
+              actionLabel="Pick from inventory"
+              onAction={() => setSource('inventory')}
+            />
+          ) : (
+            <View style={styles.pickGrid}>
+              {collections.map((entry) => (
+                <View key={entry.id} style={styles.pickCell}>
+                  {/* The same card the Collections tab uses. Choosing between
+                      collections by name alone means recalling what is in each;
+                      the covers make it a glance. */}
+                  <CollectionCard
+                    collection={entry}
+                    width="100%"
+                    onPress={() => setCollectionId(entry.id)}
+                  />
+                </View>
+              ))}
+            </View>
+          )
         ) : null}
-        {collections.map((entry) => (
-          <Pressable
-            key={entry.id}
-            style={styles.option}
-            onPress={() => setCollectionId(entry.id)}
-          >
-            <Text style={styles.rowTitle}>{entry.name}</Text>
-            <Text style={styles.muted}>
-              {entry.itemIds.length} {entry.itemIds.length === 1 ? 'item' : 'items'}
-            </Text>
-          </Pressable>
-        ))}
+
+        {!busy && source === 'inventory' ? (
+          pickable.length === 0 ? (
+            <EmptyState
+              title="No verified items yet"
+              body="Showrooms take verified items only (§9.4). Connect a game account to verify what you own."
+              actionLabel="Connect a game account"
+              onAction={() => router.push('/link-account')}
+            />
+          ) : (
+            <>
+              <Text style={styles.muted}>
+                {picked.length} of {pickable.length} verified items selected · {MIN_ROOM_ITEMS}{' '}
+                minimum
+              </Text>
+              <View style={styles.pickGrid}>
+                {pickable.map(({ item }) => {
+                  const on = picked.includes(item.id);
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() =>
+                        setPicked((prev) =>
+                          prev.includes(item.id)
+                            ? prev.filter((id) => id !== item.id)
+                            : [...prev, item.id],
+                        )
+                      }
+                      style={[styles.pickCell, on && styles.pickCellOn]}
+                    >
+                      <ItemCard item={item} width="100%" />
+                      {on ? (
+                        <View style={styles.pickTick}>
+                          <Text style={styles.pickTickText}>✓</Text>
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <PrimaryButton
+                label={
+                  picked.length < MIN_ROOM_ITEMS
+                    ? `Select ${MIN_ROOM_ITEMS - picked.length} more`
+                    : `Build a Showroom from ${picked.length} items`
+                }
+                disabled={picked.length < MIN_ROOM_ITEMS}
+                onPress={() => {
+                  setDraftItemIds(picked);
+                  setDraftName('My Showroom');
+                  setStep(1);
+                }}
+              />
+            </>
+          )
+        ) : null}
       </ScrollView>
     );
   }
@@ -1186,6 +1278,22 @@ const styles = StyleSheet.create({
   recommendLine: { ...typography.meta, color: colors.accent },
   bestMatch: { ...typography.meta, color: colors.textOnAccent },
   tick: { color: colors.textOnAccent, fontSize: 16, lineHeight: 18 },
+
+  pickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  pickCell: { width: '48%' },
+  pickCellOn: { opacity: 0.95 },
+  pickTick: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
+  pickTickText: { color: colors.textOnAccent, fontSize: 15, fontWeight: '700' },
 
   option: {
     backgroundColor: colors.surface,

@@ -27,6 +27,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FEATURES } from '@/config/features';
 import * as haptics from '@/lib/haptics';
 import { useApp } from '@/state/AppContext';
 import { useTourAnchor } from '@/state/TourAnchors';
@@ -113,7 +114,10 @@ export function TabBar() {
   const [left, right] = [TABS.slice(0, 2), TABS.slice(2)];
 
   function renderTab(tab: Tab) {
-    const locked = tab.gated === true && !hasImported;
+    // §13.4's gate, now behind FEATURES.onboardingGate (default off) — see the
+    // flag for why. With it off nothing is ever locked, so the greyed styling
+    // and the disabled state below simply never engage.
+    const locked = FEATURES.onboardingGate && tab.gated === true && !hasImported;
     const active = pathname === tab.href;
 
     return (

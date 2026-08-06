@@ -241,15 +241,18 @@ export function useHoverLift() {
     },
     hoverStyle: {
       transitionDuration: `${interaction.hoverMs}ms`,
-      ...(hovered
-        ? {
-            transform: [
-              { scale: interaction.hoverScale },
-              { translateY: interaction.hoverLift },
-            ],
-          }
-        : null),
+      // Translate only. The element keeps its exact width and height, so it
+      // cannot overlap a neighbour or spill past a container's border — the
+      // failure that made a scale-based hover unusable in a grid.
+      ...(hovered ? { transform: [{ translateY: interaction.hoverLift }] } : null),
     } as ViewStyle,
+    /**
+     * Border emphasis, applied separately so a caller can skip it on an element
+     * that has no border of its own. Kept out of `hoverStyle` because setting
+     * borderColor on a borderless element does nothing visible but does change
+     * layout in some RN Web versions.
+     */
+    hoverBorder: (hovered ? { borderColor: colors.accent } : null) as ViewStyle | null,
     hovered,
   };
 }

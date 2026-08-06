@@ -13,6 +13,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { FEATURES } from '@/config/features';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, scrim, spacing, typography } from '@/theme/theme';
 
@@ -53,7 +54,7 @@ export default function CreateSheet() {
   const { hasImported } = useApp();
 
   function go(action: Action) {
-    const target = action.needsInventory && !hasImported ? '/import' : action.href;
+    const target = FEATURES.onboardingGate && action.needsInventory && !hasImported ? '/import' : action.href;
     // Replace rather than push: the sheet should not sit under the flow it opened.
     router.replace(target);
   }
@@ -65,7 +66,7 @@ export default function CreateSheet() {
         <Text style={styles.title}>Create</Text>
 
         {ACTIONS.map((action) => {
-          const locked = action.needsInventory === true && !hasImported;
+          const locked = FEATURES.onboardingGate && action.needsInventory === true && !hasImported;
           return (
             <Pressable
               key={action.href}

@@ -102,6 +102,21 @@ export const FEATURES = {
    *
    * False = boots straight into the app, exactly as it did before this flag.
    */
+  /**
+   * §13.4's onboarding gate — Collections and Profile greyed and
+   * non-interactive until the first import completes.
+   *
+   * The PRD's reasoning is sound: it forces the activation event and prevents
+   * an empty-profile first impression. But it also makes two of five tabs dead
+   * for anyone who skips the first run, which is most people demoing or
+   * developing — and a reviewer who taps a grey tab twice concludes the app is
+   * broken, not that they are being onboarded.
+   *
+   * Off by default so the app is always fully navigable. Flip it back on for a
+   * demo that walks the intended first-run path.
+   */
+  onboardingGate: false,
+
   firstRunAuth: true,
 
   /**

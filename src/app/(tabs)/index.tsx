@@ -27,6 +27,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -43,6 +44,7 @@ import {
   LoadingState,
   PrimaryButton,
   SectionHeader,
+  useHoverLift,
 } from '@/components';
 import { ART_PLACEMENTS, backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
@@ -77,6 +79,39 @@ interface RoomEntry {
   room: Room;
   themeName: string;
   collectionName: string;
+}
+
+/**
+ * Wraps a control in the shared hover lift. Home has several one-off
+ * pressables — header icons, room rows — that are not shared components, and
+ * this keeps them consistent with the cards rather than each rolling its own.
+ */
+function Hoverable({
+  children,
+  style,
+  onPress,
+  accessibilityLabel,
+  hitSlop,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+  onPress: () => void;
+  accessibilityLabel?: string;
+  hitSlop?: number;
+}) {
+  const hover = useHoverLift();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={hitSlop}
+      {...hover.hoverProps}
+      style={({ pressed }) => [style, hover.hoverStyle, pressed && { opacity: 0.7 }]}
+    >
+      {children}
+    </Pressable>
+  );
 }
 
 export default function HomeScreen() {
@@ -188,25 +223,30 @@ export default function HomeScreen() {
               rather than competing with the five destinations. It opens the
               same panel the floating launcher does — one assistant, two ways
               in, and neither navigates away from what is being asked about. */}
-          <Pressable
+          <Hoverable
             accessibilityLabel="Ask the assistant"
             onPress={openPanel}
             hitSlop={8}
             style={styles.bell}
           >
             <Text style={styles.bellGlyph}>✦</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push('/news')} hitSlop={8} style={styles.bell}>
+          </Hoverable>
+          <Hoverable
+            accessibilityLabel="Gaming updates"
+            onPress={() => router.push('/news')}
+            hitSlop={8}
+            style={styles.bell}
+          >
             <Text style={styles.bellGlyph}>◔</Text>
             {unreadNotifications > 0 ? <View style={styles.unreadDot} /> : null}
-          </Pressable>
-          <Pressable onPress={() => router.navigate('/profile')} hitSlop={8}>
+          </Hoverable>
+          <Hoverable accessibilityLabel="Your profile" onPress={() => router.navigate('/profile')} hitSlop={8}>
             <Avatar
               name={viewer?.displayName ?? '?'}
               verified={viewer?.isAccountVerified}
               size={38}
             />
-          </Pressable>
+          </Hoverable>
         </View>
       </View>
 
@@ -376,7 +416,7 @@ export default function HomeScreen() {
           ) : (
             <View style={styles.roomList}>
               {rooms.map((entry) => (
-                <Pressable
+                <Hoverable
                   key={entry.room.id}
                   onPress={() =>
                     router.push({ pathname: '/room/[id]', params: { id: entry.room.id } })
@@ -393,7 +433,7 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   <Text style={styles.chevron}>›</Text>
-                </Pressable>
+                </Hoverable>
               ))}
             </View>
           )}

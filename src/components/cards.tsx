@@ -19,6 +19,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { FEATURES } from '@/config/features';
 import { rarityLabelFor } from '@/domain/rarity';
 import { GAME_SHORT_LABELS } from '@/types';
+
+import { useHoverLift } from './primitives';
 import type { Article, Collection, Item, TrustLevel, User } from '@/types';
 import {
   colors,
@@ -85,15 +87,19 @@ export function ItemCard({
      calm and a legendary should pull the eye out of the grid. */
   const treatment = rarityTreatments[item.rarityTier];
   const showcase = treatment.sheen;
+  const hover = useHoverLift();
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={`${item.name}, ${rarityLabelFor(item.rarityTier, item.title)}`}
+      {...(onPress ? hover.hoverProps : {})}
       style={({ pressed }) => [
         styles.itemCard,
         { width },
+        onPress ? hover.hoverStyle : null,
+        onPress ? hover.hoverBorder : null,
         showcase && {
           borderColor: treatment.base,
           borderWidth: treatment.borderWidth,
@@ -156,18 +162,19 @@ export function CollectionCard({
    * Touch devices never fire these, which is correct — they get the press
    * state instead.
    */
-  const [hovered, setHovered] = useState(false);
+  const hover = useHoverLift();
+  const hovered = hover.hovered;
 
   return (
     <Pressable
       onPress={onPress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
+      {...hover.hoverProps}
       accessibilityRole="button"
       accessibilityLabel={`${collection.name}, ${collection.itemIds.length} items`}
       style={({ pressed }) => [
         styles.collectionCard,
         width ? { width } : null,
+        hover.hoverStyle,
         hovered && styles.collectionCardHovered,
         pressed && styles.pressed,
       ]}
@@ -251,10 +258,18 @@ export function CollectorCard({
   width?: number;
   onPress?: () => void;
 }) {
+  const hover = useHoverLift();
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.collectorCard, { width }, pressed && styles.pressed]}
+      {...hover.hoverProps}
+      style={({ pressed }) => [
+        styles.collectorCard,
+        { width },
+        hover.hoverStyle,
+        hover.hoverBorder,
+        pressed && styles.pressed,
+      ]}
     >
       <Avatar name={user.displayName} verified={user.isAccountVerified} size={44} />
       <Text style={styles.collectorName} numberOfLines={1}>
@@ -286,10 +301,18 @@ export function ArticleCard({
   width?: DimensionValue;
   onPress?: () => void;
 }) {
+  const hover = useHoverLift();
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.articleCard, width ? { width } : null, pressed && styles.pressed]}
+      {...hover.hoverProps}
+      style={({ pressed }) => [
+        styles.articleCard,
+        width ? { width } : null,
+        hover.hoverStyle,
+        hover.hoverBorder,
+        pressed && styles.pressed,
+      ]}
     >
       <View style={styles.articleTagRow}>
         {article.relatedGames.map((title) => (
