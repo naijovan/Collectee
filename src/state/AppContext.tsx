@@ -78,6 +78,16 @@ interface AppState {
    */
   intensity: CollectorIntensity | null;
 
+  /**
+   * Choose an avatar for this session.
+   *
+   * Writes the overlay in `socialService` and re-reads the viewer, so the new
+   * face appears on every surface at once rather than only where the choice was
+   * made. Session-only — `User` is the merge contract and a picked face is not
+   * a schema change (§12.1, §12.3).
+   */
+  chooseAvatar: (avatarId: string) => Promise<void>;
+
   /** Sign-in succeeded. Mocked: nothing authenticates, any input gets here. */
   signIn: () => void;
   /** Quiz finished or skipped. Intensity is null when skipped. */
@@ -139,6 +149,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
        gate, run the import, and Collections stays grey with the new collection
        behind it. */
     setGateOverride(false);
+  }, []);
+
+  const chooseAvatar = useCallback(async (avatarId: string) => {
+    await socialService.setAvatar(VIEWER_ID, avatarId);
+    /* Re-read rather than patching local state: the overlay is applied on the
+       way out of the service, so this is the same path every other screen uses
+       and cannot drift from it. */
+    setViewer(await socialService.getUser(VIEWER_ID));
   }, []);
 
   const markNotificationsRead = useCallback(async () => {
@@ -226,6 +244,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
        followed games and topics in place — and the second rehearsal take would
        show the first take's answers already applied. */
     void newsService.resetSessionFollowing(VIEWER_ID);
+    /* And the chosen face, for the same reason: the second rehearsal run must
+       start from the seeded avatar, not the one the first run picked. */
+    void socialService.resetSessionAvatars().then(async () => {
+      setViewer(await socialService.getUser(VIEWER_ID));
+    });
   }, []);
 
   const value = useMemo<AppState>(
@@ -239,6 +262,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loading,
       firstRunStage,
       intensity,
+      chooseAvatar,
       signIn,
       completeQuiz,
       completeTour,
@@ -257,6 +281,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loading,
       firstRunStage,
       intensity,
+      chooseAvatar,
       signIn,
       completeQuiz,
       completeTour,

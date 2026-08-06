@@ -13,7 +13,16 @@
  * this as the place merge conflicts will otherwise happen.
  */
 
-export { ArticleCard, CollectionCard, CollectorCard, ItemCard, timeAgo } from './cards';
+export {
+  ArticleCard,
+  CollectionCard,
+  CollectorCard,
+  CommunityArt,
+  CommunityCard,
+  ItemCard,
+  timeAgo,
+} from './cards';
+export { AvatarPicker } from './AvatarPicker';
 export { CollectionCoverMosaic } from './CollectionCoverMosaic';
 export {
   Avatar,
