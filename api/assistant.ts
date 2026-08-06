@@ -226,16 +226,23 @@ interface ProxyResponse {
   error?: string;
 }
 
+/**
+ * The Expo web build is served from a different origin, so every call here is
+ * cross-origin. A POST carrying `content-type: application/json` is not a
+ * "simple request", so the browser sends an OPTIONS preflight first and refuses
+ * to send the POST at all unless that preflight succeeds.
+ */
+const CORS_HEADERS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-headers': 'content-type',
+  'access-control-allow-methods': 'POST, OPTIONS',
+  'access-control-max-age': '86400',
+} as const;
+
 function json(status: number, payload: ProxyResponse): Response {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: {
-      'content-type': 'application/json',
-      // The Expo web build is served from a different origin in development.
-      'access-control-allow-origin': '*',
-      'access-control-allow-headers': 'content-type',
-      'access-control-allow-methods': 'POST, OPTIONS',
-    },
+    headers: { 'content-type': 'application/json', ...CORS_HEADERS },
   });
 }
 
@@ -439,7 +446,15 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
-/** CORS preflight for the Expo web build. */
+/**
+ * CORS preflight for the Expo web build.
+ *
+ * ⚠️ The body MUST be null. 204 is a "null body status" in the Fetch spec, and
+ * `new Response(someString, { status: 204 })` throws a TypeError — which
+ * surfaced as a 500 on the preflight, which made the browser refuse to send any
+ * POST at all. Every capability failed in the web build and fell back silently
+ * while curl kept passing, because curl never preflights.
+ */
 export async function OPTIONS(): Promise<Response> {
-  return json(204, { bullets: [] });
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
