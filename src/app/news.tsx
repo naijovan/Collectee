@@ -79,6 +79,12 @@ function DigestCard({ title, digest }: { title: GameTitle; digest: DigestResult 
   );
 }
 
+/**
+ * Height of the digest's loading placeholder, matched to the resolved card so
+ * the layout does not jump under the first-run walkthrough's spotlight.
+ */
+const DIGEST_PLACEHOLDER_HEIGHT = 172;
+
 export default function NewsScreen() {
   const router = useRouter();
   /* First-run walkthrough targets. The digest is the one target in the app
@@ -92,7 +98,14 @@ export default function NewsScreen() {
   const [tab, setTab] = useState<string>(TABS[0]);
   /** Switching tab replaces the whole page, so it reads as a new one. */
   const scrollRef = useTopOnFocus(tab);
-  const [feed, setFeed] = useState<RankedArticle[]>([]);
+  /**
+   * Tagged with its game, exactly like `digest` below and for the same reason:
+   * a tab switch mid-flight would otherwise show CODM's articles under the MLBB
+   * heading. Tagging also buys the progressive render — a refetch on the SAME
+   * tab keeps the articles that are already on screen instead of blanking them
+   * back to a placeholder.
+   */
+  const [feed, setFeed] = useState<{ title: GameTitle; entries: RankedArticle[] } | null>(null);
   /**
    * Tagged with the game it is for. The digest resolves on its own schedule —
    * up to the full 5s timeout on the live path — so a tab switch mid-flight
@@ -103,26 +116,34 @@ export default function NewsScreen() {
   const [busy, setBusy] = useState(true);
 
   const title = TITLE_BY_TAB.get(tab) ?? null;
+  /* Null until this tab's own articles have landed — a stale tab's entries are
+     never rendered under the wrong heading. */
+  const entries = feed !== null && feed.title === title ? feed.entries : null;
 
   const load = useCallback(async () => {
-    setBusy(true);
-
     if (title === null) {
+      setBusy(true);
       setSaved(await newsService.getSaved(viewerId));
       setBusy(false);
       return;
     }
 
-    // The digest is not awaited alongside the feed: it can take the full 5s
-    // timeout when the live path is on, and holding the articles hostage to it
-    // would make a working feed look broken.
+    // The digest is not awaited alongside the feed: it is the one call on this
+    // screen that really hits a model, so it can take the full 5s timeout, and
+    // holding the articles hostage to it would make a working feed look broken.
     setDigest(null);
     void newsService.getDigest(title).then((result) => setDigest({ title, result }));
 
+    // Nothing sets `busy` here. The articles resolve at LATENCY_INSTANT and
+    // render as soon as they land; the digest slot above them keeps its own
+    // placeholder until it resolves. Two independent arrivals, which is what
+    // makes the screen look alive on arrival rather than blank until the
+    // slowest thing on it finishes.
+    //
     // DEMO_NOW, not Date.now(): the ranking takes a clock as an argument so it
     // stays deterministic, and reading the real one throws that away.
-    setFeed(await newsService.getGameFeed(viewerId, title, DEMO_NOW));
-    setBusy(false);
+    const entries = await newsService.getGameFeed(viewerId, title, DEMO_NOW);
+    setFeed({ title, entries });
   }, [viewerId, title]);
 
   useFocusEffect(
@@ -166,19 +187,28 @@ export default function NewsScreen() {
           {digest?.title === title ? (
             <DigestCard title={title} digest={digest.result} />
           ) : (
-            <LoadingState height={120} />
+            /* Sized to the resolved card, not to a round number. The tour puts
+               a spotlight on this slot, and the hole is measured from the box
+               that is there when it arrives — a placeholder 60px shorter than
+               what replaces it means the cutout clips the digest for as long as
+               it takes the overlay to re-measure. Four bullets, a heading and a
+               source line come to about this. */
+            <LoadingState height={DIGEST_PLACEHOLDER_HEIGHT} />
           )}
         </View>
       ) : null}
 
-      {busy ? <LoadingState height={200} /> : null}
+      {/* A game tab: the placeholder stands in only until THIS tab's articles
+          land, and never reappears for a refetch of a tab already on screen.
+          Independent of the digest above, which keeps its own placeholder. */}
+      {title !== null && entries === null ? <LoadingState height={200} /> : null}
 
-      {!busy && title !== null ? (
+      {title !== null && entries !== null ? (
         <View style={styles.list}>
           <Text style={styles.footnote}>
             Ranked by the topics you follow and the items you actually own.
           </Text>
-          {feed.map((entry) => (
+          {entries.map((entry) => (
             <ArticleCard
               key={entry.article.id}
               article={entry.article}
@@ -188,6 +218,8 @@ export default function NewsScreen() {
           ))}
         </View>
       ) : null}
+
+      {busy && title === null ? <LoadingState height={200} /> : null}
 
       {!busy && title === null ? (
         <View style={styles.list}>
