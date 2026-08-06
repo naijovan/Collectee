@@ -38,6 +38,15 @@ import { collectionService } from './collectionService';
 const GENERATION_MS = LATENCY_GENERATE * 4;
 
 const created: Room[] = [];
+
+/**
+ * A room whose collection does not exist yet. Not null, because `Room` requires
+ * the field and a nullable id would have to be handled at every read.
+ */
+const DRAFT_COLLECTION_ID = '';
+
+/** Draft rooms awaiting publish: room id → what its collection will be made of. */
+const drafts = new Map<string, { userId: string; name: string; itemIds: string[] }>();
 let nextId = 1;
 
 /** Backdrop cache — reused across users on the same theme and palette (§11 F4). */
@@ -136,45 +145,42 @@ export const roomService = {
    * items are placed. Unverified ones stay in the collection, which is exactly
    * the rule — they are listed, just not in the room.
    */
-  async createCollectionRoom(params: {
+  /**
+   * Build a Showroom from loose items, WITHOUT creating a collection yet.
+   *
+   * The previous version wrote the collection at generate time, which was
+   * wrong twice over: an unpublished draft appeared in Collections as though
+   * the user had made it, and because changing the backdrop regenerates, every
+   * backdrop the user tried left another "My Showroom" behind.
+   *
+   * Nothing is persisted for the user to see until `publish`. The draft's name
+   * and items are held here against the room id, and `publish` materialises the
+   * collection at the moment the user actually commits.
+   */
+  async createDraftRoom(params: {
     userId: string;
     name: string;
-    description?: string;
     itemIds: readonly string[];
     themeId: string;
     ownedItems: readonly OwnedItem[];
-    visibility?: Visibility;
     onProgress?: (fraction: number) => void;
-  }): Promise<{ collection: Collection; room: Room }> {
-    const visibility = params.visibility ?? 'private';
-
-    const collection = await collectionService.createCollection({
-      userId: params.userId,
-      name: params.name,
-      description: params.description ?? '',
-      coverUrl: '',
-      themeTags: [],
-      itemIds: [...params.itemIds],
-      visibility,
-      allowComments: true,
-      showOnProfile: true,
-    });
-
-    // Verified only — the collection keeps everything, the room takes what it
-    // is allowed to (§9.4).
+  }): Promise<Room> {
+    // Verified only — the collection will keep everything, the room takes what
+    // it is allowed to (§9.4).
     const placeable = params.ownedItems.filter(
       (entry) => entry.trustLevel === 'verified' && params.itemIds.includes(entry.itemId),
     );
 
     const room = await this.createRoom({
-      collectionId: collection.id,
+      collectionId: DRAFT_COLLECTION_ID,
       collectionName: params.name,
       themeId: params.themeId,
       ownedItems: placeable,
       onProgress: params.onProgress,
     });
 
-    return { collection, room };
+    drafts.set(room.id, { userId: params.userId, name: params.name, itemIds: [...params.itemIds] });
+    return room;
   },
 
   /** Every theme ranked for these items — the picker orders itself by this. */
@@ -384,12 +390,44 @@ export const roomService = {
     return this.mutate(roomId, (room) => ({ ...room, ...patch }));
   },
 
+  /**
+   * Publish, materialising the draft's collection if it has one.
+   *
+   * This is the moment the user commits, and therefore the only moment
+   * anything of theirs should appear in Collections. A draft that is abandoned
+   * — closed, regenerated with a different backdrop, or never finished — leaves
+   * nothing behind.
+   */
   async publish(roomId: string, visibility: Visibility): Promise<Room | null> {
+    const draft = drafts.get(roomId);
+    if (draft) {
+      const collection = await collectionService.createCollection({
+        userId: draft.userId,
+        name: draft.name,
+        description: '',
+        coverUrl: '',
+        themeTags: [],
+        itemIds: draft.itemIds,
+        visibility,
+        allowComments: true,
+        showOnProfile: true,
+      });
+      drafts.delete(roomId);
+      await this.mutate(roomId, (room) => ({ ...room, collectionId: collection.id }));
+    }
+
     return this.mutate(roomId, (room) => ({
       ...room,
       visibility,
       publishedAt: new Date().toISOString(),
     }));
+  },
+
+  /** Abandon a draft room and whatever it would have become. */
+  async discardDraft(roomId: string): Promise<void> {
+    drafts.delete(roomId);
+    const index = created.findIndex((room) => room.id === roomId);
+    if (index >= 0) created.splice(index, 1);
   },
 
   /**

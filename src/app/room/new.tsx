@@ -131,6 +131,8 @@ export default function CreateRoomScreen() {
   const [pickable, setPickable] = useState<{ owned: OwnedItem; item: Item }[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [unverifiedCount, setUnverifiedCount] = useState(0);
+  /** True while a run is in flight, so two callers cannot start one at once. */
+  const generating = useRef(false);
   const { viewerId } = useApp();
   const { width } = useWindowDimensions();
   /**
@@ -141,7 +143,12 @@ export default function CreateRoomScreen() {
    */
   const sceneWidth = Math.min(width, 720) - spacing.lg * 2;
 
-  const [step, setStep] = useState(param || draftItemIds.length > 0 ? 1 : 0);
+  /**
+   * A collection chosen up front skips to Generate; everything else starts at
+   * Style. A draft — from a suggestion or the inventory picker — has items but
+   * no chosen theme yet, and picking the look is the point of that step.
+   */
+  const [step, setStep] = useState(param ? 1 : 0);
   /** Every step opens at the top — the flow is one route, so nothing remounts. */
   const scrollRef = useTopOnFocus(step);
   const [collectionId, setCollectionId] = useState<string | null>(param ?? null);
@@ -300,14 +307,26 @@ export default function CreateRoomScreen() {
   }, [collectionId, viewerId]);
 
   // ── Generate ────────────────────────────────────────────────────────
-  const generate = useCallback(async () => {
-    if (!themeId) return;
+  /**
+   * `themeOverride` exists because the Background tab calls this immediately
+   * after `setThemeId`. State has not flushed at that point, so the callback
+   * still closes over the previous theme and the room regenerated with the
+   * backdrop the user had just switched away from — the change appeared to do
+   * nothing. Passing the id directly removes the dependency on timing.
+   */
+  const generate = useCallback(async (themeOverride?: string) => {
+    const useTheme = themeOverride ?? themeId;
+    if (!useTheme) return;
     if (!collectionId && !isDraft) return;
+    // Claimed here rather than in the effect below, so the step-0 button and
+    // the effect cannot both start a run: pressing Generate moves to step 1,
+    // which is exactly the condition the effect watches for.
+    if (generating.current) return;
+    generating.current = true;
     setStep(1);
     setReady(false);
     setProgress(0);
     setGenerateError(null);
-    generating.current = true;
 
     // Anything thrown in here used to reject silently, and the screen sat on
     // "Designing your…" forever with no way back — the worst failure mode a
@@ -319,31 +338,29 @@ export default function CreateRoomScreen() {
         ? await roomService.createRoom({
             collectionId,
             collectionName: collection?.name,
-            themeId,
+            themeId: useTheme,
             ownedItems: owned,
             onProgress: setProgress,
           })
-        : (
-            await roomService.createCollectionRoom({
+        : await roomService.createDraftRoom({
               userId: viewerId,
-              name: suggestedName ?? 'My Showroom',
+              name: draftName.trim() || 'My Showroom',
               itemIds: draftItemIds,
-              themeId,
+              themeId: useTheme,
               ownedItems: owned,
-              onProgress: setProgress,
-            })
-          ).room;
+            onProgress: setProgress,
+          });
 
       setOverflow(roomService.overflow(created, owned.map((o) => o.id)));
       setRoom(created);
       setTitle(created.title);
       setDescription(created.description);
       setReady(true);
+      generating.current = false;
     } catch (error) {
       setGenerateError(
         error instanceof Error ? error.message : 'Generation failed. Try again.',
       );
-      // Released so Try again can re-arm the effect.
       generating.current = false;
     }
   }, [collectionId, collection?.name, themeId, owned]);
@@ -351,9 +368,9 @@ export default function CreateRoomScreen() {
   /**
    * Start generation on arrival.
    *
-   * `step` initialises to 1 when the screen is entered with a collection or a
-   * draft — the style has already been chosen upstream, so the flow opens on
-   * Generate. But `generate()` only ever ran from the step-0 button, so those
+   * `step` initialises to 1 only when the screen is entered with a collection
+   * id, where the style step still has to run but generation is what the user
+   * asked for. But `generate()` only ever ran from the step-0 button, so those
    * entries landed on the progress bar with nothing running and sat at 0%
    * forever. That is the "stuck at Designing your…" report, and it affected
    * every entry from room/intro, collection/new and the suggestion cards —
@@ -362,12 +379,10 @@ export default function CreateRoomScreen() {
    * Guarded on `room` and `generating` so this fires exactly once and a
    * re-render mid-generation cannot restart it.
    */
-  const generating = useRef(false);
   useEffect(() => {
-    if (step !== 1 || room !== null || generating.current) return;
+    if (step !== 1 || room !== null) return;
     if (!themeId || owned.length === 0) return;
     if (gate !== null && !gate.eligible) return;
-    generating.current = true;
     void generate();
   }, [step, room, themeId, owned.length, gate, generate]);
 
@@ -658,7 +673,10 @@ export default function CreateRoomScreen() {
                 onPress={() => {
                   setDraftItemIds(picked);
                   setDraftName('My Showroom');
-                  setStep(1);
+                  // Step 0 is Style. Jumping to Generate skipped the choice
+                  // entirely and built the room on whatever theme happened to
+                  // be recommended, which is not a choice the user made.
+                  setStep(0);
                 }}
               />
             </>
@@ -856,7 +874,13 @@ export default function CreateRoomScreen() {
             <View style={styles.gateCard}>
               <Text style={styles.gateTitle}>Generation failed</Text>
               <Text style={styles.body}>{generateError}</Text>
-              <PrimaryButton label="Try again" onPress={() => void generate()} />
+              <PrimaryButton
+                label="Try again"
+                onPress={() => {
+                  generating.current = false;
+                  void generate();
+                }}
+              />
               <SecondaryButton label="Back to styles" onPress={() => setStep(0)} />
             </View>
           ) : !ready ? (
@@ -1125,7 +1149,13 @@ export default function CreateRoomScreen() {
                       key={theme.id}
                       onPress={() => {
                         setThemeId(theme.id);
-                        void generate();
+                        // Passed explicitly — see `generate`. Relying on the
+                        // state update here is what made this button do nothing.
+                        generating.current = false;
+                        // Drop the room this replaces, or every backdrop tried
+                        // leaves an orphan draft behind.
+                        if (room) void roomService.discardDraft(room.id);
+                        void generate(theme.id);
                       }}
                       style={[styles.bgCell, active && styles.bgCellActive]}
                     >

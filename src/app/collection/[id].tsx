@@ -55,6 +55,7 @@ import type { Collection, Comment, FlagReason, Item, OwnedItem, User } from '@/t
 export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const { viewerId } = useApp();
 
   const scrollRef = useTopOnFocus();
@@ -394,6 +395,48 @@ export default function CollectionScreen() {
         <Text style={styles.footnote}>Comments are off for this collection.</Text>
       )}
 
+      {/* Destructive, so it sits last and behind a confirm. Only offered for
+          collections made this session — the seeded ones are a frozen fixture
+          the demo depends on, and a delete button that silently fails is worse
+          than no button. */}
+      {collectionService.isDeletable(collection.id) ? (
+        <View style={styles.dangerZone}>
+          {confirmDelete ? (
+            <>
+              <Text style={styles.dangerTitle}>Delete “{collection.name}”?</Text>
+              <Text style={styles.muted}>
+                The collection is removed. The {collection.itemIds.length} items in it stay in
+                your inventory — a collection is a grouping, not the items themselves.
+              </Text>
+              <View style={styles.dangerRow}>
+                <Pressable
+                  onPress={async () => {
+                    await collectionService.deleteCollection(collection.id);
+                    router.replace('/collections');
+                  }}
+                  style={({ pressed }) => [styles.dangerConfirm, pressed && { opacity: 0.8 }]}
+                >
+                  <Text style={styles.dangerConfirmText}>Delete for good</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setConfirmDelete(false)}
+                  style={({ pressed }) => [styles.dangerCancel, pressed && { opacity: 0.8 }]}
+                >
+                  <Text style={styles.dangerCancelText}>Keep it</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <Pressable
+              onPress={() => setConfirmDelete(true)}
+              style={({ pressed }) => [styles.dangerButton, pressed && { opacity: 0.8 }]}
+            >
+              <Text style={styles.dangerButtonText}>Delete collection</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : null}
+
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
     </KeyboardSafe>
@@ -452,6 +495,36 @@ const styles = StyleSheet.create({
   },
   cancel: { alignItems: 'center', paddingVertical: spacing.sm },
   cancelText: { ...typography.cardTitle, color: colors.textSecondary },
+
+  dangerZone: {
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  dangerTitle: { ...typography.cardTitle, color: colors.danger },
+  dangerRow: { flexDirection: 'row', gap: spacing.sm },
+  dangerButton: { alignItems: 'center', paddingVertical: spacing.md },
+  dangerButtonText: { ...typography.cardTitle, color: colors.danger },
+  dangerConfirm: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.danger,
+  },
+  dangerConfirmText: { ...typography.cardTitle, color: colors.textOnAccent },
+  dangerCancel: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dangerCancelText: { ...typography.cardTitle, color: colors.textSecondary },
 
   commentBlock: { gap: spacing.md },
   comment: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },

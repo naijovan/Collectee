@@ -64,6 +64,26 @@ export const collectionService = {
     return delay(found, LATENCY_INSTANT);
   },
 
+  /**
+   * Delete a collection the viewer created this session.
+   *
+   * Seeded fixtures are not deletable: they are a frozen `as const` array and
+   * the demo depends on them existing. Returns whether anything was removed, so
+   * a screen can say "this one cannot be deleted" rather than appearing to
+   * succeed and leaving the row on screen.
+   */
+  async deleteCollection(id: string): Promise<boolean> {
+    const index = created.findIndex((collection) => collection.id === id);
+    if (index < 0) return delay(false, LATENCY_INSTANT);
+    created.splice(index, 1);
+    return delay(true, LATENCY_INSTANT);
+  },
+
+  /** Whether this collection can be deleted — false for the seeded ones. */
+  isDeletable(id: string): boolean {
+    return created.some((collection) => collection.id === id);
+  },
+
   async createCollection(input: CreateCollectionInput): Promise<Collection> {
     const collection: Collection = {
       id: `col-new-${nextId++}`,
