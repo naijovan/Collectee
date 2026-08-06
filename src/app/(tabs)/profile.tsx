@@ -232,6 +232,15 @@ export default function ProfileScreen() {
             Greys out Collections and Profile again so the §13.4 gate can be demoed
           </Text>
         </Pressable>
+        {/* The full reset lives on /diagnostics, not here — it signs the viewer
+            out, and this screen is one of the two the gate greys, so the button
+            would be taking away its own surface. This row is the signpost. */}
+        <Pressable style={styles.devRow} onPress={() => router.push('/diagnostics')}>
+          <Text style={styles.devLabel}>Reset the whole first run</Text>
+          <Text style={styles.muted}>
+            Signed out, quiz unanswered, tour unseen — on Foundation checks ›
+          </Text>
+        </Pressable>
       </View>
 
       <View style={{ height: ASSISTANT_CLEARANCE }} />

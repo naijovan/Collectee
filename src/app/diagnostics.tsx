@@ -13,9 +13,10 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { FEATURES } from '@/config/features';
+import { FEATURES, SKIP_FIRST_RUN } from '@/config/features';
+import { intensityOption } from '@/domain/onboarding';
 import { countScan } from '@/domain/scan';
 import { FLAG_THRESHOLD } from '@/domain/trust';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
@@ -39,7 +40,17 @@ interface Check {
 }
 
 export default function FoundationScreen() {
-  const { viewer, viewerId, inventory, hasImported, unreadNotifications, loading } = useApp();
+  const {
+    viewer,
+    viewerId,
+    inventory,
+    hasImported,
+    unreadNotifications,
+    loading,
+    firstRunStage,
+    intensity,
+    resetFirstRun,
+  } = useApp();
   const scrollRef = useTopOnFocus();
   const [checks, setChecks] = useState<Check[]>([]);
   const [running, setRunning] = useState(true);
@@ -172,6 +183,38 @@ export default function FoundationScreen() {
         <Row label="Unread notifications" value={String(unreadNotifications)} />
       </View>
 
+      {/* The first run is the one flow that cannot be practised twice without a
+          control, because there is no persistence to clear between takes
+          (§12.1). It lives here rather than only on Profile because Profile is
+          behind the onboarding gate, and resetting the gate is precisely what
+          this button does — so the way back would grey out the way in. */}
+      <View style={styles.card}>
+        <Text style={styles.sectionHeader}>First run</Text>
+        <Row label="Stage" value={firstRunStage} />
+        <Row
+          label="Collector intensity (quiz step 3)"
+          value={intensity ? `${intensityOption(intensity).label} (${intensity})` : 'not answered'}
+        />
+        <Row
+          label="Sign-in"
+          value="Mocked — nothing authenticates and any input proceeds (§9.3)"
+        />
+        {SKIP_FIRST_RUN ? (
+          <Row
+            label="EXPO_PUBLIC_SKIP_FIRST_RUN"
+            value="set — the first run is skipped on this machine"
+            ok={false}
+          />
+        ) : null}
+        <Pressable style={styles.action} onPress={resetFirstRun}>
+          <Text style={styles.actionLabel}>Reset to the front door</Text>
+          <Text style={styles.muted}>
+            Signs out, clears the quiz answers and the following overlays they wrote, and closes
+            the onboarding gate — the whole run again from a cold start
+          </Text>
+        </Pressable>
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.sectionHeader}>Service checks</Text>
         {checks.map((check) => (
@@ -229,4 +272,14 @@ const styles = StyleSheet.create({
   row: { paddingVertical: spacing.sm, gap: 2 },
   rowLabel: { ...typography.meta, color: colors.textSecondary },
   rowValue: { ...typography.body, color: colors.textPrimary },
+  action: {
+    marginTop: spacing.md,
+    padding: spacing.md,
+    gap: spacing.xs,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+  },
+  actionLabel: { ...typography.cardTitle, color: colors.accent },
 });
