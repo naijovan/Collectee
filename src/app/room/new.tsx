@@ -612,24 +612,33 @@ export default function CreateRoomScreen() {
                 {pickable.map(({ item }) => {
                   const on = picked.includes(item.id);
                   return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() =>
-                        setPicked((prev) =>
-                          prev.includes(item.id)
-                            ? prev.filter((id) => id !== item.id)
-                            : [...prev, item.id],
-                        )
-                      }
-                      style={[styles.pickCell, on && styles.pickCellOn]}
-                    >
-                      <ItemCard item={item} width="100%" />
+                    /* ItemCard is itself a Pressable, so wrapping it in another
+                       one meant the inner surface swallowed every tap and
+                       nothing could be selected — which also left the continue
+                       button permanently disabled. The card takes the handler
+                       directly and the wrapper is an inert View. */
+                    <View key={item.id} style={[styles.pickCell, on && styles.pickCellOn]}>
+                      {/* Taller than the 100 default: character renders are
+                          `cover`-fitted portraits, and in a short box the crop
+                          takes the head off. A tall cell shows the subject. */}
+                      <ItemCard
+                        item={item}
+                        width="100%"
+                        artHeight={172}
+                        onPress={() =>
+                          setPicked((prev) =>
+                            prev.includes(item.id)
+                              ? prev.filter((id) => id !== item.id)
+                              : [...prev, item.id],
+                          )
+                        }
+                      />
                       {on ? (
-                        <View style={styles.pickTick}>
+                        <View style={styles.pickTick} pointerEvents="none">
                           <Text style={styles.pickTickText}>✓</Text>
                         </View>
                       ) : null}
-                    </Pressable>
+                    </View>
                   );
                 })}
               </View>
@@ -1325,8 +1334,15 @@ const styles = StyleSheet.create({
   verifyNudgeBody: { ...typography.meta, color: colors.textSecondary },
 
   pickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  pickCell: { width: '48%' },
-  pickCellOn: { opacity: 0.95 },
+  /** Three across. Narrower cells are taller for the same art height, which is
+      the shape a skin render actually is. */
+  pickCell: { width: '31%' },
+  /** Selected: an accent ring on the cell, since the card keeps its own border. */
+  pickCellOn: {
+    borderRadius: radius.card,
+    borderWidth: 2,
+    borderColor: colors.accent,
+  },
   pickTick: {
     position: 'absolute',
     top: spacing.xs,
