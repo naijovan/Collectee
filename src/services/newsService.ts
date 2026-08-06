@@ -22,7 +22,7 @@ import { GAME_LABELS } from '@/types';
 import type { FollowedTopic, GameTitle, TopicKind } from '@/types';
 import type { RankedArticle } from '@/domain/news';
 import type { Article } from '@/types';
-import { LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT, delay } from './latency';
+import { LATENCY_GENERATE, LATENCY_INSTANT, delay } from './latency';
 
 const savedByUser = new Map<string, Set<string>>(
   SAVED_ARTICLES.reduce((map, saved) => {
@@ -168,6 +168,66 @@ function callDigester(title: GameTitle, articles: readonly Article[]): Promise<s
   });
 }
 
+/**
+ * The prepared bullets for a title. A game with no digest fixture cannot happen
+ * — `validate-fixtures` requires one per title — but if one ever did, this
+ * returns no bullets rather than inventing any, and the card hides itself.
+ */
+function seededDigest(title: GameTitle): DigestResult {
+  const seeded = DIGESTS_BY_GAME.get(title);
+  return { bullets: seeded ? [...seeded.bullets] : [], live: false };
+}
+
+/**
+ * Digests resolved this session, per game.
+ *
+ * Deliberately NOT cleared by `resetSessionFollowing`. This is a response
+ * cache, not user state — the bullets do not depend on who follows what — so
+ * keeping it across a first-run reset is both correct and what makes the second
+ * rehearsal run of the News stop instant.
+ */
+const digestCache = new Map<GameTitle, DigestResult>();
+/** One request per game, however many callers ask for it at once. */
+const digestInFlight = new Map<GameTitle, Promise<DigestResult>>();
+
+async function produceDigest(title: GameTitle): Promise<DigestResult> {
+  // Widened deliberately: `ARTICLES` is `as const`, so `relatedGames` is a
+  // tuple of literals and `.includes` narrows its argument to `never`.
+  const all: readonly Article[] = ARTICLES;
+  const articles = all.filter((a) => a.relatedGames.includes(title));
+  const fallback = seededDigest(title);
+
+  if (liveEnabled() && articles.length > 0) {
+    // Grounded in the same articles the tab below is showing, so the digest
+    // cannot describe news the user then fails to find (§11 F6).
+    const live = await callDigester(title, articles);
+    if (live) return { bullets: live, live: true };
+
+    // No mock latency on this path. `LATENCY_GENERATE` exists to make mocked
+    // generation feel like generation; adding it after a real 5s timeout just
+    // makes the card empty for nearly seven seconds.
+    return fallback;
+  }
+
+  return delay(fallback, LATENCY_GENERATE);
+}
+
+function digestFor(title: GameTitle): Promise<DigestResult> {
+  const cached = digestCache.get(title);
+  if (cached) return Promise.resolve(cached);
+
+  const inFlight = digestInFlight.get(title);
+  if (inFlight) return inFlight;
+
+  const pending = produceDigest(title).then((result) => {
+    digestCache.set(title, result);
+    digestInFlight.delete(title);
+    return result;
+  });
+  digestInFlight.set(title, pending);
+  return pending;
+}
+
 function followedGamesFor(userId: string): GameTitle[] {
   const seeded = USERS_BY_ID.get(userId)?.followedGames ?? [];
   const dropped = unfollowedGames.get(userId) ?? new Set<GameTitle>();
@@ -175,10 +235,27 @@ function followedGamesFor(userId: string): GameTitle[] {
   return [...new Set([...seeded, ...extra])].filter((g) => !dropped.has(g));
 }
 
+/**
+ * ── ON LATENCY TIERS IN THIS FILE ─────────────────────────────────────────
+ * Every article list resolves at `LATENCY_INSTANT`, not `LATENCY_FETCH`.
+ *
+ * `LATENCY_FETCH` exists to keep a screen honest about a request that will be
+ * a real one in phase 2 — it stops a missing loading state hiding until the
+ * day a network call appears. These reads will not become network calls: they
+ * are a filter and a sort over eight seeded articles held in memory, and
+ * `rankGameFeed` is pure arithmetic. Charging them 320ms bought a loading
+ * state nothing will ever need and made the feed look like it was fetching
+ * when it had already finished.
+ *
+ * `getDigest` KEEPS `LATENCY_GENERATE`, and that distinction is the point: it
+ * is the one call here that really does hit a model. Its slot showing a
+ * placeholder while the articles below it are already readable is the correct
+ * behaviour, not the bug — see the progressive render in `app/news.tsx`.
+ */
 export const newsService = {
   /** Discover: general news, newest first. No personalisation. */
   async getDiscover(limit = 20): Promise<Article[]> {
-    return delay(rankDiscover(ARTICLES, limit), LATENCY_FETCH);
+    return delay(rankDiscover(ARTICLES, limit), LATENCY_INSTANT);
   },
 
   /**
@@ -208,7 +285,7 @@ export const newsService = {
 
     return delay(
       rankFyp(ARTICLES, { ownedItemIds, followedGames, followedTopics }, now, limit),
-      LATENCY_FETCH,
+      LATENCY_INSTANT,
     );
   },
 
@@ -263,7 +340,7 @@ export const newsService = {
         now,
         limit,
       ),
-      LATENCY_FETCH,
+      LATENCY_INSTANT,
     );
   },
 
@@ -279,31 +356,44 @@ export const newsService = {
    * one per title — but if one ever did, this returns no bullets rather than
    * inventing any, and the card hides itself.
    */
+  /**
+   * The digest, cached per game for the session.
+   *
+   * Resolves from the cache when a prefetch has already run, so the screen can
+   * render the model's bullets on its first frame instead of showing anything
+   * else first. Concurrent callers share one in-flight request rather than each
+   * paying for their own model call.
+   */
   async getDigest(title: GameTitle): Promise<DigestResult> {
-    const seeded = DIGESTS_BY_GAME.get(title);
-    // Widened deliberately: `ARTICLES` is `as const`, so `relatedGames` is a
-    // tuple of literals and `.includes` narrows its argument to `never`.
-    const all: readonly Article[] = ARTICLES;
-    const articles = all.filter((a) => a.relatedGames.includes(title));
+    return digestFor(title);
+  },
 
-    const fallback: DigestResult = { bullets: seeded ? [...seeded.bullets] : [], live: false };
+  /**
+   * What is already resolved for this game, or null. Synchronous on purpose.
+   *
+   * The service rule is that every method returns a Promise so a fixture read
+   * can become a `fetch` in phase 2 without rewriting a screen. This one never
+   * can: it is a peek at a Map this module already holds, and awaiting it would
+   * defeat the only reason it exists — a Promise resolves a microtask later,
+   * which is a frame the screen would have to fill with something that is not
+   * the answer. `followedGamesFor` and `catalogueService.getCatalogueMap` are
+   * the same shape for the same reason.
+   */
+  cachedDigest(title: GameTitle): DigestResult | null {
+    return digestCache.get(title) ?? null;
+  },
 
-    if (liveEnabled() && articles.length > 0) {
-      // Grounded in the same articles the tab below is showing, so the digest
-      // cannot describe news the user then fails to find (§11 F6).
-      const live = await callDigester(title, articles);
-      if (live) return { bullets: live, live: true };
-
-      // No mock latency on this path. `LATENCY_GENERATE` exists to make mocked
-      // generation feel like generation; adding it AFTER a real 5s timeout just
-      // makes the card empty for nearly seven seconds. Measured: 6.8s with the
-      // delay, 5.0s without. The article screen keeps its delay because opening
-      // a summary is a deliberate action where a wait reads as work — this is a
-      // header the user did not ask for.
-      return fallback;
-    }
-
-    return delay(fallback, LATENCY_GENERATE);
+  /**
+   * Start resolving a digest now, to be read later.
+   *
+   * The live call takes 1.1-1.5s against the deployed proxy. Anything that
+   * knows the user is heading for the news — the first-run walkthrough, ten
+   * seconds ahead of its News stop — can start it early and turn that wait into
+   * no wait at all. Fire and forget: the result lands in the cache, and a
+   * failure is already the fallback.
+   */
+  async prefetchDigest(title: GameTitle): Promise<void> {
+    await digestFor(title);
   },
 
   // ── Following management (§11 F6) ────────────────────────────────────
@@ -357,6 +447,91 @@ export const newsService = {
     return followedGamesFor(userId);
   },
 
+  /**
+   * Follow a topic, idempotently. Already following it is success, not a
+   * toggle.
+   *
+   * The same trap as `setFollowedGames`, one layer along, and it bites harder
+   * because the collision is invisible: the viewer is seeded following
+   * `franchise: Elderflame` and `character: Gusion`, and both are among the
+   * chips the first-run quiz derives from the catalogue. Picking either through
+   * `toggleFollowedTopic` would have UNFOLLOWED it — the user selects Gusion
+   * and the feed loses the two Gusion articles.
+   *
+   * A screen that means "make this followed" should say so rather than ask for
+   * a toggle and hope the seeded state agrees.
+   */
+  async followTopic(userId: string, kind: TopicKind, value: string): Promise<void> {
+    const alreadyFollowed = followedTopicsFor(userId).some(
+      (t) => t.kind === kind && t.value.toLowerCase() === value.toLowerCase(),
+    );
+    if (alreadyFollowed) return delay(undefined, LATENCY_INSTANT);
+
+    const key = topicKey(userId, kind, value);
+    const removed = removedTopics.get(userId) ?? new Set<string>();
+    const added = addedTopics.get(userId) ?? [];
+
+    // Clearing the tombstone matters: following something that was unfollowed
+    // earlier this session has to bring it back, not add a second entry that
+    // `followedTopicsFor` then filters straight out again.
+    removed.delete(key);
+    added.push({ userId, kind, value });
+    removedTopics.set(userId, removed);
+    addedTopics.set(userId, added);
+
+    return delay(undefined, LATENCY_INSTANT);
+  },
+
+  /**
+   * Replace the followed-game set outright.
+   *
+   * Exists because the first-run quiz asks "which of these do you play?" and
+   * that is an ASSIGNMENT, not a series of toggles. The viewer is seeded
+   * following all three titles (§12.3), so a quiz answer of "just CODM" run
+   * through `toggleFollowedGame` for each pick would unfollow CODM and leave
+   * Valorant and MLBB followed — the exact inverse of the answer. The bug is
+   * invisible in a screen that toggles one chip at a time, which is why the
+   * fix belongs here rather than in a loop at the call site.
+   *
+   * Writes the same two overlays as the toggle, so seeded data stays untouched
+   * (§12.1) and `resetSessionFollowing` still undoes it.
+   */
+  async setFollowedGames(userId: string, titles: readonly GameTitle[]): Promise<GameTitle[]> {
+    const seeded = USERS_BY_ID.get(userId)?.followedGames ?? [];
+    const wanted = new Set(titles);
+
+    // Adds are what the seed does not already give us; drops are what the seed
+    // gives us and the answer did not ask for. Expressed against the seed
+    // rather than the current overlay so calling this twice is idempotent.
+    followedGameAdds.set(userId, new Set(titles.filter((t) => !seeded.includes(t))));
+    unfollowedGames.set(userId, new Set(seeded.filter((t) => !wanted.has(t))));
+
+    return delay(followedGamesFor(userId), LATENCY_INSTANT);
+  },
+
+  /**
+   * Drop every session change to following, back to the seeded state.
+   *
+   * The first run is the one flow that cannot be rehearsed twice without this.
+   * Everything the quiz writes lands in the four overlays above, and there is
+   * no persistence layer to clear instead (§12.1) — so without a reset the
+   * second take through the quiz starts with the first take's answers already
+   * applied, and picking "just VALORANT" after picking "just CODM" produces a
+   * feed that matches neither.
+   *
+   * A Promise like every other service method, even though the work is four
+   * `Map.delete` calls — the caller is a synchronous state reset and voids it.
+   * Phase 2 makes this a real request, and the alternative is that this is the
+   * one method that has to change shape when it does.
+   */
+  async resetSessionFollowing(userId: string): Promise<void> {
+    addedTopics.delete(userId);
+    removedTopics.delete(userId);
+    followedGameAdds.delete(userId);
+    unfollowedGames.delete(userId);
+    return delay(undefined, LATENCY_INSTANT);
+  },
+
   async toggleFollowedGame(userId: string, title: GameTitle): Promise<boolean> {
     const dropped = unfollowedGames.get(userId) ?? new Set<GameTitle>();
     const extra = followedGameAdds.get(userId) ?? new Set<GameTitle>();
@@ -381,7 +556,7 @@ export const newsService = {
     const articles = [...ids]
       .map((id) => ARTICLES_BY_ID.get(id))
       .filter((a): a is Article => a !== undefined);
-    return delay(articles, LATENCY_FETCH);
+    return delay(articles, LATENCY_INSTANT);
   },
 
   async toggleSaved(userId: string, articleId: string): Promise<boolean> {

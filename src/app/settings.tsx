@@ -13,9 +13,11 @@
 
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SectionHeader } from '@/components';
+import { FEATURES } from '@/config/features';
 import { useApp } from '@/state/AppContext';
 import { useThemeMode } from '@/theme/ThemeMode';
 import { colors, radius, spacing, typography } from '@/theme/theme';
@@ -25,7 +27,8 @@ const BIO_LIMIT = 140;
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { viewer } = useApp();
+  const router = useRouter();
+  const { viewer, replayTour } = useApp();
   const { mode, toggle, supported } = useThemeMode();
 
   const [displayName, setDisplayName] = useState(viewer?.displayName ?? '');
@@ -105,6 +108,40 @@ export default function SettingsScreen() {
           </View>
         </Pressable>
       </View>
+
+      {/* Settings is where help naturally lives on this app — there is no help
+          screen, and Profile → gear is one tap from anywhere. Hidden entirely
+          when the tour is cut (§14), rather than left as a row that opens
+          nothing. */}
+      {FEATURES.firstRunTour ? (
+        <>
+          <SectionHeader title="Help" />
+          <View style={styles.card}>
+            <Pressable
+              onPress={() => {
+                replayTour();
+                /* Back to the app: the walkthrough draws over whatever is
+                   underneath, and its first stop is about the tab bar, which
+                   this screen covers. */
+                router.back();
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+            >
+              <View style={styles.rowBody}>
+                <Text style={styles.rowTitle}>Replay tour</Text>
+                <Text style={styles.muted}>
+                  The five-stop walkthrough from your first run. It never shows itself again on
+                  its own.
+                </Text>
+              </View>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>Start</Text>
+              </View>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
     </ScrollView>
   );
 }

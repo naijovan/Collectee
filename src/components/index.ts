@@ -45,6 +45,9 @@ export { ImmersiveRoom3D } from './ImmersiveRoom3D';
 export { BACKDROPS, backdropsReady, resolveBackdrop } from './backdrops';
 export { ITEM_ART, itemArtCoverage, resolveItemArt } from './item-art';
 
+/** First-run walkthrough. Draws over the app rather than changing any of it. */
+export { TourOverlay } from './TourOverlay';
+
 export { AssistantButton, ASSISTANT_CLEARANCE } from './AssistantButton';
 export { AssistantPanel } from './AssistantPanel';
 export { useHoverLift } from './primitives';

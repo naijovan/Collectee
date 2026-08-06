@@ -34,6 +34,7 @@ import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { newsService } from '@/services';
 import type { DigestResult } from '@/services';
 import { useApp } from '@/state/AppContext';
+import { useTourAnchor } from '@/state/TourAnchors';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
 import type { Article, GameTitle } from '@/types';
@@ -57,6 +58,24 @@ const TITLE_BY_TAB = new Map<string, GameTitle>(
  * flag that is on but timed out must still say "prepared", or the one honest
  * claim this build makes about AI stops being true (§12.1).
  */
+/**
+ * The digest card. One version, shown once.
+ *
+ * There is deliberately no transition here. An earlier build rendered the
+ * prepared bullets immediately and cross-faded to the model's when they
+ * arrived; it read as a glitch, because a block of text quietly rewriting
+ * itself is indistinguishable from a bug no matter how gently it is faded. The
+ * prefetch removed the reason to do it — by the time anyone reaches this
+ * screen the live bullets are usually already resolved, so the card can simply
+ * render the answer.
+ *
+ * `minHeight` matches the shimmer that stands in while a cold digest resolves,
+ * so the slot is the same size before and after. That also keeps the first-run
+ * spotlight honest: it measures this box, and the box does not change.
+ *
+ * The label reads off what is on screen. Live bullets say so; the prepared
+ * fallback says so too, and says that no model call ran (§12.1).
+ */
 function DigestCard({ title, digest }: { title: GameTitle; digest: DigestResult }) {
   if (digest.bullets.length === 0) return null;
 
@@ -78,44 +97,99 @@ function DigestCard({ title, digest }: { title: GameTitle; digest: DigestResult 
   );
 }
 
+
+/**
+ * Height of the digest's loading placeholder, matched to the resolved card so
+ * the layout does not jump under the first-run walkthrough's spotlight.
+ */
+const DIGEST_PLACEHOLDER_HEIGHT = 172;
+
+/** The cached digest for a game, in the shape the screen's state holds. */
+function warmDigestFor(
+  title: GameTitle | null,
+): { title: GameTitle; result: DigestResult } | null {
+  if (title === null) return null;
+  const cached = newsService.cachedDigest(title);
+  return cached ? { title, result: cached } : null;
+}
+
 export default function NewsScreen() {
   const router = useRouter();
+  /* First-run walkthrough targets. The digest is the one target in the app
+     that is not reliably on screen when the tour arrives — it resolves
+     asynchronously and can take the full model timeout — so the tab row is
+     registered as its fallback. See `TourStop.fallbackTargetIds`. */
+  const digestAnchor = useTourAnchor('news-digest');
+  const tabsAnchor = useTourAnchor('news-tabs');
   const { viewerId, unreadNotifications } = useApp();
 
   const [tab, setTab] = useState<string>(TABS[0]);
   /** Switching tab replaces the whole page, so it reads as a new one. */
   const scrollRef = useTopOnFocus(tab);
-  const [feed, setFeed] = useState<RankedArticle[]>([]);
+  /**
+   * Tagged with its game, exactly like `digest` below and for the same reason:
+   * a tab switch mid-flight would otherwise show CODM's articles under the MLBB
+   * heading. Tagging also buys the progressive render — a refetch on the SAME
+   * tab keeps the articles that are already on screen instead of blanking them
+   * back to a placeholder.
+   */
+  const [feed, setFeed] = useState<{ title: GameTitle; entries: RankedArticle[] } | null>(null);
   /**
    * Tagged with the game it is for. The digest resolves on its own schedule —
    * up to the full 5s timeout on the live path — so a tab switch mid-flight
    * would otherwise land CODM's bullets under the MLBB heading.
    */
-  const [digest, setDigest] = useState<{ title: GameTitle; result: DigestResult } | null>(null);
+  const [digest, setDigest] = useState<{ title: GameTitle; result: DigestResult } | null>(() =>
+    /* Lazy initial state, because `load` runs from a focus effect — after the
+       first paint. Without this, a warm cache would still flash a shimmer for
+       one frame on the way in, which is the whole thing the prefetch exists to
+       prevent. */
+    warmDigestFor(TITLE_BY_TAB.get(TABS[0]) ?? null),
+  );
   const [saved, setSaved] = useState<Article[]>([]);
   const [busy, setBusy] = useState(true);
 
   const title = TITLE_BY_TAB.get(tab) ?? null;
+  /* Null until this tab's own articles have landed — a stale tab's entries are
+     never rendered under the wrong heading. */
+  const entries = feed !== null && feed.title === title ? feed.entries : null;
 
   const load = useCallback(async () => {
-    setBusy(true);
-
     if (title === null) {
+      setBusy(true);
       setSaved(await newsService.getSaved(viewerId));
       setBusy(false);
       return;
     }
 
-    // The digest is not awaited alongside the feed: it can take the full 5s
-    // timeout when the live path is on, and holding the articles hostage to it
-    // would make a working feed look broken.
-    setDigest(null);
-    void newsService.getDigest(title).then((result) => setDigest({ title, result }));
+    // The digest is not awaited alongside the feed: it is the one call on this
+    // screen that really hits a model, so it can take the full 5s timeout, and
+    // holding the articles hostage to it would make a working feed look broken.
+    /* One version of the digest, never two. A prefetch means the cache is
+       usually already warm by the time anyone gets here, and reading it
+       synchronously puts the model's bullets on the first frame — awaiting a
+       Promise that already has its answer would still cost a frame, and that
+       frame would have to show something that is not the answer.
+       Cold, the slot shimmers at the card's own height until the real one
+       lands. It never shows prepared bullets and then replaces them. */
+    const warm = newsService.cachedDigest(title);
+    if (warm) {
+      setDigest({ title, result: warm });
+    } else {
+      setDigest(null);
+      void newsService.getDigest(title).then((result) => setDigest({ title, result }));
+    }
 
+    // Nothing sets `busy` here. The articles resolve at LATENCY_INSTANT and
+    // render as soon as they land; the digest slot above them keeps its own
+    // placeholder until it resolves. Two independent arrivals, which is what
+    // makes the screen look alive on arrival rather than blank until the
+    // slowest thing on it finishes.
+    //
     // DEMO_NOW, not Date.now(): the ranking takes a clock as an argument so it
     // stays deterministic, and reading the real one throws that away.
-    setFeed(await newsService.getGameFeed(viewerId, title, DEMO_NOW));
-    setBusy(false);
+    const entries = await newsService.getGameFeed(viewerId, title, DEMO_NOW);
+    setFeed({ title, entries });
   }, [viewerId, title]);
 
   useFocusEffect(
@@ -147,24 +221,40 @@ export default function NewsScreen() {
         </Pressable>
       </View>
 
-      <FilterChips options={TABS} value={tab} onChange={setTab} />
+      <View ref={tabsAnchor} collapsable={false}>
+        <FilterChips options={TABS} value={tab} onChange={setTab} />
+      </View>
 
+      {/* Wrapped so both branches share one measurable box: the walkthrough
+          can then land its spotlight on the digest while it is still loading
+          and keep it there as the real card replaces the placeholder. */}
       {title !== null ? (
-        digest?.title === title ? (
-          <DigestCard title={title} digest={digest.result} />
-        ) : (
-          <LoadingState height={120} />
-        )
+        <View ref={digestAnchor} collapsable={false}>
+          {digest?.title === title ? (
+            <DigestCard title={title} digest={digest.result} />
+          ) : (
+            /* Sized to the resolved card, not to a round number. The tour puts
+               a spotlight on this slot, and the hole is measured from the box
+               that is there when it arrives — a placeholder 60px shorter than
+               what replaces it means the cutout clips the digest for as long as
+               it takes the overlay to re-measure. Four bullets, a heading and a
+               source line come to about this. */
+            <LoadingState height={DIGEST_PLACEHOLDER_HEIGHT} />
+          )}
+        </View>
       ) : null}
 
-      {busy ? <LoadingState height={200} /> : null}
+      {/* A game tab: the placeholder stands in only until THIS tab's articles
+          land, and never reappears for a refetch of a tab already on screen.
+          Independent of the digest above, which keeps its own placeholder. */}
+      {title !== null && entries === null ? <LoadingState height={200} /> : null}
 
-      {!busy && title !== null ? (
+      {title !== null && entries !== null ? (
         <View style={styles.list}>
           <Text style={styles.footnote}>
             Ranked by the topics you follow and the items you actually own.
           </Text>
-          {feed.map((entry) => (
+          {entries.map((entry) => (
             <ArticleCard
               key={entry.article.id}
               article={entry.article}
@@ -174,6 +264,8 @@ export default function NewsScreen() {
           ))}
         </View>
       ) : null}
+
+      {busy && title === null ? <LoadingState height={200} /> : null}
 
       {!busy && title === null ? (
         <View style={styles.list}>
@@ -207,6 +299,10 @@ const styles = StyleSheet.create({
   utilityLink: { ...typography.meta, color: colors.accent },
 
   digest: {
+    /* Same height as the shimmer that stands in for it, so a cold load does not
+       resize the slot when the real card arrives — and the first-run spotlight,
+       which measures this box, never has to correct itself. */
+    minHeight: DIGEST_PLACEHOLDER_HEIGHT,
     backgroundColor: colors.surface,
     borderRadius: radius.card,
     borderWidth: 1,

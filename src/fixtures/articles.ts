@@ -10,6 +10,18 @@
  * `relatedItemIds` is what makes FYP more than a game filter: a player who owns
  * a skin for a weapon being reworked should see that patch note first.
  *
+ * ── TAGS ARE THE TOPIC-MATCHING SURFACE ───────────────────────────────────
+ * `rankFyp` matches a followed topic against `tags` and nothing else — not the
+ * title, not the summary. So a franchise or character the article is plainly
+ * about has to be IN this array or following it does nothing.
+ *
+ * That was silently untrue until 6 Aug: the seeded topics include
+ * `franchise: Elderflame` and `character: Gusion`, the Gusion rework article
+ * is titled "Gusion receives skill rework", and neither matched, because
+ * neither name was tagged. Every name added since is one the article already
+ * named in its own summary or carried in `relatedItemIds` — the tags describe
+ * the article, they are not keywords stuffed in to make a demo work.
+ *
  * §12.1 [OPTIONAL] — the one real model call under consideration for the build
  * is summarising these. If it ships, `summary` is generated at runtime; if not,
  * these seeded strings stand and the pitch says so plainly.
@@ -28,7 +40,7 @@ export const ARTICLES = [
     summary:
       'Sniper handling adjusted across the board. The DL Q33 keeps its ADS speed but loses ' +
       'flinch resistance, which changes how Lightbringer owners will want to run it.',
-    tags: ['patch notes', 'balance', 'CODM'],
+    tags: ['patch notes', 'balance', 'CODM', 'Lightbringer'],
     relatedGames: ['codm'],
     relatedItemIds: ['codm-dlq33-lightbringer'],
     publishedAt: '2026-07-31T08:00:00.000Z',
@@ -43,7 +55,7 @@ export const ARTICLES = [
     summary:
       'Riot has teased a new Ultra-tier bundle with variant levels and a finisher. ' +
       'Pricing sits in line with Elderflame and Singularity.',
-    tags: ['bundle', 'Ultra', 'Valorant'],
+    tags: ['bundle', 'Ultra', 'Valorant', 'Elderflame', 'Singularity'],
     relatedGames: ['valorant'],
     relatedItemIds: ['val-elderflame-vandal', 'val-singularity-phantom'],
     publishedAt: '2026-07-30T14:30:00.000Z',
@@ -58,7 +70,7 @@ export const ARTICLES = [
     summary:
       'Three previously vaulted Collector skins re-enter the rotation for a limited window. ' +
       'Owners of the original release keep their acquisition date on the profile.',
-    tags: ['event', 'Collector', 'MLBB'],
+    tags: ['event', 'Collector', 'MLBB', 'Gusion', 'Ling'],
     relatedGames: ['mlbb'],
     relatedItemIds: ['mlbb-gusion-cyber-faust', 'mlbb-ling-serpent-lord'],
     publishedAt: '2026-07-29T09:15:00.000Z',
@@ -88,7 +100,7 @@ export const ARTICLES = [
     summary:
       'Melee slots draw more attention than any rifle skin because they are visible in the ' +
       'buy menu every round. Prime and Reaver knives remain the most recognised.',
-    tags: ['analysis', 'melee', 'Valorant'],
+    tags: ['analysis', 'melee', 'Valorant', 'Prime', 'Reaver'],
     relatedGames: ['valorant'],
     relatedItemIds: ['val-prime-karambit', 'val-reaver-knife'],
     publishedAt: '2026-07-27T16:45:00.000Z',
@@ -103,7 +115,7 @@ export const ARTICLES = [
     summary:
       'Dagger recall timing changes. Skin owners should expect updated animations across ' +
       'all Gusion cosmetics once the patch reaches the original server.',
-    tags: ['rework', 'advanced server', 'MLBB'],
+    tags: ['rework', 'advanced server', 'MLBB', 'Gusion'],
     relatedGames: ['mlbb'],
     relatedItemIds: ['mlbb-gusion-cyber-faust', 'mlbb-gusion-cyber-ops'],
     publishedAt: '2026-07-26T07:20:00.000Z',
@@ -133,7 +145,7 @@ export const ARTICLES = [
     summary:
       'Vandal pick rate up four points following the spray adjustment. Phantom remains ' +
       'dominant on defence-sided maps.',
-    tags: ['meta', 'balance', 'Valorant'],
+    tags: ['meta', 'balance', 'Valorant', 'Prime', 'Reaver'],
     relatedGames: ['valorant'],
     relatedItemIds: ['val-prime-vandal', 'val-reaver-vandal', 'val-oni-phantom'],
     publishedAt: '2026-07-22T13:00:00.000Z',

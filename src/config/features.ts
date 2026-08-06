@@ -11,6 +11,11 @@
  *   4. Scanner video input       → FEATURES.scanVideoInput
  *   5. Third game                → FEATURES.thirdTitle
  *
+ * The first run (added 6 Aug) sits OUTSIDE that ladder because it was not in
+ * §14 to be ranked. Its own internal order is tour → quiz → auth: the tour is
+ * decoration over surfaces the demo visits anyway, the quiz seeds state, and
+ * the sign-in screen is the first thing anyone sees.
+ *
  * NEVER CUT: import → review → collection → room → share. That single chain is
  * the demo, and no flag here can disable it.
  */
@@ -76,6 +81,55 @@ export const FEATURES = {
    */
   assistantChat: true,
 
+  /**
+   * §16 Q8 — THE ANSWER REVERSED ON 6 AUG.
+   *
+   * Q8 asked whether the demo opens logged-in and recommended "yes, skip auth
+   * entirely" — there were no onboarding screens in the Figma and no owner.
+   * There is an owner now, and the front door is the first thing a judge sees,
+   * so the app boots logged-out and signs in through a mocked screen.
+   *
+   * MOCKED, and the word matters (§9.3 — real account linking is
+   * partnership-gated). Nothing authenticates. Any input proceeds, the OAuth
+   * buttons proceed on one tap, and no credential leaves the device because
+   * there is nowhere for it to go.
+   *
+   * The sign-in screen deliberately carries NO "this is a demo" label, which is
+   * the one place this build breaks its own honesty rule (§12.1 labels every
+   * mocked surface). A front door that disclaims itself is not a front door.
+   * The claim is made honestly everywhere it is actually read: /diagnostics
+   * prints it, and the pitch says it out loud.
+   *
+   * False = boots straight into the app, exactly as it did before this flag.
+   */
+  firstRunAuth: true,
+
+  /**
+   * The three-step preferences quiz, straight after sign-in.
+   *
+   * Answers seed real state through the §11 F6 session overlays — followed
+   * games and followed topics — so the FYP a judge sees is the one they just
+   * asked for. Skipping writes nothing at all, which is what makes "skip all =
+   * the seeded defaults" true rather than approximately true.
+   *
+   * False = sign-in lands on Home.
+   */
+  firstRunQuiz: true,
+
+  /**
+   * The post-quiz walkthrough.
+   *
+   * FIRST CUT ON THIS FEATURE, and separate from `firstRunQuiz` for exactly
+   * that reason: the tour is the piece most likely to lose its slot on the 7th,
+   * and cutting it must not take the quiz — which seeds real state — with it.
+   *
+   * Cards that name a surface and navigate to it, not a spotlight overlay. A
+   * spotlight needs measured rects out of `TabBar` and `AssistantButton`, and
+   * rect bugs surface on a screen size you first meet at the rehearsal. The
+   * spotlight version is the phase-2 answer.
+   */
+  firstRunTour: true,
+
   /** [ROADMAP] §11 F2 — Collection Insights. Build only if all four flows land early. */
   collectionInsights: false,
 
@@ -114,8 +168,16 @@ export type FeatureFlag = keyof typeof FEATURES;
 export const DEMO_NOW = Date.parse('2026-08-09T09:00:00.000Z');
 
 /**
- * §16 Q8 — onboarding/signup screens do not exist in the Figma and have no
- * owner. Recommended answer, implemented here: the demo opens on a logged-in
- * state and auth is skipped entirely.
+ * The demo's own escape hatch out of the first run.
+ *
+ * The three `firstRun*` flags are the product decision and default on. This is
+ * the developer one: the app boots logged-out now, and someone polishing the
+ * room flow should not sign in on every reload. Set
+ * `EXPO_PUBLIC_SKIP_FIRST_RUN=1` locally and the whole first run is skipped
+ * without touching a flag — which matters because a flag flipped locally is a
+ * dirty diff on a shared file three days from submission, and it eventually
+ * gets committed by accident.
+ *
+ * Never set in the demo environment. Absent = the first run runs.
  */
-export const SKIP_AUTH = true;
+export const SKIP_FIRST_RUN = process.env.EXPO_PUBLIC_SKIP_FIRST_RUN === '1';

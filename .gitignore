@@ -64,3 +64,8 @@ assets/collectee/collectee-app-ready/images/
 # ignoring the one env file that is meant to be committed. The rules at the top
 # of this file already cover `.env` and `.env.*`.
 .vercel
+
+# Local Claude Code settings, including the "settings.local 2.json" duplicates
+# cloud sync leaves behind — same class of stray file the fixture validator
+# rejects (see 5d414d8).
+.claude/
