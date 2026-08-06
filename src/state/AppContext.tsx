@@ -120,13 +120,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [gateOverride, setGateOverride] = useState(false);
 
   /**
-   * The first run is skipped outright when auth is off or a developer asked for
-   * it, rather than started and immediately completed. Same end state, but this
-   * way the sign-in route never mounts and there is no frame where it could
-   * flash before a redirect takes it away.
+   * Starts signed in when there is no sign-in step to take, rather than signing
+   * in on mount — the sign-in route then never mounts at all and there is no
+   * frame where it could flash before a redirect takes it away.
    */
-  const firstRunEnabled = FEATURES.firstRunAuth && !SKIP_FIRST_RUN;
-  const [signedIn, setSignedIn] = useState(!firstRunEnabled);
+  const [signedIn, setSignedIn] = useState(!(FEATURES.firstRunAuth && !SKIP_FIRST_RUN));
   const [quizDone, setQuizDone] = useState(false);
   const [tourDone, setTourDone] = useState(false);
   const [intensity, setIntensity] = useState<CollectorIntensity | null>(null);
@@ -183,6 +181,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
    * them, in any mix, on the morning of the 8th.
    */
   const firstRunStage = useMemo<FirstRunStage>(() => {
+    /* The developer escape has to short-circuit the WHOLE run, not just the
+       sign-in step. Gating only the initial `signedIn` would leave the quiz
+       showing on every reload on a machine whose whole reason for setting this
+       was not to see the first run — and the flag is named for what it does. */
+    if (SKIP_FIRST_RUN) return 'done';
+
     if (!signedIn) return 'sign-in';
     if (FEATURES.firstRunQuiz && !quizDone) return 'quiz';
     if (FEATURES.firstRunTour && !tourDone) return 'tour';
