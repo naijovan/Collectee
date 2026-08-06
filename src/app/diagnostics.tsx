@@ -16,6 +16,8 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { FEATURES, SKIP_FIRST_RUN } from '@/config/features';
+import { avatarArtCoverage } from '@/config/avatarRegistry';
+import { communityArtCoverage } from '@/config/communityArt';
 import { intensityOption } from '@/domain/onboarding';
 import { countScan } from '@/domain/scan';
 import { FLAG_THRESHOLD } from '@/domain/trust';
@@ -52,6 +54,8 @@ export default function FoundationScreen() {
     resetFirstRun,
   } = useApp();
   const scrollRef = useTopOnFocus();
+  const avatarCoverage = avatarArtCoverage();
+  const [communityCoverage, setCommunityCoverage] = useState({ covered: 0, total: 0 });
   const [checks, setChecks] = useState<Check[]>([]);
   const [running, setRunning] = useState(true);
 
@@ -123,6 +127,7 @@ export default function FoundationScreen() {
       });
 
       const communities = await matchService.getRecommendedCommunities(viewerId);
+      setCommunityCoverage(communityArtCoverage(communities.map((c) => c.community.id)));
       results.push({
         label: 'Community recommendations',
         value: String(communities.length),
@@ -220,6 +225,23 @@ export default function FoundationScreen() {
         {checks.map((check) => (
           <Row key={check.label} label={check.label} value={check.value} ok={check.ok} />
         ))}
+      </View>
+
+      {/* Art coverage is invisible to typecheck and to validate:fixtures — a
+          missing portrait renders as a colour block that looks deliberate. This
+          is the only place the gap is visible without running audit:art. */}
+      <View style={styles.card}>
+        <Text style={styles.sectionHeader}>Art coverage</Text>
+        <Row
+          label="Avatar portraits"
+          value={`${avatarCoverage.covered}/${avatarCoverage.total} — the rest render as initials`}
+          ok={avatarCoverage.covered === avatarCoverage.total}
+        />
+        <Row
+          label="Community images"
+          value={`${communityCoverage.covered}/${communityCoverage.total} — the rest render as colour blocks`}
+          ok={communityCoverage.covered === communityCoverage.total}
+        />
       </View>
 
       <View style={styles.card}>

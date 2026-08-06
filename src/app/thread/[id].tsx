@@ -151,7 +151,12 @@ export default function ThreadScreen() {
         {view.thread.pinned ? <Text style={styles.pinned}>PINNED</Text> : null}
         <Text style={styles.title}>{view.thread.title}</Text>
         <View style={styles.byline}>
-          <Avatar name={author?.displayName ?? '?'} verified={author?.isAccountVerified} size={28} />
+          <Avatar
+          name={author?.displayName ?? '?'}
+          avatarId={author?.avatar}
+          verified={author?.isAccountVerified}
+          size={28}
+        />
           <Text style={styles.muted}>
             {author?.displayName ?? 'Unknown'} · {timeAgo(view.thread.createdAt)}
           </Text>
@@ -202,6 +207,7 @@ export default function ThreadScreen() {
             <ReplyRow
               body={node.reply.body}
               authorName={nodeAuthor?.displayName ?? 'Unknown'}
+              authorAvatarId={nodeAuthor?.avatar}
               verified={nodeAuthor?.isAccountVerified}
               createdAt={node.reply.createdAt}
               likeCount={node.reply.likeCount}
@@ -223,6 +229,7 @@ export default function ThreadScreen() {
                   <ReplyRow
                     body={child.body}
                     authorName={childAuthor?.displayName ?? 'Unknown'}
+                    authorAvatarId={childAuthor?.avatar}
                     verified={childAuthor?.isAccountVerified}
                     createdAt={child.createdAt}
                     likeCount={child.likeCount}
@@ -305,6 +312,7 @@ export default function ThreadScreen() {
 function ReplyRow({
   body,
   authorName,
+  authorAvatarId,
   verified,
   createdAt,
   likeCount,
@@ -314,6 +322,7 @@ function ReplyRow({
 }: {
   body: string;
   authorName: string;
+  authorAvatarId?: string | null;
   verified?: boolean;
   createdAt: string;
   likeCount: number;
@@ -323,7 +332,10 @@ function ReplyRow({
 }) {
   return (
     <View style={styles.reply}>
-      <Avatar name={authorName} verified={verified} size={30} />
+      {/* Name-only: a reply row is handed strings, not the author record.
+          Passing the id through keeps the face consistent with the thread
+          header above it, which does have the user. */}
+      <Avatar name={authorName} avatarId={authorAvatarId} verified={verified} size={30} />
       <View style={styles.replyBody}>
         <Text style={styles.rowTitle}>
           {authorName} <Text style={styles.muted}>· {timeAgo(createdAt)}</Text>

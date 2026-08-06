@@ -203,6 +203,7 @@ export default function HomeScreen() {
           <Pressable onPress={() => router.navigate('/profile')} hitSlop={8}>
             <Avatar
               name={viewer?.displayName ?? '?'}
+              avatarId={viewer?.avatar}
               verified={viewer?.isAccountVerified}
               size={38}
             />

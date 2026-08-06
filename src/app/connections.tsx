@@ -73,7 +73,12 @@ export default function ConnectionsScreen() {
               onPress={() => router.push({ pathname: '/collector/[id]', params: { id: person.id } })}
               style={({ pressed }) => [styles.row, pressed && styles.pressed]}
             >
-              <Avatar name={person.displayName} verified={person.isAccountVerified} size={40} />
+              <Avatar
+        name={person.displayName}
+        avatarId={person.avatar}
+        verified={person.isAccountVerified}
+        size={40}
+      />
               <View style={styles.rowBody}>
                 <Text style={styles.name}>{person.displayName}</Text>
                 <Text style={styles.muted} numberOfLines={1}>
