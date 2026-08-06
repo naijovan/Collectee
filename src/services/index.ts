@@ -38,7 +38,12 @@ export {
   IMAGE_MIME_TYPES,
   MAX_IMAGE_BYTES,
 } from './mediaService';
-export { newsService, type NewsService } from './newsService';
+export {
+  newsService,
+  type DigestResult,
+  type NewsService,
+  type SummaryResult,
+} from './newsService';
 export {
   roomService,
   type RoomService,
@@ -62,4 +67,4 @@ export {
 export { delay, delayWithProgress, LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT } from './latency';
 
 export { assistantService } from './assistantService';
-export type { AssistantMode } from './assistantService';
+export type { AssistantMode, ChatTurn } from './assistantService';

@@ -203,6 +203,27 @@ export const atmosphereFallback = {
   secondary: '#F022A8',
 } as const;
 
+/**
+ * Third-party brand colours, for the mocked OAuth buttons on the sign-in
+ * screen — the only place in the app that renders someone else's mark.
+ *
+ * These are NOT theme colours and must never be used as ones. They do not
+ * re-theme in light mode and they are not on the value ladder; Google's blue is
+ * Google's blue on any background. They live here for the same reason every
+ * other literal does — this file is where raw hex is allowed — and nowhere else
+ * imports them.
+ *
+ * The marks are drawn from Views rather than shipped as images or an icon font,
+ * the same call `TabBar` makes and for the same reason: §13.1 says nobody adds
+ * a dependency without saying so, and that includes an icon set.
+ */
+export const brand = {
+  googleBlue: '#4285F4',
+  googleRed: '#EA4335',
+  googleYellow: '#FBBC05',
+  googleGreen: '#34A853',
+} as const;
+
 export const spacing = {
   xs: 4,
   sm: 8,

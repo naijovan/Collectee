@@ -59,6 +59,7 @@ import {
 } from '@/services';
 import type { CollectorRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
+import { useAssistantDock } from '@/state/AssistantDock';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
 import type { Article, Collection, Item, Room, User } from '@/types';
@@ -82,6 +83,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory, unreadNotifications, loading } = useApp();
+  const { openPanel } = useAssistantDock();
 
   /** Tab screens stay mounted, so returning here has to be sent back to the top. */
   const scrollRef = useTopOnFocus();
@@ -183,10 +185,12 @@ export default function HomeScreen() {
         <View style={styles.headerActions}>
           {/* The assistant sits in the header rather than a tab: it answers
               questions ABOUT the app, so it belongs beside the account controls
-              rather than competing with the five destinations. */}
+              rather than competing with the five destinations. It opens the
+              same panel the floating launcher does — one assistant, two ways
+              in, and neither navigates away from what is being asked about. */}
           <Pressable
             accessibilityLabel="Ask the assistant"
-            onPress={() => router.push('/assistant')}
+            onPress={openPanel}
             hitSlop={8}
             style={styles.bell}
           >

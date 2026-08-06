@@ -5,74 +5,256 @@
  * — the Home rail disappears cleanly and this route simply stops being linked.
  * Do not delete the code to descope.
  *
- * Two feeds, per §11 F6:
- *   - Discover — general news, newest first, no personalisation
- *   - FYP — ranked by followed games, followed topics AND owned items. A player
- *     who owns a skin for a character being reworked should see that patch note
- *     first, and the card says so.
+ * ONE TAB PER GAME, plus Saved. Each game opens with a digest of what is
+ * happening in it, then that game's articles ranked by the same relevance the
+ * FYP uses — owned items first, then followed topics, then recency (§11 F6).
  *
- * `now` is injected into the FYP ranking so the order cannot silently change
+ * Why not the two chips §11 F6 names:
+ *   - The FYP's ranking is not gone, it is partitioned. Every signal still
+ *     applies inside each tab, and ownership reasons still print (§11 F5).
+ *   - Discover — everything, newest first — is still on Home's news rail, which
+ *     is where an unpersonalised list belongs. `newsService.getDiscover` and
+ *     `getFyp` both still have callers; nothing here deleted a feed.
+ *   - Five or six chips would have been a worse version of the clutter this
+ *     replaces. Three games as peers is also the clearer read of the cross-game
+ *     premise in a four-minute demo.
+ *
+ * `now` is injected into the ranking so the order cannot silently change
  * between rehearsal and the live run.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ArticleCard, EmptyState, FilterChips, LoadingState } from '@/components';
-import { FEATURES } from '@/config/features';
+import { DEMO_NOW, FEATURES } from '@/config/features';
 import type { RankedArticle } from '@/domain/news';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { newsService } from '@/services';
+import type { DigestResult } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, spacing, typography } from '@/theme/theme';
-import type { Article } from '@/types';
+import { useTourAnchor } from '@/state/TourAnchors';
+import { colors, radius, spacing, typography } from '@/theme/theme';
+import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
+import type { Article, GameTitle } from '@/types';
 
-const FEEDS = ['For you', 'Discover', 'Saved'] as const;
-type Feed = (typeof FEEDS)[number];
+const SAVED_TAB = 'Saved';
+
+/** Short labels, not raw titles — 'CODM', never 'codm' (§12.2's rule, applied). */
+const TABS: readonly string[] = [
+  ...GAME_TITLES.map((title) => GAME_SHORT_LABELS[title]),
+  SAVED_TAB,
+];
+
+const TITLE_BY_TAB = new Map<string, GameTitle>(
+  GAME_TITLES.map((title) => [GAME_SHORT_LABELS[title], title]),
+);
+
+/**
+ * "What's happening in <game>" (§11 F6).
+ *
+ * The label is driven by the actual call result, never by the feature flag: a
+ * flag that is on but timed out must still say "prepared", or the one honest
+ * claim this build makes about AI stops being true (§12.1).
+ */
+/**
+ * The digest card. One version, shown once.
+ *
+ * There is deliberately no transition here. An earlier build rendered the
+ * prepared bullets immediately and cross-faded to the model's when they
+ * arrived; it read as a glitch, because a block of text quietly rewriting
+ * itself is indistinguishable from a bug no matter how gently it is faded. The
+ * prefetch removed the reason to do it — by the time anyone reaches this
+ * screen the live bullets are usually already resolved, so the card can simply
+ * render the answer.
+ *
+ * `minHeight` matches the shimmer that stands in while a cold digest resolves,
+ * so the slot is the same size before and after. That also keeps the first-run
+ * spotlight honest: it measures this box, and the box does not change.
+ *
+ * The label reads off what is on screen. Live bullets say so; the prepared
+ * fallback says so too, and says that no model call ran (§12.1).
+ */
+function DigestCard({ title, digest }: { title: GameTitle; digest: DigestResult }) {
+  if (digest.bullets.length === 0) return null;
+
+  return (
+    <View style={styles.digest}>
+      <Text style={styles.digestTitle}>What&apos;s happening in {GAME_LABELS[title]}</Text>
+      {digest.bullets.map((bullet) => (
+        <View key={bullet} style={styles.bulletRow}>
+          <Text style={styles.bulletDot}>•</Text>
+          <Text style={styles.bulletText}>{bullet}</Text>
+        </View>
+      ))}
+      <Text style={styles.footnote}>
+        {digest.live
+          ? 'Digest by Claude, from the articles below.'
+          : 'Prepared digest — no model call ran (§12.1).'}
+      </Text>
+    </View>
+  );
+}
+
+
+/**
+ * Height of the digest's loading placeholder, matched to the resolved card so
+ * the layout does not jump under the first-run walkthrough's spotlight.
+ */
+const DIGEST_PLACEHOLDER_HEIGHT = 172;
+
+/** The cached digest for a game, in the shape the screen's state holds. */
+function warmDigestFor(
+  title: GameTitle | null,
+): { title: GameTitle; result: DigestResult } | null {
+  if (title === null) return null;
+  const cached = newsService.cachedDigest(title);
+  return cached ? { title, result: cached } : null;
+}
 
 export default function NewsScreen() {
   const router = useRouter();
-  const { viewerId } = useApp();
+  /* First-run walkthrough targets. The digest is the one target in the app
+     that is not reliably on screen when the tour arrives — it resolves
+     asynchronously and can take the full model timeout — so the tab row is
+     registered as its fallback. See `TourStop.fallbackTargetIds`. */
+  const digestAnchor = useTourAnchor('news-digest');
+  const tabsAnchor = useTourAnchor('news-tabs');
+  const { viewerId, unreadNotifications } = useApp();
 
-  const [feed, setFeed] = useState<Feed>('For you');
-  /** Switching feed replaces the whole list, so it reads as a new page. */
-  const scrollRef = useTopOnFocus(feed);
-  const [fyp, setFyp] = useState<RankedArticle[]>([]);
-  const [discover, setDiscover] = useState<Article[]>([]);
+  const [tab, setTab] = useState<string>(TABS[0]);
+  /** Switching tab replaces the whole page, so it reads as a new one. */
+  const scrollRef = useTopOnFocus(tab);
+  /**
+   * Tagged with its game, exactly like `digest` below and for the same reason:
+   * a tab switch mid-flight would otherwise show CODM's articles under the MLBB
+   * heading. Tagging also buys the progressive render — a refetch on the SAME
+   * tab keeps the articles that are already on screen instead of blanking them
+   * back to a placeholder.
+   */
+  const [feed, setFeed] = useState<{ title: GameTitle; entries: RankedArticle[] } | null>(null);
+  /**
+   * Tagged with the game it is for. The digest resolves on its own schedule —
+   * up to the full 5s timeout on the live path — so a tab switch mid-flight
+   * would otherwise land CODM's bullets under the MLBB heading.
+   */
+  const [digest, setDigest] = useState<{ title: GameTitle; result: DigestResult } | null>(() =>
+    /* Lazy initial state, because `load` runs from a focus effect — after the
+       first paint. Without this, a warm cache would still flash a shimmer for
+       one frame on the way in, which is the whole thing the prefetch exists to
+       prevent. */
+    warmDigestFor(TITLE_BY_TAB.get(TABS[0]) ?? null),
+  );
   const [saved, setSaved] = useState<Article[]>([]);
   const [busy, setBusy] = useState(true);
 
-  const load = useCallback(async () => {
-    const [personalised, general, bookmarks] = await Promise.all([
-      newsService.getFyp(viewerId, Date.now()),
-      newsService.getDiscover(),
-      newsService.getSaved(viewerId),
-    ]);
-    setFyp(personalised);
-    setDiscover(general);
-    setSaved(bookmarks);
-    setBusy(false);
-  }, [viewerId]);
+  const title = TITLE_BY_TAB.get(tab) ?? null;
+  /* Null until this tab's own articles have landed — a stale tab's entries are
+     never rendered under the wrong heading. */
+  const entries = feed !== null && feed.title === title ? feed.entries : null;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const load = useCallback(async () => {
+    if (title === null) {
+      setBusy(true);
+      setSaved(await newsService.getSaved(viewerId));
+      setBusy(false);
+      return;
+    }
+
+    // The digest is not awaited alongside the feed: it is the one call on this
+    // screen that really hits a model, so it can take the full 5s timeout, and
+    // holding the articles hostage to it would make a working feed look broken.
+    /* One version of the digest, never two. A prefetch means the cache is
+       usually already warm by the time anyone gets here, and reading it
+       synchronously puts the model's bullets on the first frame — awaiting a
+       Promise that already has its answer would still cost a frame, and that
+       frame would have to show something that is not the answer.
+       Cold, the slot shimmers at the card's own height until the real one
+       lands. It never shows prepared bullets and then replaces them. */
+    const warm = newsService.cachedDigest(title);
+    if (warm) {
+      setDigest({ title, result: warm });
+    } else {
+      setDigest(null);
+      void newsService.getDigest(title).then((result) => setDigest({ title, result }));
+    }
+
+    // Nothing sets `busy` here. The articles resolve at LATENCY_INSTANT and
+    // render as soon as they land; the digest slot above them keeps its own
+    // placeholder until it resolves. Two independent arrivals, which is what
+    // makes the screen look alive on arrival rather than blank until the
+    // slowest thing on it finishes.
+    //
+    // DEMO_NOW, not Date.now(): the ranking takes a clock as an argument so it
+    // stays deterministic, and reading the real one throws that away.
+    const entries = await newsService.getGameFeed(viewerId, title, DEMO_NOW);
+    setFeed({ title, entries });
+  }, [viewerId, title]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const open = (id: string) => router.push({ pathname: '/article/[id]', params: { id } });
 
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
-      <FilterChips options={FEEDS} value={feed} onChange={setFeed} />
+      {/*
+        §11 F6 groups notifications and following management with the feeds, and
+        this is the only route to either.
 
-      {busy ? <LoadingState height={200} /> : null}
+        TODO(Jovan): §13.4 puts the bell on Home and it currently opens /news.
+        One-line href change in src/app/(tabs)/index.tsx — the unread dot it
+        already renders is counting notifications nobody could open until now.
+      */}
+      <View style={styles.utilityRow}>
+        <Pressable onPress={() => router.push('/notifications')} hitSlop={8}>
+          <Text style={styles.utilityLink}>
+            Notifications{unreadNotifications > 0 ? ` (${unreadNotifications})` : ''}
+          </Text>
+        </Pressable>
+        <Pressable onPress={() => router.push('/following')} hitSlop={8}>
+          <Text style={styles.utilityLink}>Following</Text>
+        </Pressable>
+      </View>
 
-      {!busy && feed === 'For you' ? (
+      <View ref={tabsAnchor} collapsable={false}>
+        <FilterChips options={TABS} value={tab} onChange={setTab} />
+      </View>
+
+      {/* Wrapped so both branches share one measurable box: the walkthrough
+          can then land its spotlight on the digest while it is still loading
+          and keep it there as the real card replaces the placeholder. */}
+      {title !== null ? (
+        <View ref={digestAnchor} collapsable={false}>
+          {digest?.title === title ? (
+            <DigestCard title={title} digest={digest.result} />
+          ) : (
+            /* Sized to the resolved card, not to a round number. The tour puts
+               a spotlight on this slot, and the hole is measured from the box
+               that is there when it arrives — a placeholder 60px shorter than
+               what replaces it means the cutout clips the digest for as long as
+               it takes the overlay to re-measure. Four bullets, a heading and a
+               source line come to about this. */
+            <LoadingState height={DIGEST_PLACEHOLDER_HEIGHT} />
+          )}
+        </View>
+      ) : null}
+
+      {/* A game tab: the placeholder stands in only until THIS tab's articles
+          land, and never reappears for a refetch of a tab already on screen.
+          Independent of the digest above, which keeps its own placeholder. */}
+      {title !== null && entries === null ? <LoadingState height={200} /> : null}
+
+      {title !== null && entries !== null ? (
         <View style={styles.list}>
           <Text style={styles.footnote}>
-            Ranked by the games you follow, the topics you follow, and the items you actually own.
+            Ranked by the topics you follow and the items you actually own.
           </Text>
-          {fyp.map((entry) => (
+          {entries.map((entry) => (
             <ArticleCard
               key={entry.article.id}
               article={entry.article}
@@ -83,15 +265,9 @@ export default function NewsScreen() {
         </View>
       ) : null}
 
-      {!busy && feed === 'Discover' ? (
-        <View style={styles.list}>
-          {discover.map((article) => (
-            <ArticleCard key={article.id} article={article} onPress={() => open(article.id)} />
-          ))}
-        </View>
-      ) : null}
+      {busy && title === null ? <LoadingState height={200} /> : null}
 
-      {!busy && feed === 'Saved' ? (
+      {!busy && title === null ? (
         <View style={styles.list}>
           {saved.length === 0 ? (
             <EmptyState title="Nothing saved" body="Save an article and it lands here." />
@@ -106,7 +282,7 @@ export default function NewsScreen() {
       <Text style={styles.footnote}>
         Sources are official publisher channels and permitted RSS only. Summaries link out —
         Collectee never reproduces an article body (§11 F6).
-        {FEATURES.liveSummarisation ? '' : ' Summaries are seeded for this build.'}
+        {FEATURES.liveSummarisation ? '' : ' Summaries and digests are seeded for this build.'}
       </Text>
 
       <View style={{ height: spacing.xxl }} />
@@ -119,4 +295,23 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.lg },
   list: { gap: spacing.md },
   footnote: { ...typography.meta, color: colors.textTertiary },
+  utilityRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.lg },
+  utilityLink: { ...typography.meta, color: colors.accent },
+
+  digest: {
+    /* Same height as the shimmer that stands in for it, so a cold load does not
+       resize the slot when the real card arrives — and the first-run spotlight,
+       which measures this box, never has to correct itself. */
+    minHeight: DIGEST_PLACEHOLDER_HEIGHT,
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  digestTitle: { ...typography.cardTitle, color: colors.textPrimary },
+  bulletRow: { flexDirection: 'row', gap: spacing.sm },
+  bulletDot: { ...typography.body, color: colors.accent },
+  bulletText: { ...typography.body, color: colors.textSecondary, flex: 1 },
 });

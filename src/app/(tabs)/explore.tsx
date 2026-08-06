@@ -32,6 +32,7 @@ import type {
   ViewerMatchState,
 } from '@/services';
 import { useApp } from '@/state/AppContext';
+import { useTourAnchor } from '@/state/TourAnchors';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Community } from '@/types';
 
@@ -41,6 +42,8 @@ type Tab = (typeof TABS)[number];
 export default function ExploreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const titleAnchor = useTourAnchor('explore-title');
+  const chipsAnchor = useTourAnchor('explore-chips');
   const { viewerId } = useApp();
 
   const scrollRef = useTopOnFocus();
@@ -118,7 +121,7 @@ export default function ExploreScreen() {
         />
       }
     >
-      <View style={styles.headerRow}>
+      <View ref={titleAnchor} collapsable={false} style={styles.headerRow}>
         <Text style={styles.title}>Discover</Text>
         {/*
           Utility entries for the two surfaces that otherwise have no route in:
@@ -134,7 +137,13 @@ export default function ExploreScreen() {
           </Pressable>
         </View>
       </View>
-      <FilterChips options={TABS} value={tab} onChange={setTab} />
+      {/* Anchored for the first-run walkthrough, which spotlights the heading
+          and these chips together as one region. Two refs unioned rather than
+          a wrapper View — the content container is gap-based, so wrapping two
+          children into one would change the spacing between them. */}
+      <View ref={chipsAnchor} collapsable={false}>
+        <FilterChips options={TABS} value={tab} onChange={setTab} />
+      </View>
 
       {busy ? <LoadingState height={200} /> : null}
 

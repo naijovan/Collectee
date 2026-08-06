@@ -1,5 +1,5 @@
 /**
- * Fixture integrity check. Run with `npm run validate:fixtures`.
+ * Fixture and source-tree integrity check. Run with `npm run validate:fixtures`.
  *
  * TypeScript catches shape errors at compile time (every fixture is written
  * `as const satisfies readonly T[]`). What it cannot catch is REFERENTIAL
@@ -7,9 +7,15 @@
  * placing an item in a slot the theme does not have, a scan fixture whose
  * confidence values disagree with the routing thresholds.
  *
+ * It also cannot catch a file that should not be there at all. See the
+ * stray-file section at the bottom.
+ *
  * Those are exactly the bugs that surface at 2am on the 6th, so they get a
  * script. Run it before every merge to main.
  */
+
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { assertRoomValid } from '../src/domain/room';
 import { assertScanConsistent, countScan } from '../src/domain/scan';
@@ -17,6 +23,8 @@ import { RARITY_LABELS } from '../src/domain/rarity';
 import { CONTENT_REPORT_THRESHOLD } from '../src/domain/trust';
 import { THREADS, THREAD_REPLIES } from '../src/fixtures/threads';
 import type { Flag } from '../src/types';
+import { GAME_TITLES } from '../src/types';
+import { GAME_DIGESTS } from '../src/fixtures/digests';
 import { ALL_ITEMS, ALL_SETS, ITEMS_BY_ID } from '../src/fixtures/catalogue';
 import { COLLECTIONS, ROOMS, POSTS } from '../src/fixtures/collections';
 import { OWNED_ITEMS } from '../src/fixtures/owned-items';
@@ -178,6 +186,39 @@ for (const article of ARTICLES) {
   check(article.url.startsWith('http'), `Article ${article.id}: must link out to the source (§11 F6)`);
 }
 
+/**
+ * Digests (§11 F6). The seeded digest is what the news screen shows whenever
+ * the live path does not run, which today is always — so "every game has a full
+ * one, drawn from that game's own articles" is a correctness property, not a
+ * content preference. TypeScript cannot check any of it.
+ */
+const articlesById = new Map(ARTICLES.map((a) => [a.id, a]));
+for (const title of GAME_TITLES) {
+  const digest = GAME_DIGESTS.filter((d) => d.title === title);
+  check(digest.length === 1, `Digest: ${title} needs exactly one digest, found ${digest.length}`);
+}
+for (const digest of GAME_DIGESTS) {
+  check(
+    digest.bullets.length >= 3 && digest.bullets.length <= 4,
+    `Digest ${digest.title}: needs 3-4 bullets, has ${digest.bullets.length}`,
+  );
+  for (const bullet of digest.bullets) {
+    check(bullet.trim().length > 0, `Digest ${digest.title}: empty bullet`);
+    // The card is a fixed-height header on the news screen; long bullets push
+    // the articles below the fold.
+    check(bullet.length <= 130, `Digest ${digest.title}: bullet over 130 chars — "${bullet.slice(0, 40)}…"`);
+  }
+  check(digest.sourceArticleIds.length > 0, `Digest ${digest.title}: cites no articles`);
+  for (const id of digest.sourceArticleIds) {
+    const article = articlesById.get(id);
+    check(article !== undefined, `Digest ${digest.title}: unknown source article "${id}"`);
+    check(
+      article === undefined || (article.relatedGames as readonly string[]).includes(digest.title),
+      `Digest ${digest.title}: source article "${id}" is not about ${digest.title}`,
+    );
+  }
+}
+
 for (const saved of SAVED_ARTICLES) {
   check(userIds.has(saved.userId), 'SavedArticle: unknown user');
   check(articleIds.has(saved.articleId), `SavedArticle: unknown article "${saved.articleId}"`);
@@ -293,6 +334,53 @@ for (const user of USERS) {
 check(USERS_BY_ID.size === USERS.length, 'Duplicate user id');
 check(ITEMS_BY_ID.size === ALL_ITEMS.length, 'Duplicate item id in ITEMS_BY_ID');
 
+// ── Stray files ────────────────────────────────────────────────────────
+/**
+ * File-sync services fork a file they see changing under them, keeping the
+ * original and writing a sibling called "name 2.ext", then "name 3.ext".
+ * iCloud does this, and on 5 Aug it did it to five files in this repo while
+ * they were being edited — including `src/app/assistant 2.tsx`.
+ *
+ * ⚠️ ANYTHING under `src/app/` IS A ROUTE. A stray `news 2.tsx` is not clutter,
+ * it is a second live screen serving whatever that file contained when the
+ * fork happened — a dead route with stale code, reachable in the demo, and
+ * invisible in `git status` if it is untracked or gitignored.
+ *
+ * Cheap to detect, so it is checked here rather than hoped about: the codebase
+ * has no legitimate filename containing a space.
+ */
+const SCANNED_DIRS = ['src', 'api', 'scripts'];
+const DUPLICATE_SUFFIX = / \d+\.[A-Za-z0-9]+$/;
+
+function walk(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...walk(path));
+    else found.push(path);
+  }
+  return found;
+}
+
+for (const dir of SCANNED_DIRS) {
+  for (const path of walk(dir)) {
+    const name = path.split('/').pop() ?? path;
+    if (!name.includes(' ')) continue;
+
+    const isRoute = path.startsWith('src/app/');
+    const looksForked = DUPLICATE_SUFFIX.test(name);
+
+    check(
+      false,
+      isRoute && looksForked
+        ? `GHOST ROUTE: "${path}" is a sync-service duplicate inside src/app/ — Expo Router will serve it. Delete it, and see the stray-file note in this script.`
+        : looksForked
+          ? `Stray duplicate "${path}" — a sync service forked this file. Delete it.`
+          : `Filename contains a space: "${path}". No source file in this repo should.`,
+    );
+  }
+}
+
 // ── Report ─────────────────────────────────────────────────────────────
 for (const warning of warnings) console.warn(`warn  ${warning}`);
 
@@ -305,6 +393,6 @@ if (errors.length > 0) {
 console.log(
   `Fixtures OK — ${ALL_ITEMS.length} items, ${ALL_SETS.length} sets, ${USERS.length} users, ` +
     `${OWNED_ITEMS.length} owned, ${COLLECTIONS.length} collections, ${ROOMS.length} rooms, ` +
-    `${ROOM_THEMES.length} themes, ${ARTICLES.length} articles, ${SCAN_RESULTS.length} scans, ` +
-    `${THREADS.length} threads, ${THREAD_REPLIES.length} replies.`,
+    `${ROOM_THEMES.length} themes, ${ARTICLES.length} articles, ${GAME_DIGESTS.length} digests, ` +
+    `${SCAN_RESULTS.length} scans, ${THREADS.length} threads, ${THREAD_REPLIES.length} replies.`,
 );
