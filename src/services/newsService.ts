@@ -22,7 +22,7 @@ import { GAME_LABELS } from '@/types';
 import type { FollowedTopic, GameTitle, TopicKind } from '@/types';
 import type { RankedArticle } from '@/domain/news';
 import type { Article } from '@/types';
-import { LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT, delay } from './latency';
+import { LATENCY_GENERATE, LATENCY_INSTANT, delay } from './latency';
 
 const savedByUser = new Map<string, Set<string>>(
   SAVED_ARTICLES.reduce((map, saved) => {
@@ -175,10 +175,27 @@ function followedGamesFor(userId: string): GameTitle[] {
   return [...new Set([...seeded, ...extra])].filter((g) => !dropped.has(g));
 }
 
+/**
+ * ── ON LATENCY TIERS IN THIS FILE ─────────────────────────────────────────
+ * Every article list resolves at `LATENCY_INSTANT`, not `LATENCY_FETCH`.
+ *
+ * `LATENCY_FETCH` exists to keep a screen honest about a request that will be
+ * a real one in phase 2 — it stops a missing loading state hiding until the
+ * day a network call appears. These reads will not become network calls: they
+ * are a filter and a sort over eight seeded articles held in memory, and
+ * `rankGameFeed` is pure arithmetic. Charging them 320ms bought a loading
+ * state nothing will ever need and made the feed look like it was fetching
+ * when it had already finished.
+ *
+ * `getDigest` KEEPS `LATENCY_GENERATE`, and that distinction is the point: it
+ * is the one call here that really does hit a model. Its slot showing a
+ * placeholder while the articles below it are already readable is the correct
+ * behaviour, not the bug — see the progressive render in `app/news.tsx`.
+ */
 export const newsService = {
   /** Discover: general news, newest first. No personalisation. */
   async getDiscover(limit = 20): Promise<Article[]> {
-    return delay(rankDiscover(ARTICLES, limit), LATENCY_FETCH);
+    return delay(rankDiscover(ARTICLES, limit), LATENCY_INSTANT);
   },
 
   /**
@@ -208,7 +225,7 @@ export const newsService = {
 
     return delay(
       rankFyp(ARTICLES, { ownedItemIds, followedGames, followedTopics }, now, limit),
-      LATENCY_FETCH,
+      LATENCY_INSTANT,
     );
   },
 
@@ -263,7 +280,7 @@ export const newsService = {
         now,
         limit,
       ),
-      LATENCY_FETCH,
+      LATENCY_INSTANT,
     );
   },
 
@@ -466,7 +483,7 @@ export const newsService = {
     const articles = [...ids]
       .map((id) => ARTICLES_BY_ID.get(id))
       .filter((a): a is Article => a !== undefined);
-    return delay(articles, LATENCY_FETCH);
+    return delay(articles, LATENCY_INSTANT);
   },
 
   async toggleSaved(userId: string, articleId: string): Promise<boolean> {
