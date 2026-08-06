@@ -30,7 +30,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PrimaryButton, StepperHeader } from '@/components';
+import { AvatarPicker, PrimaryButton, StepperHeader } from '@/components';
 import { FEATURES } from '@/config/features';
 import { INTENSITY_OPTIONS, deriveTasteChips } from '@/domain/onboarding';
 import type { CollectorIntensity, TasteChip } from '@/domain/onboarding';
@@ -53,17 +53,27 @@ const GAME_BLURBS: Record<GameTitle, string> = {
 
 export default function QuizScreen() {
   const insets = useSafeAreaInsets();
-  const { viewerId, completeQuiz } = useApp();
+  const { viewerId, completeQuiz, chooseAvatar } = useApp();
 
   /* Step 2 only exists when the feed it feeds exists. Building the list here
      rather than branching at render keeps the stepper honest — it says "2 of 2"
      when there are two, instead of skipping a numbered step in front of the
      user. */
+  /**
+   * The avatar step sits second, immediately after games, because its roster is
+   * ordered by the answer to step 1 — asking for a face before knowing which
+   * titles someone plays would throw that ordering away.
+   */
   const steps = useMemo(
     () =>
       FEATURES.news
-        ? (['Games you play', 'What you collect', 'How you collect'] as const)
-        : (['Games you play', 'How you collect'] as const),
+        ? ([
+            'Games you play',
+            'Pick a face',
+            'What you collect',
+            'How you collect',
+          ] as const)
+        : (['Games you play', 'Pick a face', 'How you collect'] as const),
     [],
   );
 
@@ -72,6 +82,7 @@ export default function QuizScreen() {
   const [chips, setChips] = useState<TasteChip[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [intensity, setIntensity] = useState<CollectorIntensity | null>(null);
+  const [avatarId, setAvatarId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!FEATURES.news) return;
@@ -102,7 +113,12 @@ export default function QuizScreen() {
    * nothing, which is the whole contract.
    */
   const finish = useCallback(
-    async (keep: { games: GameTitle[]; picked: string[]; intensity: CollectorIntensity | null }) => {
+    async (keep: {
+      games: GameTitle[];
+      picked: string[];
+      intensity: CollectorIntensity | null;
+      avatarId: string | null;
+    }) => {
       /* An empty games answer is "no preference", not "unfollow everything".
          Someone who skips step 1 keeps the seeded three; writing an empty set
          would silently empty their feed and read as a bug. */
@@ -118,16 +134,25 @@ export default function QuizScreen() {
         if (chip) await newsService.followTopic(viewerId, chip.kind, chip.value);
       }
 
+      /* Null means the step was skipped, which must leave the seeded face
+         alone rather than write a default over it. */
+      if (keep.avatarId !== null) await chooseAvatar(keep.avatarId);
+
       haptics.success();
       completeQuiz(keep.intensity);
     },
-    [chips, completeQuiz, viewerId],
+    [chips, chooseAvatar, completeQuiz, viewerId],
   );
 
   const isLast = step === steps.length - 1;
 
   const advance = useCallback(
-    (keep: { games: GameTitle[]; picked: string[]; intensity: CollectorIntensity | null }) => {
+    (keep: {
+      games: GameTitle[];
+      picked: string[];
+      intensity: CollectorIntensity | null;
+      avatarId: string | null;
+    }) => {
       if (isLast) {
         void finish(keep);
         return;
@@ -138,7 +163,7 @@ export default function QuizScreen() {
     [finish, isLast],
   );
 
-  const answers = { games, picked, intensity };
+  const answers = { games, picked, intensity, avatarId };
   const label = steps[step];
 
   return (
@@ -156,6 +181,10 @@ export default function QuizScreen() {
       >
         {label === 'Games you play' ? (
           <GamesStep selected={games} onToggle={setGames} />
+        ) : null}
+
+        {label === 'Pick a face' ? (
+          <AvatarStep value={avatarId} onPick={setAvatarId} games={games} />
         ) : null}
 
         {label === 'What you collect' ? (
@@ -184,7 +213,7 @@ export default function QuizScreen() {
           {/* Skips forward with nothing kept — not "apply what I have picked so
               far and stop", which is what advancing through the rest would do. */}
           <Pressable
-            onPress={() => void finish({ games: [], picked: [], intensity: null })}
+            onPress={() => void finish({ games: [], picked: [], intensity: null, avatarId: null })}
             hitSlop={interaction.hitSlop}
             accessibilityRole="button"
           >
@@ -246,6 +275,38 @@ function GamesStep({
           );
         })}
       </View>
+    </View>
+  );
+}
+
+function AvatarStep({
+  value,
+  onPick,
+  games,
+}: {
+  value: string | null;
+  onPick: (next: string) => void;
+  games: GameTitle[];
+}) {
+  return (
+    <View style={styles.step}>
+      <Text style={styles.question}>Pick a face</Text>
+      <Text style={styles.hint}>
+        {games.length > 0
+          ? 'Your games first — but all fifteen are here, scroll for the rest.'
+          : 'Fifteen to choose from. You can change it any time from your profile.'}
+      </Text>
+
+      {/* Horizontal: a full grid of fifteen pushes the Continue button off a
+          phone screen, and this step is optional — it must not be the one that
+          makes the quiz feel long. */}
+      <AvatarPicker
+        value={value}
+        onChange={onPick}
+        preferredGames={games}
+        horizontal
+        size={72}
+      />
     </View>
   );
 }
