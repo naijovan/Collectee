@@ -358,6 +358,41 @@ export const newsService = {
   },
 
   /**
+   * Follow a topic, idempotently. Already following it is success, not a
+   * toggle.
+   *
+   * The same trap as `setFollowedGames`, one layer along, and it bites harder
+   * because the collision is invisible: the viewer is seeded following
+   * `franchise: Elderflame` and `character: Gusion`, and both are among the
+   * chips the first-run quiz derives from the catalogue. Picking either through
+   * `toggleFollowedTopic` would have UNFOLLOWED it — the user selects Gusion
+   * and the feed loses the two Gusion articles.
+   *
+   * A screen that means "make this followed" should say so rather than ask for
+   * a toggle and hope the seeded state agrees.
+   */
+  async followTopic(userId: string, kind: TopicKind, value: string): Promise<void> {
+    const alreadyFollowed = followedTopicsFor(userId).some(
+      (t) => t.kind === kind && t.value.toLowerCase() === value.toLowerCase(),
+    );
+    if (alreadyFollowed) return delay(undefined, LATENCY_INSTANT);
+
+    const key = topicKey(userId, kind, value);
+    const removed = removedTopics.get(userId) ?? new Set<string>();
+    const added = addedTopics.get(userId) ?? [];
+
+    // Clearing the tombstone matters: following something that was unfollowed
+    // earlier this session has to bring it back, not add a second entry that
+    // `followedTopicsFor` then filters straight out again.
+    removed.delete(key);
+    added.push({ userId, kind, value });
+    removedTopics.set(userId, removed);
+    addedTopics.set(userId, added);
+
+    return delay(undefined, LATENCY_INSTANT);
+  },
+
+  /**
    * Replace the followed-game set outright.
    *
    * Exists because the first-run quiz asks "which of these do you play?" and

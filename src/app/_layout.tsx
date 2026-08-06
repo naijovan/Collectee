@@ -89,6 +89,12 @@ export default function RootLayout() {
             header over the sign-in screen would put a back chevron on the
             app's front door, pointing at nothing. */}
         <Stack.Screen name="sign-in" options={{ title: 'Sign in', headerShown: false }} />
+        {/* The quiz draws its own StepperHeader, the same call the three build
+            flows make — a native header on top is two back buttons. */}
+        <Stack.Screen
+          name="onboarding/quiz"
+          options={{ title: 'Preferences', headerShown: false }}
+        />
         <Stack.Screen
           name="create"
           options={{ presentation: 'modal', title: 'Create', headerShown: false }}
@@ -166,21 +172,37 @@ function FirstRunGate() {
   const router = useRouter();
 
   useEffect(() => {
-    const atFrontDoor = pathname === '/sign-in';
-
+    /* `replace`, never `push`: no stage of the first run may be reachable by a
+       back gesture from inside the app, and finishing one must not leave it on
+       the stack to swipe back to. */
     if (firstRunStage === 'sign-in') {
-      /* `replace`, never `push`: the front door must not be reachable by a back
-         gesture from inside the app, and signing in must not leave it on the
-         stack to swipe back to. */
-      if (!atFrontDoor) router.replace('/sign-in');
+      if (pathname !== '/sign-in') router.replace('/sign-in');
       return;
     }
 
-    if (atFrontDoor) router.replace('/');
+    if (firstRunStage === 'quiz') {
+      if (pathname !== '/onboarding/quiz') router.replace('/onboarding/quiz');
+      return;
+    }
+
+    /* 'tour' does not redirect. The tour draws over whatever is underneath —
+       that is the entire idea — so it has no route to send anyone to, and
+       sending them somewhere would defeat it. It renders itself from the same
+       stage value. */
+    if (firstRunStage === 'done' && FIRST_RUN_ROUTES.has(pathname)) {
+      router.replace('/');
+    }
   }, [firstRunStage, pathname, router]);
 
   return null;
 }
+
+/**
+ * Routes nobody may be left sitting on once the run is over — a reset mid-quiz
+ * and a re-sign-in would otherwise land back on the quiz with the stage saying
+ * 'done'.
+ */
+const FIRST_RUN_ROUTES: ReadonlySet<string> = new Set(['/sign-in', '/onboarding/quiz']);
 
 /**
  * The status bar is the one piece of chrome the CSS variables cannot reach — it
