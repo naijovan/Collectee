@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   Avatar,
+  AvatarPicker,
   CollectionCard,
   useHoverLift,
   ItemArt,
@@ -33,9 +34,10 @@ import type { Collection, Item, RarityTier, Room, User } from '@/types';
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { viewer, viewerId, inventory, intensity, resetOnboardingGate } = useApp();
+  const { viewer, viewerId, inventory, intensity, chooseAvatar, resetOnboardingGate } = useApp();
 
   const scrollRef = useTopOnFocus();
+  const [pickerOpen, setPickerOpen] = useState(false);
 
 
   const verifiedCount = useMemo(
@@ -81,7 +83,12 @@ export default function ProfileScreen() {
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >
       <View style={styles.identity}>
-        <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={72} />
+        <Avatar
+          name={viewer?.displayName ?? '?'}
+          avatarId={viewer?.avatar}
+          verified={viewer?.isAccountVerified}
+          size={72}
+        />
         <Text style={styles.name}>{viewer?.displayName ?? '—'}</Text>
         <Text style={styles.muted}>@{viewer?.handle ?? '—'}</Text>
         {/* Quiz step 3, and the only place it surfaces. It is self-reported
@@ -89,12 +96,41 @@ export default function ProfileScreen() {
             quiz would be asking a question with no answer, which is exactly
             the kind of dead control the rest of the first run avoids. Absent
             when the quiz was skipped, which is the common case. */}
+        {/* Under the face it changes, so the effect of a tap is in view. */}
+        <Pressable
+          onPress={() => setPickerOpen((open) => !open)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: pickerOpen }}
+          style={({ pressed }) => [styles.changeAvatar, pressed && { opacity: 0.7 }]}
+        >
+          <Text style={styles.changeAvatarText}>
+            {pickerOpen ? 'Done' : 'Change avatar'}
+          </Text>
+        </Pressable>
         {intensity ? (
           <View style={styles.intensityPill}>
             <Text style={styles.intensityText}>{intensityOption(intensity).profileFlavour}</Text>
           </View>
         ) : null}
       </View>
+
+      {pickerOpen ? (
+        <View style={styles.pickerCard}>
+          <SectionHeader title="Choose your avatar" />
+          {/* Ordered by the games this account follows — the same rule the
+              first-run step uses, so the grid does not reshuffle between the
+              two places it appears. */}
+          <AvatarPicker
+            value={viewer?.avatar ?? null}
+            onChange={(id) => void chooseAvatar(id)}
+            preferredGames={viewer?.followedGames ?? []}
+          />
+          <Text style={styles.muted}>
+            Saved in the app for this session. There is no backend in the demo build (§12.1), so
+            a reload restores the seeded avatar.
+          </Text>
+        </View>
+      ) : null}
 
       {/* Top-right of the identity block: settings changes who you are, so it
           belongs on the screen that shows it rather than floating app-wide. */}
@@ -303,6 +339,16 @@ const styles = StyleSheet.create({
   name: { ...typography.screenTitle, color: colors.textPrimary, marginTop: spacing.sm },
   muted: { ...typography.meta, color: colors.textSecondary },
   bio: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xs },
+  changeAvatar: { marginTop: spacing.sm, paddingVertical: spacing.xs },
+  changeAvatarText: { ...typography.meta, color: colors.accent },
+  pickerCard: {
+    gap: spacing.sm,
+    padding: spacing.lg,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   intensityPill: {
     marginTop: spacing.sm,
     paddingVertical: spacing.xs,

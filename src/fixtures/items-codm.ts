@@ -192,6 +192,25 @@ export const CODM_ITEMS = [
     renderUrl: 'item-art/codm/mace-blackout.png',
     popularityScore: 0.259,
   },
+  /**
+   * The item the live scanner is demonstrated against — see
+   * `assets/collectee/sample input 1.png`, a one-item inventory screenshot.
+   *
+   * Deliberately NOT in `owned-items.ts`: nobody starts with it, so importing
+   * it is the thing that proves the scan reached the inventory rather than
+   * re-finding something already there. `epic` because the tile's border is
+   * purple, which §12.2 maps to Epic for this title.
+   */
+  {
+    id: 'codm-rvr8-wyrmfire',
+    title: 'codm',
+    name: 'RVR-8 — Wyrmfire',
+    rarityTier: 'epic',
+    rarityLabel: 'Epic',
+    setId: null,
+    renderUrl: 'item-art/codm/rvr8-wyrmfire.png',
+    popularityScore: 0.192,
+  },
 
   // ── Rare ───────────────────────────────────────────────────────────────
   {

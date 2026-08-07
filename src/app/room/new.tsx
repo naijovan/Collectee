@@ -591,7 +591,12 @@ export default function CreateRoomScreen() {
                     router.push({ pathname: '/collector/[id]', params: { id: entry.user.id } })
                   }
                 >
-                  <Avatar name={entry.user.displayName} verified={entry.user.isAccountVerified} size={40} />
+                  <Avatar
+              name={entry.user.displayName}
+              avatarId={entry.user.avatar}
+              verified={entry.user.isAccountVerified}
+              size={40}
+            />
                   <Text style={styles.inviteName} numberOfLines={1}>
                     {entry.user.displayName}
                   </Text>

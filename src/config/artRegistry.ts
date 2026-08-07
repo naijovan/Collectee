@@ -27,7 +27,10 @@
  * ORIGINAL prototype concept art. The packs' game names are metadata mappings
  * only. This is not publisher artwork and must never be presented as such.
  *
- * Coverage at generation: 93/93 catalogue items, 6 room backdrops.
+ * Coverage at generation: 93/93 catalogue items, 6 room backdrops. Plus
+ * `codm-rvr8-wyrmfire`, added by hand for the live-scanner demo — its render is
+ * cropped from `assets/collectee/sample input 1.png` rather than pack-supplied,
+ * so it is letterboxed onto that screenshot's own background rather than black.
  */
 
 import type { ImageSourcePropType } from 'react-native';
@@ -78,6 +81,10 @@ const ART = {
   'codm-fennec-ascended': scene(
     require('../../assets/collectee/items/codm-fennec-ascended-v2.png'),
     'Original prototype concept art — Fennec — Ascended',
+  ),
+  'codm-rvr8-wyrmfire': object(
+    require('../../assets/collectee/items/codm-rvr8-wyrmfire.png'),
+    'Original prototype concept art — RVR-8 — Wyrmfire',
   ),
   'codm-ak117-cordite-storm': object(
     require('../../assets/collectee/items/codm-ak117-cordite-storm.png'),

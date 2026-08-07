@@ -527,7 +527,12 @@ export default function CreateCollectionScreen() {
           {description ? <Text style={styles.body}>{description}</Text> : null}
 
           <View style={styles.ownerRow}>
-            <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={40} />
+            <Avatar
+              name={viewer?.displayName ?? '?'}
+              avatarId={viewer?.avatar}
+              verified={viewer?.isAccountVerified}
+              size={40}
+            />
             <Text style={styles.rowTitle}>{viewer?.displayName ?? 'You'}</Text>
           </View>
           <Text style={styles.muted}>{selected.length} items</Text>
@@ -598,7 +603,12 @@ export default function CreateCollectionScreen() {
           <Text style={styles.back}>←</Text>
         </Pressable>
         <Text style={styles.navTitle}>{stepTitle}</Text>
-        <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={36} />
+        <Avatar
+              name={viewer?.displayName ?? '?'}
+              avatarId={viewer?.avatar}
+              verified={viewer?.isAccountVerified}
+              size={36}
+            />
       </View>
 
       {addItemsOnly ? (
@@ -1015,7 +1025,12 @@ export default function CreateCollectionScreen() {
           ) : null}
 
           <View style={styles.ownerCard}>
-            <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={40} />
+            <Avatar
+              name={viewer?.displayName ?? '?'}
+              avatarId={viewer?.avatar}
+              verified={viewer?.isAccountVerified}
+              size={40}
+            />
             <View style={styles.rowBody}>
               <Text style={styles.rowTitle}>{viewer?.displayName ?? 'You'}</Text>
               <Text style={styles.muted}>{selected.length} items</Text>

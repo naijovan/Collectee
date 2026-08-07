@@ -16,7 +16,7 @@
  * Every read goes through `@/services`. Nothing here imports a fixture.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -49,6 +49,7 @@ import {
 import { ART_PLACEMENTS, backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { headlineItem } from '@/domain/collections';
+import { pickThumbnailIds } from '@/domain/news';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
@@ -124,6 +125,10 @@ export default function HomeScreen() {
 
   const [filter, setFilter] = useState<Filter>('All');
   const [articles, setArticles] = useState<Article[]>([]);
+  /* Same list-wide assignment News uses, so the rail cannot show one item's
+     render on two cards either. Cheap, and it keeps one rule for thumbnails
+     across both surfaces. */
+  const railThumbs = useMemo(() => pickThumbnailIds(articles), [articles]);
   const [explore, setExplore] = useState<ExploreEntry[]>([]);
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
   const [rooms, setRooms] = useState<RoomEntry[]>([]);
@@ -242,6 +247,7 @@ export default function HomeScreen() {
           <Hoverable accessibilityLabel="Your profile" onPress={() => router.navigate('/profile')} hitSlop={8}>
             <Avatar
               name={viewer?.displayName ?? '?'}
+              avatarId={viewer?.avatar}
               verified={viewer?.isAccountVerified}
               size={38}
             />
@@ -297,16 +303,25 @@ export default function HomeScreen() {
           {busy ? (
             <LoadingState height={132} />
           ) : (
+            /* Accents only — the rail's structure, width and card height are
+               unchanged. `micro` draws a 56px item render when one exists and
+               nothing at all when it does not, so a card without art keeps
+               exactly the layout it had. The text stack sets the height in both
+               cases, which is what stops section 5 below from moving. */
             <FlatList
               horizontal
               showsHorizontalScrollIndicator={false}
               data={articles}
               keyExtractor={(article) => article.id}
               contentContainerStyle={styles.rail}
-              renderItem={({ item }) => (
+              renderItem={({ item, index }) => (
                 <ArticleCard
                   article={item}
                   width={248}
+                  accentTags
+                  accentEdge
+                  thumb="micro"
+                  thumbItemId={railThumbs[index]}
                   onPress={() =>
                     router.push({ pathname: '/article/[id]', params: { id: item.id } })
                   }

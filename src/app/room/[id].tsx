@@ -164,7 +164,12 @@ export default function RoomScreen() {
             style={styles.credit}
             onPress={() => router.push({ pathname: '/collector/[id]', params: { id: owner.id } })}
           >
-            <Avatar name={owner.displayName} verified={owner.isAccountVerified} size={34} />
+            <Avatar
+            name={owner.displayName}
+            avatarId={owner.avatar}
+            verified={owner.isAccountVerified}
+            size={34}
+          />
             <Text style={styles.rowTitle}>{owner.displayName}</Text>
           </Pressable>
         ) : null}
@@ -301,7 +306,12 @@ export default function RoomScreen() {
             const author = authors.get(comment.userId);
             return (
               <View key={comment.id} style={styles.comment}>
-                <Avatar name={author?.displayName ?? '?'} verified={author?.isAccountVerified} size={30} />
+                <Avatar
+        name={author?.displayName ?? '?'}
+        avatarId={author?.avatar}
+        verified={author?.isAccountVerified}
+        size={30}
+      />
                 <View style={styles.rowBody}>
                   <Text style={styles.rowTitle}>
                     {author?.displayName ?? 'Unknown'}{' '}

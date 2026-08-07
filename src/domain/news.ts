@@ -160,3 +160,48 @@ export function rankDiscover(articles: readonly Article[], limit = 20): Article[
     .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
     .slice(0, limit);
 }
+
+/**
+ * Which item supplies each article's thumbnail, chosen so a list does not show
+ * the same picture twice.
+ *
+ * ── Why this is not `relatedItemIds[0]` ───────────────────────────────────
+ * That was the first implementation and it produced a visible bug: MLBB's two
+ * articles both list `mlbb-gusion-cyber-faust` FIRST — one is about the
+ * Collector rotation, the other about Gusion's rework, and Gusion's Cyber Faust
+ * is legitimately the lead item for both — so two adjacent rows rendered the
+ * identical portrait. The ids are not wrong and the art is not shared; twelve
+ * ids resolve to twelve distinct files. The list simply asked the wrong
+ * question.
+ *
+ * ── Why it lives here and not in the card ─────────────────────────────────
+ * "Do not repeat the row above" is a property of the LIST, and `ArticleCard`
+ * renders one article with no knowledge of its siblings. Pushing it into the
+ * component would mean either a module-level mutable set — which breaks on a
+ * re-render and leaks between screens — or threading an index that still could
+ * not see what the other rows chose. It is pure list-in, list-out, so it lives
+ * in the domain layer with the rest of the ranking.
+ *
+ * ── Why not reorder the fixture instead ───────────────────────────────────
+ * Swapping the two ids in `fixtures/articles.ts` would fix today's collision in
+ * one line. It would also make ARRAY ORDER silently mean "this one is the
+ * thumbnail", a rule written down nowhere, enforced by nothing, and undone the
+ * next time someone reorders those ids for an editorial reason. Order stays a
+ * preference here — first choice, not a promise.
+ *
+ * Greedy and order-dependent by design: earlier rows get their preferred item,
+ * later rows take the first of theirs nobody upstream has used. Deterministic
+ * for a given list, and the feed order is itself deterministic (`DEMO_NOW`).
+ * When every candidate is taken it falls back to the preferred one — a repeat
+ * beats an empty slot — and an article with no related items returns null and
+ * gets the generic per-game thumbnail.
+ */
+export function pickThumbnailIds(articles: readonly Article[]): (string | null)[] {
+  const used = new Set<string>();
+  return articles.map((article) => {
+    const unused = article.relatedItemIds.find((id) => !used.has(id));
+    const chosen = unused ?? article.relatedItemIds[0] ?? null;
+    if (chosen !== null) used.add(chosen);
+    return chosen;
+  });
+}

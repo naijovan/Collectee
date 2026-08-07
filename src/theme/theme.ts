@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
 
+import type { GameTitle } from '@/types';
+
 /**
  * Design tokens — PRD §13.2.
  *
@@ -152,6 +154,67 @@ export const rarityGlyphs = {
   legendary: '✧',
   mythic: '✵',
 } as const;
+
+/**
+ * Per-game identity accents — the News tabs (§11 F6).
+ *
+ * ── Why these are not the blue accent ─────────────────────────────────────
+ * `colors.accent` means "interactive" everywhere in the app. A game tab needs
+ * to mean "this is CODM", which is a different job: three tabs sharing one blue
+ * are three tabs with no identity, which is the complaint these answer.
+ *
+ * ── Why these are not rarity colours ──────────────────────────────────────
+ * Reusing `rarityColors` was the obvious move and it is wrong. §12.2 makes a
+ * rarity hue *identity* — a mythic is red everywhere, in every theme — so
+ * spending red on VALORANT would give the same pixel two meanings. Each base
+ * below is therefore deliberately offset from its nearest rarity neighbour:
+ *
+ *   codm     #FF7A29  vs legendary #F59E0B — pushed red, off the amber
+ *   valorant #FF4655  vs mythic    #EF4444 — pushed pink; the closest pair
+ *   mlbb     #8B5CF6  vs epic      #A855F7 — pushed indigo
+ *
+ * VALORANT and mythic remain close. The News screen renders no rarity badge, so
+ * they never appear together there; if a rarity badge is ever added to a news
+ * surface, revisit this rather than assuming it still reads.
+ *
+ * ── These do not re-theme in light mode ───────────────────────────────────
+ * Same call as `rarityColors`, and for the same reason: identity colours that
+ * change hue between themes stop being identity. They are fixed hex rather than
+ * `var(--c-…)`, so on the light palette they keep their value. That is a real
+ * contrast trade on small text and it is accepted knowingly — the demo opens
+ * dark (§13.2) and light is a web affordance.
+ *
+ * `soft` is an alpha of `base`, which is what keeps it inside the no-raw-hex
+ * rule by living here — the same licence `scrim` and `rarityTreatments.glow`
+ * take.
+ */
+export const gameAccents = {
+  /** Ember — warm muzzle-flash orange, the CODM key art register. */
+  codm: {
+    base: '#FF7A29',
+    secondary: '#FFB347',
+    soft: 'rgba(255,122,41,0.14)',
+  },
+  /** Signature red against the teal that reads as its complement. */
+  valorant: {
+    base: '#FF4655',
+    secondary: '#22D3C5',
+    soft: 'rgba(255,70,85,0.14)',
+  },
+  /** Land of Dawn violet, with the gold its splash art keeps returning to. */
+  mlbb: {
+    base: '#8B5CF6',
+    secondary: '#FFC53D',
+    soft: 'rgba(139,92,246,0.16)',
+  },
+  /* `satisfies Record<GameTitle, …>` rather than a bare object: adding a fourth
+     title to `GameTitle` must fail HERE, at compile time, rather than render a
+     tab with `undefined` accents at runtime. The import is type-only, so it is
+     erased in the build and adds no dependency from the token file to the
+     domain. */
+} as const satisfies Record<GameTitle, { base: string; secondary: string; soft: string }>;
+
+export type GameAccent = (typeof gameAccents)[keyof typeof gameAccents];
 
 /**
  * Room lighting presets — J3 Customise step.
@@ -324,6 +387,7 @@ export const theme = {
   rarityColors,
   rarityTreatments,
   rarityGlyphs,
+  gameAccents,
   spacing,
   radius,
   fonts,
