@@ -54,6 +54,9 @@ export { ImmersiveRoom3D } from './ImmersiveRoom3D';
 export { BACKDROPS, backdropsReady, resolveBackdrop } from './backdrops';
 export { ITEM_ART, itemArtCoverage, resolveItemArt } from './item-art';
 
+/** News game-tab hero. Its art seam is `config/newsBanners`. */
+export { NewsBanner, BANNER_HEIGHT } from './NewsBanner';
+
 /** First-run walkthrough. Draws over the app rather than changing any of it. */
 export { TourOverlay } from './TourOverlay';
 

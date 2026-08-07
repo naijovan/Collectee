@@ -27,7 +27,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import { ArticleCard, EmptyState, FilterChips, LoadingState } from '@/components';
+import { ArticleCard, EmptyState, FilterChips, LoadingState, NewsBanner } from '@/components';
 import { DEMO_NOW, FEATURES } from '@/config/features';
 import type { RankedArticle } from '@/domain/news';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
@@ -247,6 +247,11 @@ export default function NewsScreen() {
           accentFor={(option) => accentForTab(option)?.base}
         />
       </View>
+
+      {/* Game identity, above the digest. Fixed height (`BANNER_HEIGHT`), so it
+          cannot resize after the tour has measured the digest below it — see
+          the note on that constant. Saved has no game and gets no banner. */}
+      {title !== null ? <NewsBanner title={title} /> : null}
 
       {/* Wrapped so both branches share one measurable box: the walkthrough
           can then land its spotlight on the digest while it is still loading
