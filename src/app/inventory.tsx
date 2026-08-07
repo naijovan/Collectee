@@ -70,11 +70,18 @@ export default function InventoryScreen() {
     [inventory, rarity, game, trust],
   );
 
+  /**
+   * Grouped on the joined rows, not on catalogue items.
+   *
+   * `groupByRarity` takes anything with a `rarityTier`, so passing the whole
+   * `{ owned, item }` view keeps the trust level attached — mapping to `item`
+   * first threw away the half the card needs to show verified or unverified.
+   */
   const groups = useMemo(
     () =>
-      groupByRarity(filtered.map((entry) => entry.item)).sort(
-        (a, b) => RARITY_RANK[b.tier] - RARITY_RANK[a.tier],
-      ),
+      groupByRarity(
+        filtered.map((entry) => ({ ...entry, rarityTier: entry.item.rarityTier })),
+      ).sort((a, b) => RARITY_RANK[b.tier] - RARITY_RANK[a.tier]),
     [filtered],
   );
 
@@ -172,15 +179,19 @@ export default function InventoryScreen() {
             <View style={styles.tierHeader}>
               <View style={[styles.tierDot, { backgroundColor: rarityColors[group.tier] }]} />
               <Text style={styles.tierName}>
-                {rarityLabelFor(group.tier, group.items[0]!.title)}
+                {rarityLabelFor(group.tier, group.items[0]!.item.title)}
               </Text>
               <Text style={styles.muted}>{group.items.length}</Text>
             </View>
             <View style={styles.grid}>
-              {group.items.map((item) => (
+              {group.items.map((entry) => (
                 <ItemCard
-                  key={item.id}
-                  item={item}
+                  key={entry.item.id}
+                  item={entry.item}
+                  /* This is the screen where trust is the point — the filters
+                     above sort on it and §9.4 makes it decide what can enter a
+                     Showroom. Every card says which it is. */
+                  trustLevel={entry.owned.trustLevel}
                   width={width < 600 ? '47%' : '30%'}
                 />
               ))}

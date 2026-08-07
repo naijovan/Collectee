@@ -65,8 +65,8 @@ function TrustBadge({ level }: { level: TrustLevel }) {
   const verified = level === 'verified';
   return (
     <View style={[styles.trust, verified ? styles.trustVerified : styles.trustUnverified]}>
-      <Text style={[styles.trustText, { color: verified ? colors.success : colors.textTertiary }]}>
-        {verified ? '✓ Verified' : 'Unverified'}
+      <Text style={[styles.trustText, { color: verified ? colors.success : colors.danger }]}>
+        {verified ? '✓ Verified' : '✕ Unverified'}
       </Text>
     </View>
   );
@@ -843,8 +843,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
   },
+  /* Border matches its text. Unverified is red rather than grey because §9.4
+     made it consequential — it decides whether an item can enter a Showroom, so
+     it is a state to act on, not a neutral absence. */
   trustVerified: { borderColor: colors.success },
-  trustUnverified: { borderColor: colors.border },
+  trustUnverified: { borderColor: colors.danger },
   trustText: { ...typography.meta, fontSize: 10 },
 
   collectionCard: {

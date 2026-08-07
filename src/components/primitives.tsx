@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { StyleProp, ViewStyle } from 'react-native';
+import type { ImageSourcePropType, StyleProp, ViewStyle } from 'react-native';
 
 import { avatarArtFor } from '@/config/avatarRegistry';
 import { resolveItemArt } from './item-art';
@@ -36,6 +36,44 @@ import {
   spacing,
   typography,
 } from '@/theme/theme';
+
+function ResolvedItemImage({
+  source,
+  fit,
+  alt,
+  tint,
+}: {
+  source: ImageSourcePropType;
+  fit: 'cover' | 'contain';
+  alt?: string;
+  tint: string;
+}) {
+  return (
+    <>
+      {/* Build the missing canvas from the artwork itself. The sharp foreground
+          remains untouched and fully contained; only this enlarged copy is
+          allowed to crop, blur and tint into the otherwise empty edges. */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: tint, opacity: 0.28 }]} />
+      <Image
+        source={source}
+        style={[styles.artFill, styles.artSurroundings]}
+        resizeMode="cover"
+        blurRadius={24}
+        accessible={false}
+        accessibilityIgnoresInvertColors
+      />
+      <View style={[StyleSheet.absoluteFill, styles.artSurroundingsShade]} />
+      <Image
+        source={source}
+        style={styles.artFill}
+        resizeMode={fit}
+        accessible={alt !== undefined}
+        accessibilityLabel={alt}
+        accessibilityIgnoresInvertColors
+      />
+    </>
+  );
+}
 
 /** Stable per-string hue so the same item always gets the same placeholder. */
 function hash(seed: string): number {
@@ -86,13 +124,11 @@ export function ItemArt({
     // weapons needlessly small.
     return (
       <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
-        <Image
+        <ResolvedItemImage
           source={art.source}
-          style={styles.artFill}
-          resizeMode={fit ?? art.fit}
-          accessible
-          accessibilityLabel={art.alt}
-          accessibilityIgnoresInvertColors
+          fit={fit ?? art.fit}
+          alt={art.alt}
+          tint={rarityColors[tier]}
         />
       </View>
     );
@@ -102,11 +138,10 @@ export function ItemArt({
   if (bundled !== null) {
     return (
       <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
-        <Image
+        <ResolvedItemImage
           source={bundled}
-          style={styles.artFill}
-          resizeMode={fit ?? 'contain'}
-          accessibilityIgnoresInvertColors
+          fit={fit ?? 'contain'}
+          tint={rarityColors[tier]}
         />
       </View>
     );
@@ -615,6 +650,14 @@ const styles = StyleSheet.create({
    * see its top-left corner at 8x zoom instead of the picture.
    */
   artFill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
+  artSurroundings: {
+    opacity: 0.66,
+    transform: [{ scale: 1.12 }],
+  },
+  artSurroundingsShade: {
+    backgroundColor: colors.surfaceSunken,
+    opacity: 0.18,
+  },
   artStripe: { position: 'absolute', width: '160%', height: 26, left: '-30%', top: '42%' },
   artGlow: {
     position: 'absolute',
