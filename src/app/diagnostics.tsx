@@ -27,6 +27,7 @@ import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
   catalogueService,
   collectionService,
+  inventoryService,
   matchService,
   newsService,
   roomService,
@@ -54,6 +55,7 @@ export default function FoundationScreen() {
     firstRunStage,
     intensity,
     resetFirstRun,
+    refreshInventory,
   } = useApp();
   const scrollRef = useTopOnFocus();
   const avatarCoverage = avatarArtCoverage();
@@ -62,6 +64,16 @@ export default function FoundationScreen() {
   const [communityCoverage, setCommunityCoverage] = useState({ covered: 0, total: 0 });
   const [checks, setChecks] = useState<Check[]>([]);
   const [running, setRunning] = useState(true);
+  /** Null until the reset has been used — how many records the last run dropped. */
+  const [cleared, setCleared] = useState<number | null>(null);
+
+  async function clearSessionImports() {
+    const removed = await inventoryService.clearSessionImports(viewerId);
+    // Same contract as the import itself: every screen reading the inventory
+    // has to see it shrink, not just this one.
+    await refreshInventory();
+    setCleared(removed);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -222,6 +234,37 @@ export default function FoundationScreen() {
             the onboarding gate — the whole run again from a cold start
           </Text>
         </Pressable>
+      </View>
+
+      {/* The import has the same rehearsal problem as the first run, for the
+          same reason (§12.1 — nothing persists, so nothing can be cleared by
+          other means): a second run of the same screenshot finds every item
+          already owned and correctly adds none of them. This is the way back to
+          a state where the import has something to add. */}
+      <View style={styles.card}>
+        <Text style={styles.sectionHeader}>Import</Text>
+        <Row label="Inventory size" value={String(inventory.length)} />
+        <Row
+          label="Seeded items"
+          value="Fixtures are `as const` — only this session's imports can be cleared"
+        />
+        <Pressable style={styles.action} onPress={() => void clearSessionImports()}>
+          <Text style={styles.actionLabel}>Clear this session&apos;s imports</Text>
+          <Text style={styles.muted}>
+            Drops every item imported or added by hand since launch, back to the seeded inventory —
+            so the same screenshot can be imported again and actually add something
+          </Text>
+        </Pressable>
+        {cleared !== null ? (
+          <Row
+            label="Last clear"
+            value={
+              cleared === 0
+                ? 'Nothing to clear — nothing has been imported this session'
+                : `${cleared} ${cleared === 1 ? 'item' : 'items'} removed`
+            }
+          />
+        ) : null}
       </View>
 
       <View style={styles.card}>

@@ -257,7 +257,37 @@ export const inventoryService = {
     const index = imported.findIndex((o) => o.id === ownedItemId);
     if (index === -1) return delay(false, LATENCY_INSTANT);
     imported.splice(index, 1);
+    // A removed item must not leave a promotion behind: the overlay is keyed by
+    // OwnedItem id, and a stale entry outlives the item it describes.
+    promoted.delete(ownedItemId);
     return delay(true, LATENCY_INSTANT);
+  },
+
+  /**
+   * Drop everything this session imported or added by hand, restoring the
+   * seeded inventory. Returns how many records went.
+   *
+   * Rehearsal affordance, the sibling of `unlinkAccount`. With no persistence
+   * (§12.1) the import can only be demonstrated ONCE per app launch: the second
+   * run of the same screenshot re-detects the same items, every one of them is
+   * filtered here as already owned, and the completion screen correctly reports
+   * that nothing new was added. That is the right answer to the wrong question
+   * when you are trying to show the flow — this is the way back.
+   *
+   * Only session records go. The seeded fixtures are `as const` and stay the
+   * source of truth, so an inventory can never be emptied past what it shipped
+   * with, and nothing another flow reads can be deleted out from under it.
+   */
+  async clearSessionImports(userId: string): Promise<number> {
+    let removed = 0;
+    for (let index = imported.length - 1; index >= 0; index -= 1) {
+      const owned = imported[index]!;
+      if (owned.userId !== userId) continue;
+      promoted.delete(owned.id);
+      imported.splice(index, 1);
+      removed += 1;
+    }
+    return delay(removed, LATENCY_INSTANT);
   },
 
   async getRarityBreakdown(userId: string): Promise<Record<RarityTier, number>> {

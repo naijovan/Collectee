@@ -180,6 +180,14 @@ export default function ImportScreen() {
   );
   const fullyResolved = scanService.canImport(detections, resolutions);
 
+  /**
+   * Confirmed items the inventory already held. `importFromScan` writes nothing
+   * for these, so this is the entire gap between what the CTA promised and what
+   * actually landed — and on a second run of the same screenshot it is the whole
+   * import.
+   */
+  const alreadyOwned = counts.confirmed - importedCount;
+
   const pending = detections.filter(
     (d) => d.outcome === 'needs_review' && !resolutions.some((r) => r.detectionId === d.id),
   );
@@ -861,7 +869,20 @@ export default function ImportScreen() {
       {stage === 'complete' ? (
         <View style={styles.block}>
           <Text style={styles.done}>✓</Text>
-          <Text style={styles.title}>{importedCount} items added</Text>
+          {/*
+            The headline states the OUTCOME, not a number that happens to be
+            zero. Re-running the same screenshot confirms items the inventory
+            already holds, `importFromScan` writes none of them, and the old
+            copy reported that as "0 items added" under a green tick — which
+            read as a broken import to everyone who saw it, rather than as the
+            correct answer to "import these again". Singular/plural is fixed
+            here too: a one-item import used to say "1 items added".
+          */}
+          <Text style={styles.title}>
+            {importedCount === 0 && alreadyOwned > 0
+              ? 'Already in your inventory'
+              : `${importedCount} ${importedCount === 1 ? 'item' : 'items'} added`}
+          </Text>
           {/* Completion totals equal detected — the Figma's 44-vs-42 bug, fixed. */}
           <Text style={styles.muted}>
             {counts.detected} detected · {counts.confirmed} confirmed · {counts.duplicates}{' '}
@@ -870,18 +891,26 @@ export default function ImportScreen() {
           {/*
             Confirmed minus added is items already in the inventory. Print it:
             an unexplained gap between two totals on the same screen is the exact
-            class of bug §11 F1 sends us here to fix.
+            class of bug §11 F1 sends us here to fix. When that gap is the whole
+            import it is the headline's explanation rather than a footnote, so it
+            takes the body style and names the way back — the same rehearsal
+            problem `unlinkAccount` solves for the verification beat.
           */}
-          {counts.confirmed - importedCount > 0 ? (
-            <Text style={styles.muted}>
-              {counts.confirmed - importedCount} of the {counts.confirmed} confirmed were already in
-              your inventory
+          {alreadyOwned > 0 ? (
+            <Text style={importedCount === 0 ? styles.body : styles.muted}>
+              {importedCount === 0
+                ? `All ${counts.confirmed} confirmed ${counts.confirmed === 1 ? 'item was' : 'items were'} already in your inventory, so nothing new was written. Scan a different screenshot, or clear this session's imports from Profile → Developer to run this one again.`
+                : `${alreadyOwned} of the ${counts.confirmed} confirmed were already in your inventory`}
             </Text>
           ) : null}
-          <Text style={styles.footnote}>
-            All items landed as unverified. Verified ownership needs a linked game account, which is
-            partnership-gated (§9.3).
-          </Text>
+          {/* Gated: with nothing written, "all items landed as unverified" is a
+              claim about items that do not exist. */}
+          {importedCount > 0 ? (
+            <Text style={styles.footnote}>
+              All items landed as unverified. Verified ownership needs a linked game account, which
+              is partnership-gated (§9.3).
+            </Text>
+          ) : null}
 
           {/* The import → collection link in the never-cut chain (§14). */}
           <Text style={styles.label}>Start organising your items</Text>
