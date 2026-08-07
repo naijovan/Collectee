@@ -17,24 +17,15 @@
  * `comm-cross-game`, and the same rule applies: the code must follow the agreed
  * name, not the convenient one.
  *
- * ── Why this map is EMPTY ─────────────────────────────────────────────────
- * Metro resolves `require()` at BUILD time. A line pointing at a file that is
- * not on disk is a build error, not a graceful fallback — it does not degrade,
- * it stops the bundler. So the requires land in the same commit as the art, not
- * before it. Until then every tab draws the colour block in `NewsBanner`, which
- * is a designed state rather than a hole.
+ * ── Adding a banner is adding a file, then a line ─────────────────────────
+ * In that order, and never the reverse. Metro resolves `require()` at BUILD
+ * time, so a line pointing at a file that is not on disk is a build error — it
+ * does not degrade to a fallback, it stops the bundler. This map shipped empty
+ * for exactly as long as the art was outstanding; all three landed 7 Aug.
  *
- * ── When the art lands, paste this in ─────────────────────────────────────
- * Drop the three PNGs in `assets/collectee/news/`, then replace the empty
- * object below with exactly this:
- *
- *   export const NEWS_BANNERS: Record<GameTitle, ImageSourcePropType | null> = {
- *     codm: require('../../assets/collectee/news/news-codm.png'),
- *     valorant: require('../../assets/collectee/news/news-val.png'),
- *     mlbb: require('../../assets/collectee/news/news-mlbb.png'),
- *   };
- *
- * Nothing else changes. The banner, the scrim and the heading already work.
+ * The colour-block fallback in `NewsBanner` stays anyway. A fourth title could
+ * be seeded and browsed before its banner is drawn, and the tab's layout is
+ * identical either way.
  *
  * ── Art policy (PRD §15 IP row) ───────────────────────────────────────────
  * ORIGINAL prototype art. No publisher logos, no invented game marks, and NO
@@ -53,9 +44,14 @@ import type { GameTitle } from '@/types';
  * fails at compile time instead of silently rendering a block forever.
  */
 export const NEWS_BANNERS: Record<GameTitle, ImageSourcePropType | null> = {
-  codm: null,
-  valorant: null,
-  mlbb: null,
+  codm: require('../../assets/collectee/news/news-codm.png'),
+  /* KEY AND FILENAME DIFFER, deliberately. The title is `valorant` but the
+     agreed slot id — and therefore the filename — is `news-val`. This is the
+     one line here that cannot be derived from the title, exactly like
+     `comm-cross-game` in `communityArt`, and renaming either side to make them
+     match would silently un-wire the banner. */
+  valorant: require('../../assets/collectee/news/news-val.png'),
+  mlbb: require('../../assets/collectee/news/news-mlbb.png'),
 };
 
 /** The agreed slot id for a title. Used by the art list and /diagnostics. */

@@ -2,13 +2,11 @@
 
 Three slim banners, one per game tab on `/news`. Drop the PNGs in **this directory**.
 
-Wiring is already built and waiting. When the files land, open
-`src/config/newsBanners.ts` and replace the empty map with the block quoted in its header
-comment — three `require()` lines. Nothing else changes.
+**All three landed 7 Aug and are wired up.** `src/config/newsBanners.ts` requires them and
+`/diagnostics` → Art coverage → News banners reads 3/3.
 
-> **Do not add the `require()` lines before the files exist.** Metro resolves `require()` at
-> build time, so a line pointing at a missing file is a **build error**, not a missing image.
-> That is why the map ships empty.
+> **To replace or add one: file first, then the line.** Metro resolves `require()` at build
+> time, so a line pointing at a missing file is a **build error**, not a missing image.
 
 ## The order
 
@@ -74,5 +72,5 @@ can see the target on `/news` today.
 
 ## Checking your work
 
-`/diagnostics` → **Art coverage** → **News banners** reads `0/3` now and `3/3` when the three
-files are in and the requires are pasted.
+`/diagnostics` → **Art coverage** → **News banners** reads **3/3**. If it ever drops, a require
+is missing or a filename changed.
