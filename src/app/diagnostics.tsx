@@ -19,6 +19,7 @@ import { FEATURES, SKIP_FIRST_RUN } from '@/config/features';
 import { avatarArtCoverage } from '@/config/avatarRegistry';
 import { communityArtCoverage } from '@/config/communityArt';
 import { newsBannerCoverage } from '@/config/newsBanners';
+import { newsThumbCoverage } from '@/config/newsThumbs';
 import { intensityOption } from '@/domain/onboarding';
 import { countScan } from '@/domain/scan';
 import { FLAG_THRESHOLD } from '@/domain/trust';
@@ -57,6 +58,7 @@ export default function FoundationScreen() {
   const scrollRef = useTopOnFocus();
   const avatarCoverage = avatarArtCoverage();
   const bannerCoverage = newsBannerCoverage();
+  const thumbCoverage = newsThumbCoverage();
   const [communityCoverage, setCommunityCoverage] = useState({ covered: 0, total: 0 });
   const [checks, setChecks] = useState<Check[]>([]);
   const [running, setRunning] = useState(true);
@@ -248,6 +250,11 @@ export default function FoundationScreen() {
           label="News banners"
           value={`${bannerCoverage.covered}/${bannerCoverage.total} — the rest render as accent gradients`}
           ok={bannerCoverage.covered === bannerCoverage.total}
+        />
+        <Row
+          label="News generic thumbnails"
+          value={`${thumbCoverage.covered}/${thumbCoverage.total} — used only by articles with no related item`}
+          ok={thumbCoverage.covered === thumbCoverage.total}
         />
       </View>
 

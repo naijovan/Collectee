@@ -19,8 +19,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { artFor } from '@/config/artRegistry';
 import { communityArtFor } from '@/config/communityArt';
 import { FEATURES } from '@/config/features';
+import { newsThumbFor } from '@/config/newsThumbs';
 import { rarityLabelFor } from '@/domain/rarity';
-import { GAME_SHORT_LABELS } from '@/types';
+import { GAME_LABELS, GAME_SHORT_LABELS } from '@/types';
 import type { Article, Collection, Community, Item, TrustLevel, User } from '@/types';
 import {
   colors,
@@ -496,6 +497,32 @@ function ArticleThumb({ article, itemId }: { article: Article; itemId?: string |
     );
   }
 
+  /* No related item — the cross-game spend piece is the seeded example. The
+     generic per-game image is the honest picture for a story about no single
+     item, and it is a designed slot rather than the raw colour block, which
+     read as unfinished next to a row of real renders.
+     First tag wins for a multi-game article: arbitrary between equals, but
+     deterministic, and the chips beside it show the full set. */
+  if (title) {
+    const generic = newsThumbFor(title);
+    if (generic) {
+      return (
+        <View style={styles.articleThumb}>
+          <Image
+            source={generic}
+            style={styles.articleThumbFill}
+            resizeMode="cover"
+            accessible
+            accessibilityLabel={`${GAME_LABELS[title]} news`}
+            accessibilityIgnoresInvertColors
+          />
+        </View>
+      );
+    }
+  }
+
+  /* Still the last resort, and still reachable: the generic art is a seam that
+     ships empty until the art lands. */
   if (accent) {
     return (
       <LinearGradient
