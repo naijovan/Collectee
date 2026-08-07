@@ -35,7 +35,8 @@ import { newsService } from '@/services';
 import type { DigestResult } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useTourAnchor } from '@/state/TourAnchors';
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import { colors, gameAccents, radius, spacing, typography } from '@/theme/theme';
+import type { GameAccent } from '@/theme/theme';
 import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
 import type { Article, GameTitle } from '@/types';
 
@@ -50,6 +51,18 @@ const TABS: readonly string[] = [
 const TITLE_BY_TAB = new Map<string, GameTitle>(
   GAME_TITLES.map((title) => [GAME_SHORT_LABELS[title], title]),
 );
+
+/**
+ * The accent for a tab, or null for Saved.
+ *
+ * Saved is not a game and deliberately keeps `colors.accent` — it is the one
+ * tab in the row that is a place rather than a title, and giving it a fourth
+ * invented hue would say it is a fourth game.
+ */
+function accentForTab(tabName: string): GameAccent | null {
+  const title = TITLE_BY_TAB.get(tabName);
+  return title ? gameAccents[title] : null;
+}
 
 /**
  * "What's happening in <game>" (§11 F6).
@@ -79,12 +92,17 @@ const TITLE_BY_TAB = new Map<string, GameTitle>(
 function DigestCard({ title, digest }: { title: GameTitle; digest: DigestResult }) {
   if (digest.bullets.length === 0) return null;
 
+  const accent = gameAccents[title];
+
   return (
-    <View style={styles.digest}>
+    /* The accent lands on a left edge rather than the whole border: a full
+       ember outline around a 172px card competes with the banner above it,
+       and the point is to tie the card to the tab, not to shout. */
+    <View style={[styles.digest, { borderLeftColor: accent.base }]}>
       <Text style={styles.digestTitle}>What&apos;s happening in {GAME_LABELS[title]}</Text>
       {digest.bullets.map((bullet) => (
         <View key={bullet} style={styles.bulletRow}>
-          <Text style={styles.bulletDot}>•</Text>
+          <Text style={[styles.bulletDot, { color: accent.base }]}>•</Text>
           <Text style={styles.bulletText}>{bullet}</Text>
         </View>
       ))}
@@ -222,7 +240,12 @@ export default function NewsScreen() {
       </View>
 
       <View ref={tabsAnchor} collapsable={false}>
-        <FilterChips options={TABS} value={tab} onChange={setTab} />
+        <FilterChips
+          options={TABS}
+          value={tab}
+          onChange={setTab}
+          accentFor={(option) => accentForTab(option)?.base}
+        />
       </View>
 
       {/* Wrapped so both branches share one measurable box: the walkthrough
@@ -259,6 +282,7 @@ export default function NewsScreen() {
               key={entry.article.id}
               article={entry.article}
               reason={entry.reason}
+              accentTags
               onPress={() => open(entry.article.id)}
             />
           ))}
@@ -272,8 +296,16 @@ export default function NewsScreen() {
           {saved.length === 0 ? (
             <EmptyState title="Nothing saved" body="Save an article and it lands here." />
           ) : (
+            /* Saved keeps the blue tab but still tints its tags. The list mixes
+               all three games, so the per-game chip is the only thing saying
+               which one a saved article belongs to. */
             saved.map((article) => (
-              <ArticleCard key={article.id} article={article} onPress={() => open(article.id)} />
+              <ArticleCard
+                key={article.id}
+                article={article}
+                accentTags
+                onPress={() => open(article.id)}
+              />
             ))
           )}
         </View>
@@ -307,6 +339,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
+    /* Colour is overridden per game by DigestCard; the WIDTH is declared here
+       so it is part of the box on every render. The card is a flex child, so
+       the edge eats 2px of content width rather than making the card wider —
+       the outer box the tour measures is the same size with it or without. */
+    borderLeftWidth: 3,
     padding: spacing.md,
     gap: spacing.sm,
   },
