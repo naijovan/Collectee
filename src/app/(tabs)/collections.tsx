@@ -10,7 +10,7 @@
  * it needs no model call.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
@@ -85,6 +85,23 @@ export default function CollectionsScreen() {
   const [filter, setFilter] = useState<Filter>('All');
   const [ideas, setIdeas] = useState<SuggestedGroup[]>([]);
 
+  /**
+   * Split by what accepting the suggestion actually produces.
+   *
+   * `eligible` is §9.4's verified-item gate, so this is the same fact the card
+   * used to carry as a badge — surfaced as two headings instead, because the
+   * question "what does this make?" is better answered once per group than
+   * once per card.
+   */
+  const showroomIdeas = useMemo(
+    () => ideas.filter((idea) => idea.eligibility.eligible && idea.themeName),
+    [ideas],
+  );
+  const collectionIdeas = useMemo(
+    () => ideas.filter((idea) => !(idea.eligibility.eligible && idea.themeName)),
+    [ideas],
+  );
+
   /** Collections that already have a published room — the rooms section. */
   const builtRooms = entries.filter((entry) => rooms.get(entry.collection.id)?.published);
   const [progress, setProgress] = useState<SetProgress[]>([]);
@@ -155,6 +172,85 @@ export default function CollectionsScreen() {
   );
 
   const { refreshing, onRefresh } = usePullToRefresh(load);
+
+  /** One card, used by both suggestion lists. */
+  function renderIdea(idea: SuggestedGroup) {
+              const canShowroom = idea.eligibility.eligible && idea.themeName;
+      return (
+        <View key={idea.suggestion.name} style={styles.ideaCard}>
+          {/* Show the items, not just their count. A suggestion asks the
+              user to trust a grouping they did not make, and the fastest
+              way to earn that is to let them see what is in it. */}
+          <View style={styles.ideaPreview}>
+            {idea.items.slice(0, 2).map((item) => (
+              <ItemArt
+                key={item.id}
+                seed={item.id}
+                tier={item.rarityTier}
+                renderUrl={item.renderUrl}
+                style={styles.ideaThumb}
+              />
+            ))}
+            {idea.suggestion.itemIds.length > 2 ? (
+              <View style={[styles.ideaThumb, styles.ideaMore]}>
+                <Text style={styles.ideaMoreText}>
+                  +{idea.suggestion.itemIds.length - 2}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.ideaBody}>
+            <Text style={styles.ideaName}>{idea.suggestion.name}</Text>
+            <Text style={styles.muted}>
+              {idea.suggestion.itemIds.length} items · {idea.suggestion.reason}
+            </Text>
+          </View>
+
+          {/* The outcome is a badge, not a sentence: which of the two
+              things this becomes is the single fact that decides whether
+              the button is worth tapping. */}
+          <View style={styles.ideaFooter}>
+            <View style={[styles.ideaTag, canShowroom && styles.ideaTagLive]}>
+              <Text style={[styles.ideaTagText, canShowroom && styles.ideaTagTextLive]}>
+                {canShowroom ? `⌂ ${idea.themeName}` : '⚿ 2D collection'}
+              </Text>
+            </View>
+            <Pressable
+              onPress={() =>
+                canShowroom
+                  ? router.push({
+                      pathname: '/room/new',
+                      params: {
+                        name: idea.suggestion.name,
+                        itemIds: idea.suggestion.itemIds.join(','),
+                      },
+                    })
+                  : router.push('/collection/new')
+              }
+              style={({ pressed }) => [
+                styles.ideaButton,
+                canShowroom && styles.ideaButtonPrimary,
+                pressed && styles.pressedIdea,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.ideaButtonText,
+                  canShowroom && styles.ideaButtonTextPrimary,
+                ]}
+              >
+                {canShowroom ? 'Create showroom' : 'Create collection'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {!canShowroom ? (
+            <Text style={styles.ideaHint}>{idea.eligibility.reason}</Text>
+          ) : null}
+        </View>
+      );
+  }
 
   return (
     <View style={styles.screen}>
@@ -278,87 +374,37 @@ export default function CollectionsScreen() {
         <View>
           <SectionHeader title="Suggestions" prominent />
           <Text style={styles.muted}>
-            Groupings we found in your inventory. Verified ones can become an interactive
-            Showroom in one step; the rest become a 2D collection.
+            Groupings we found in your inventory.
           </Text>
+
+          {/* Split by outcome rather than mixed with a badge each. The two
+              headings answer the question the badge was answering one card at a
+              time — what does accepting this actually make? — and the showroom
+              half goes first because it is the one gated on verification and so
+              the one worth acting on while the items are fresh. */}
+          {showroomIdeas.length > 0 ? (
+            <>
+              <SectionHeader title="Ready for a Showroom" />
+              <Text style={styles.muted}>
+                Enough verified items to build an interactive room in one step.
+              </Text>
+            </>
+          ) : null}
           <View style={styles.ideaList}>
-            {ideas.map((idea) => {
-              const canShowroom = idea.eligibility.eligible && idea.themeName;
-              return (
-                <View key={idea.suggestion.name} style={styles.ideaCard}>
-                  {/* Show the items, not just their count. A suggestion asks the
-                      user to trust a grouping they did not make, and the fastest
-                      way to earn that is to let them see what is in it. */}
-                  <View style={styles.ideaPreview}>
-                    {idea.items.slice(0, 2).map((item) => (
-                      <ItemArt
-                        key={item.id}
-                        seed={item.id}
-                        tier={item.rarityTier}
-                        renderUrl={item.renderUrl}
-                        style={styles.ideaThumb}
-                      />
-                    ))}
-                    {idea.suggestion.itemIds.length > 2 ? (
-                      <View style={[styles.ideaThumb, styles.ideaMore]}>
-                        <Text style={styles.ideaMoreText}>
-                          +{idea.suggestion.itemIds.length - 2}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
+            {showroomIdeas.map((idea) => renderIdea(idea))}
+          </View>
 
-                  <View style={styles.ideaBody}>
-                    <Text style={styles.ideaName}>{idea.suggestion.name}</Text>
-                    <Text style={styles.muted}>
-                      {idea.suggestion.itemIds.length} items · {idea.suggestion.reason}
-                    </Text>
-                  </View>
-
-                  {/* The outcome is a badge, not a sentence: which of the two
-                      things this becomes is the single fact that decides whether
-                      the button is worth tapping. */}
-                  <View style={styles.ideaFooter}>
-                    <View style={[styles.ideaTag, canShowroom && styles.ideaTagLive]}>
-                      <Text style={[styles.ideaTagText, canShowroom && styles.ideaTagTextLive]}>
-                        {canShowroom ? `⌂ ${idea.themeName}` : '⚿ 2D collection'}
-                      </Text>
-                    </View>
-                    <Pressable
-                      onPress={() =>
-                        canShowroom
-                          ? router.push({
-                              pathname: '/room/new',
-                              params: {
-                                name: idea.suggestion.name,
-                                itemIds: idea.suggestion.itemIds.join(','),
-                              },
-                            })
-                          : router.push('/collection/new')
-                      }
-                      style={({ pressed }) => [
-                        styles.ideaButton,
-                        canShowroom && styles.ideaButtonPrimary,
-                        pressed && styles.pressedIdea,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.ideaButtonText,
-                          canShowroom && styles.ideaButtonTextPrimary,
-                        ]}
-                      >
-                        {canShowroom ? 'Create showroom' : 'Create collection'}
-                      </Text>
-                    </Pressable>
-                  </View>
-
-                  {!canShowroom ? (
-                    <Text style={styles.ideaHint}>{idea.eligibility.reason}</Text>
-                  ) : null}
-                </View>
-              );
-            })}
+          {collectionIdeas.length > 0 ? (
+            <>
+              <SectionHeader title="Ready for a collection" />
+              <Text style={styles.muted}>
+                Good groupings, but short on verified items — these list in 2D until you
+                connect a game account.
+              </Text>
+            </>
+          ) : null}
+          <View style={styles.ideaList}>
+            {collectionIdeas.map((idea) => renderIdea(idea))}
           </View>
         </View>
       ) : null}
@@ -538,16 +584,25 @@ const styles = StyleSheet.create({
   ideaTagLive: { backgroundColor: colors.accentMuted },
   ideaTagText: { ...typography.meta, color: colors.textTertiary },
   ideaTagTextLive: { color: colors.accent },
+  /**
+   * One filled accent button for both outcomes.
+   *
+   * The collection variant used to be a grey outline, which read as the
+   * secondary of a pair — as though creating a collection were the consolation
+   * for failing the verified check. It is not: a 2D collection is a first-class
+   * thing, and the two are now separated by heading rather than by weight.
+   */
   ideaButton: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
   },
-  ideaButtonPrimary: { borderColor: colors.accent, backgroundColor: colors.accent },
-  ideaButtonText: { ...typography.meta, color: colors.textSecondary, fontWeight: '600' },
-  ideaButtonTextPrimary: { color: colors.textOnAccent },
+  ideaButtonPrimary: {},
+  ideaButtonText: { ...typography.meta, color: colors.textOnAccent, fontWeight: '600' },
+  ideaButtonTextPrimary: {},
   pressedIdea: { opacity: 0.75 },
   ideaHint: { ...typography.meta, color: colors.textTertiary },
   ideaCard: {
