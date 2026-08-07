@@ -80,29 +80,19 @@ can see the target on `/news` today.
 
 ## Checking your work
 
-`/diagnostics` → **Art coverage** → **News banners** reads **3/3**. If it ever drops, a require
-is missing or a filename changed.
+`/diagnostics` → **Art coverage** should read **News banners 3/3** and **News generic
+thumbnails 3/3**. If either drops, a require is missing or a filename changed.
 
 
 ---
 
-## Generic article thumbnails — OUTSTANDING
+## Generic article thumbnails
 
-Three square tiles, one per game. **These are not yet drawn** — `/diagnostics` reads 0/3 and
-the slot currently falls back to a flat accent gradient.
+Three square tiles, one per game. **All three landed 7 Aug and are wired up** —
+`src/config/newsThumbs.ts` requires them and `/diagnostics` reads 3/3.
 
-Wiring is built and waiting in `src/config/newsThumbs.ts`. When the files land, replace the
-three `null`s with requires, keeping the `news-thumb-val` filename on the `valorant` key:
-
-```ts
-export const NEWS_THUMBS: Record<GameTitle, ImageSourcePropType | null> = {
-  codm: require('../../assets/collectee/news/news-thumb-codm.png'),
-  valorant: require('../../assets/collectee/news/news-thumb-val.png'),
-  mlbb: require('../../assets/collectee/news/news-thumb-mlbb.png'),
-};
-```
-
-> **File first, then the line.** A `require()` at a path with no file is a build error.
+> **To replace or add one: file first, then the line.** A `require()` at a path with no file
+> is a build error, not a missing image.
 
 | Slot id | File (exact) | Dimensions | Aspect | Fit |
 | --- | --- | --- | --- | --- |

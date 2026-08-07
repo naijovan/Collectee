@@ -31,9 +31,17 @@
  *
  * ── Adding art is a file, THEN a line ─────────────────────────────────────
  * In that order. Metro resolves `require()` at build time, so a line pointing
- * at a file that is not on disk is a build error, not a missing image. The map
- * ships null until the art lands; `ArticleThumb` draws the game's accent block
- * in the meantime, which is the same fallback the banner uses.
+ * at a file that is not on disk is a build error, not a missing image. All
+ * three landed 7 Aug.
+ *
+ * The accent-block fallback in `ArticleThumb` stays regardless: a fourth title
+ * could be seeded before its emblem is drawn, and the row's layout is identical
+ * either way.
+ *
+ * ── These are for the News LIST only ──────────────────────────────────────
+ * Home's rail asks for `thumb="micro"`, which never reaches this map — at 56px
+ * a generic emblem is a smudge, so a rail card with no item render keeps its
+ * plain text layout instead. See `ThumbVariant` in `components/cards`.
  *
  * ── Art policy (PRD §15 IP row) ───────────────────────────────────────────
  * ORIGINAL prototype art. No publisher logos, no invented game marks, no
@@ -51,11 +59,12 @@ import type { GameTitle } from '@/types';
  * than silently rendering a block forever.
  */
 export const NEWS_THUMBS: Record<GameTitle, ImageSourcePropType | null> = {
-  codm: null,
-  /* KEY AND FILENAME WILL DIFFER, deliberately — `news-thumb-val.png`, matching
-     the banner slot naming. Do not "fix" this to news-thumb-valorant. */
-  valorant: null,
-  mlbb: null,
+  codm: require('../../assets/collectee/news/news-thumb-codm.png'),
+  /* KEY AND FILENAME DIFFER, deliberately — `news-thumb-val.png`, matching the
+     banner slot naming. Do not "fix" this to news-thumb-valorant; the file is
+     named for the agreed slot id and renaming either side un-wires the tile. */
+  valorant: require('../../assets/collectee/news/news-thumb-val.png'),
+  mlbb: require('../../assets/collectee/news/news-thumb-mlbb.png'),
 };
 
 /** The generic thumbnail for a game, or null when it has none yet. */
