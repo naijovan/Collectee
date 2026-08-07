@@ -1,4 +1,12 @@
-# News hero banners — art brief
+# News art — brief
+
+Two sets live in this directory: the **hero banners** (3:1, top of each game tab) and the
+**generic article thumbnails** (1:1, used only when an article has no related item). The
+`news-thumb-` prefix keeps them apart in a listing.
+
+---
+
+## Hero banners
 
 Three slim banners, one per game tab on `/news`. Drop the PNGs in **this directory**.
 
@@ -74,3 +82,59 @@ can see the target on `/news` today.
 
 `/diagnostics` → **Art coverage** → **News banners** reads **3/3**. If it ever drops, a require
 is missing or a filename changed.
+
+
+---
+
+## Generic article thumbnails — OUTSTANDING
+
+Three square tiles, one per game. **These are not yet drawn** — `/diagnostics` reads 0/3 and
+the slot currently falls back to a flat accent gradient.
+
+Wiring is built and waiting in `src/config/newsThumbs.ts`. When the files land, replace the
+three `null`s with requires, keeping the `news-thumb-val` filename on the `valorant` key:
+
+```ts
+export const NEWS_THUMBS: Record<GameTitle, ImageSourcePropType | null> = {
+  codm: require('../../assets/collectee/news/news-thumb-codm.png'),
+  valorant: require('../../assets/collectee/news/news-thumb-val.png'),
+  mlbb: require('../../assets/collectee/news/news-thumb-mlbb.png'),
+};
+```
+
+> **File first, then the line.** A `require()` at a path with no file is a build error.
+
+| Slot id | File (exact) | Dimensions | Aspect | Fit |
+| --- | --- | --- | --- | --- |
+| `news-thumb-codm` | `news-thumb-codm.png` | 512×512 | 1:1 | `cover` |
+| `news-thumb-val` | `news-thumb-val.png` | 512×512 | 1:1 | `cover` |
+| `news-thumb-mlbb` | `news-thumb-mlbb.png` | 512×512 | 1:1 | `cover` |
+
+Single file per slot, no `@2x`/`@3x` — same convention as the banners and `avatars/`.
+
+### Where these appear
+
+An 88×88 tile at the left of an article row, sitting beside rows that show **real item
+renders**. They only appear for articles about no single item — one seeded article today. They
+must look deliberate next to a weapon render, not like a placeholder.
+
+- **Square, centre-weighted.** Displayed small and cropped square; nothing load-bearing near an
+  edge.
+- **Readable at 88px.** One clear shape or motif. No scenes, no crowds, no fine detail — it all
+  disappears. These are emblems, not illustrations.
+- **Same palette family as that game's banner and accent** (table above), so a row reads as
+  belonging to its tab.
+- **No text, no logos, no invented game marks, no recognisable characters** (§15).
+- **Distinct from the banner** — a downscaled crop of the banner would read as a mistake.
+
+**`news-thumb-codm.png`** — Original concept art, square emblem tile, single stylised
+military dog-tag and ammunition-crate motif, centred, ember orange and warm amber on deep
+charcoal, dramatic side light, simple silhouette readable at small size, no text, no logos, 1:1
+
+**`news-thumb-val.png`** — Original concept art, square emblem tile, single stylised angular
+tactical-visor motif, centred, crimson red and bright teal on neutral dark concrete, hard-edged
+graphic shapes, readable at small size, no text, no logos, 1:1
+
+**`news-thumb-mlbb.png`** — Original concept art, square emblem tile, single stylised faceted
+gemstone-and-crown motif, centred, violet and gold on deep indigo, soft magical glow, readable
+at small size, no text, no logos, 1:1

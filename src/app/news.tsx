@@ -23,12 +23,13 @@
  * between rehearsal and the live run.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ArticleCard, EmptyState, FilterChips, LoadingState, NewsBanner } from '@/components';
 import { DEMO_NOW, FEATURES } from '@/config/features';
+import { pickThumbnailIds } from '@/domain/news';
 import type { RankedArticle } from '@/domain/news';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { newsService } from '@/services';
@@ -172,6 +173,17 @@ export default function NewsScreen() {
      never rendered under the wrong heading. */
   const entries = feed !== null && feed.title === title ? feed.entries : null;
 
+  /* Thumbnails are assigned across the WHOLE list, not per card, so two rows
+     never show the same art — MLBB's two articles both lead with Gusion's Cyber
+     Faust and rendered identical portraits before this. Memoised on the list
+     because the pick is greedy and order-dependent: recomputing it mid-render
+     would be wasted work, not a different answer. */
+  const feedThumbs = useMemo(
+    () => pickThumbnailIds((entries ?? []).map((entry) => entry.article)),
+    [entries],
+  );
+  const savedThumbs = useMemo(() => pickThumbnailIds(saved), [saved]);
+
   const load = useCallback(async () => {
     if (title === null) {
       setBusy(true);
@@ -305,13 +317,14 @@ export default function NewsScreen() {
           <Text style={styles.footnote}>
             Ranked by the topics you follow and the items you actually own.
           </Text>
-          {entries.map((entry) => (
+          {entries.map((entry, index) => (
             <ArticleCard
               key={entry.article.id}
               article={entry.article}
               reason={entry.reason}
               accentTags
               media
+              thumbItemId={feedThumbs[index]}
               onPress={() => open(entry.article.id)}
             />
           ))}
@@ -328,12 +341,13 @@ export default function NewsScreen() {
             /* Saved keeps the blue tab but still tints its tags. The list mixes
                all three games, so the per-game chip is the only thing saying
                which one a saved article belongs to. */
-            saved.map((article) => (
+            saved.map((article, index) => (
               <ArticleCard
                 key={article.id}
                 article={article}
                 accentTags
                 media
+                thumbItemId={savedThumbs[index]}
                 onPress={() => open(article.id)}
               />
             ))

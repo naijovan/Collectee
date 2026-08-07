@@ -19,8 +19,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { artFor } from '@/config/artRegistry';
 import { communityArtFor } from '@/config/communityArt';
 import { FEATURES } from '@/config/features';
+import { newsThumbFor } from '@/config/newsThumbs';
 import { rarityLabelFor } from '@/domain/rarity';
-import { GAME_SHORT_LABELS } from '@/types';
+import { GAME_LABELS, GAME_SHORT_LABELS } from '@/types';
 import type { Article, Collection, Community, Item, TrustLevel, User } from '@/types';
 import {
   colors,
@@ -467,9 +468,13 @@ export function CollectorCard({
  * Without a related item — one seeded article has none — it draws the game's
  * accent, which is the same block the banner uses and reads as intentional.
  */
-function ArticleThumb({ article }: { article: Article }) {
-  const itemId = article.relatedItemIds[0];
-  const art = itemId ? artFor(itemId) : null;
+function ArticleThumb({ article, itemId }: { article: Article; itemId?: string | null }) {
+  /* Falls back to the article's own first id so the component still renders
+     something sensible on its own — but News passes an id chosen by
+     `pickThumbnailIds`, which is what stops two adjacent rows showing the same
+     picture. See that function for why the list, not the card, decides. */
+  const chosen = itemId ?? article.relatedItemIds[0] ?? null;
+  const art = chosen ? artFor(chosen) : null;
   const title = article.relatedGames[0];
   const accent = title ? gameAccents[title] : null;
 
@@ -492,6 +497,32 @@ function ArticleThumb({ article }: { article: Article }) {
     );
   }
 
+  /* No related item — the cross-game spend piece is the seeded example. The
+     generic per-game image is the honest picture for a story about no single
+     item, and it is a designed slot rather than the raw colour block, which
+     read as unfinished next to a row of real renders.
+     First tag wins for a multi-game article: arbitrary between equals, but
+     deterministic, and the chips beside it show the full set. */
+  if (title) {
+    const generic = newsThumbFor(title);
+    if (generic) {
+      return (
+        <View style={styles.articleThumb}>
+          <Image
+            source={generic}
+            style={styles.articleThumbFill}
+            resizeMode="cover"
+            accessible
+            accessibilityLabel={`${GAME_LABELS[title]} news`}
+            accessibilityIgnoresInvertColors
+          />
+        </View>
+      );
+    }
+  }
+
+  /* Still the last resort, and still reachable: the generic art is a seam that
+     ships empty until the art lands. */
   if (accent) {
     return (
       <LinearGradient
@@ -512,6 +543,7 @@ export function ArticleCard({
   width,
   accentTags,
   media,
+  thumbItemId,
   onPress,
 }: {
   article: Article;
@@ -541,6 +573,15 @@ export function ArticleCard({
    * top image here would roughly halve the articles on screen.
    */
   media?: boolean;
+  /**
+   * Which related item supplies the thumbnail, when the caller has worked it
+   * out across the whole list — see `domain/news.pickThumbnailIds`. Omitted,
+   * the card falls back to the article's own first related item, which is
+   * correct for a lone card and wrong for a list.
+   *
+   * Ignored unless `media` is set.
+   */
+  thumbItemId?: string | null;
   onPress?: () => void;
 }) {
   const body = (
@@ -593,7 +634,7 @@ export function ArticleCard({
           pressed && styles.pressed,
         ]}
       >
-        <ArticleThumb article={article} />
+        <ArticleThumb article={article} itemId={thumbItemId} />
         {/* `minWidth: 0` is what lets numberOfLines actually truncate: without
             it a flex child sizes to its content and the title pushes the card
             wider instead of ellipsing. */}
