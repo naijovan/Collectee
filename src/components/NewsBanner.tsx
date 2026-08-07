@@ -24,8 +24,15 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { newsBannerFor } from '@/config/newsBanners';
-import { gameAccents, letterSpacing, radius, scrim, spacing, typography } from '@/theme/theme';
-import { colors } from '@/theme/theme';
+import {
+  colors,
+  gameAccents,
+  letterSpacing,
+  radius,
+  scrim,
+  spacing,
+  typography,
+} from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { GameTitle } from '@/types';
 
