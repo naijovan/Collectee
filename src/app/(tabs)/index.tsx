@@ -63,7 +63,7 @@ import {
 import type { CollectorRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useAssistantDock } from '@/state/AssistantDock';
-import { colors, interaction, radius, spacing, typography } from '@/theme/theme';
+import { colors, fonts, interaction, radius, spacing, typography } from '@/theme/theme';
 import type { Article, Collection, Item, Room, User } from '@/types';
 
 const FILTERS = ['All', 'Collections', 'Collectors', 'Rooms'] as const;
@@ -203,10 +203,63 @@ export default function HomeScreen() {
   const show = (section: Filter) => filter === 'All' || filter === section;
 
   return (
+    <View style={styles.screen}>
+      {/* Pinned. The greeting, the assistant, notifications and the avatar are
+          the app's account controls — reaching them should not require
+          scrolling back to the top of a long feed. A bottom rule demarcates it
+          from the content moving underneath. */}
+      <View style={[styles.pinnedHeader, { paddingTop: insets.top + spacing.md }]}>
+      <View style={styles.header}>
+          <View style={styles.headerText}>
+            {/* One line, one size. Two stacked lines at different sizes made the
+                greeting look like a label above a title; it is one sentence and
+                reads as one. The name carries the weight so the eye lands on who
+                this is, not on the time of day. */}
+            <Text style={styles.greetingLine} numberOfLines={1}>
+              <Text style={styles.greetingWord}>{greeting()}, </Text>
+              <Text style={styles.greetingName}>{viewer?.displayName ?? '—'}</Text>
+            </Text>
+          </View>
+
+          <View style={styles.headerActions}>
+            {/* The assistant sits in the header rather than a tab: it answers
+                questions ABOUT the app, so it belongs beside the account controls
+                rather than competing with the five destinations. It opens the
+                same panel the floating launcher does — one assistant, two ways
+                in, and neither navigates away from what is being asked about. */}
+            <Hoverable
+              accessibilityLabel="Ask the assistant"
+              onPress={openPanel}
+              hitSlop={8}
+              style={styles.bell}
+            >
+              <Text style={styles.bellGlyph}>✦</Text>
+            </Hoverable>
+            <Hoverable
+              accessibilityLabel="Gaming updates"
+              onPress={() => router.push('/news')}
+              hitSlop={8}
+              style={styles.bell}
+            >
+              <Text style={styles.bellGlyph}>◔</Text>
+              {unreadNotifications > 0 ? <View style={styles.unreadDot} /> : null}
+            </Hoverable>
+            <Hoverable accessibilityLabel="Your profile" onPress={() => router.navigate('/profile')} hitSlop={8}>
+              <Avatar
+                name={viewer?.displayName ?? '?'}
+                avatarId={viewer?.avatar}
+                verified={viewer?.isAccountVerified}
+                size={38}
+              />
+            </Hoverable>
+          </View>
+        </View>
+      </View>
+
     <ScrollView
       ref={scrollRef}
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -217,46 +270,6 @@ export default function HomeScreen() {
         />
       }
     >
-      {/* 1 — Header */}
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.greeting}>{greeting()}</Text>
-          <Text style={styles.name}>{viewer?.displayName ?? '—'}</Text>
-        </View>
-
-        <View style={styles.headerActions}>
-          {/* The assistant sits in the header rather than a tab: it answers
-              questions ABOUT the app, so it belongs beside the account controls
-              rather than competing with the five destinations. It opens the
-              same panel the floating launcher does — one assistant, two ways
-              in, and neither navigates away from what is being asked about. */}
-          <Hoverable
-            accessibilityLabel="Ask the assistant"
-            onPress={openPanel}
-            hitSlop={8}
-            style={styles.bell}
-          >
-            <Text style={styles.bellGlyph}>✦</Text>
-          </Hoverable>
-          <Hoverable
-            accessibilityLabel="Gaming updates"
-            onPress={() => router.push('/news')}
-            hitSlop={8}
-            style={styles.bell}
-          >
-            <Text style={styles.bellGlyph}>◔</Text>
-            {unreadNotifications > 0 ? <View style={styles.unreadDot} /> : null}
-          </Hoverable>
-          <Hoverable accessibilityLabel="Your profile" onPress={() => router.navigate('/profile')} hitSlop={8}>
-            <Avatar
-              name={viewer?.displayName ?? '?'}
-              avatarId={viewer?.avatar}
-              verified={viewer?.isAccountVerified}
-              size={38}
-            />
-          </Hoverable>
-        </View>
-      </View>
 
       {/* 2 — Filter chips */}
       <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
@@ -481,6 +494,7 @@ export default function HomeScreen() {
       {loading ? <LoadingState height={40} /> : null}
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
+    </View>
   );
 }
 
@@ -520,8 +534,24 @@ const styles = StyleSheet.create({
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerText: { gap: 2 },
-  greeting: { ...typography.body, color: colors.textSecondary },
-  name: { ...typography.screenTitle, color: colors.textPrimary },
+  /**
+   * One row, one type size — the split only ever came from the Figma stacking
+   * them. Display face and a tight tracking, because this is the first thing
+   * on a gaming social app and a plain body face reads like a settings screen.
+   */
+  pinnedHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    zIndex: 10,
+  },
+
+  greetingLine: { fontSize: 22, lineHeight: 28, fontFamily: fonts.display },
+  /** Muted so the name wins without needing a second, larger size. */
+  greetingWord: { color: colors.textSecondary },
+  greetingName: { color: colors.textPrimary },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   bell: { padding: spacing.xs },
   bellGlyph: { fontSize: 22, color: colors.textSecondary },

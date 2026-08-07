@@ -21,6 +21,7 @@ import {
   FilterChips,
   LoadingState,
   SectionHeader,
+  useHoverLift,
 } from '@/components';
 import { FEATURES } from '@/config/features';
 import { VIEWER_UNVERIFIED_REASON } from '@/domain/matching';
@@ -39,6 +40,65 @@ import type { Community } from '@/types';
 
 const TABS = ['Collectors', 'Communities'] as const;
 type Tab = (typeof TABS)[number];
+
+/**
+ * A header control: circular glyph plus its label, lifting on hover like every
+ * other clickable surface. Local to this screen because these two are the only
+ * header actions in the app that are not "create something".
+ */
+function HeaderAction({
+  glyph,
+  label,
+  onPress,
+}: {
+  glyph: string;
+  label: string;
+  onPress: () => void;
+}) {
+  const hover = useHoverLift();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={8}
+      {...hover.hoverProps}
+      style={({ pressed }) => [
+        styles.headerAction,
+        hover.hoverStyle,
+        hover.hoverBorder,
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <View style={styles.headerActionDisc}>
+        <Text style={styles.headerActionGlyph}>{glyph}</Text>
+      </View>
+      <Text style={styles.headerLink}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * The match score.
+ *
+ * Tiered rather than one flat colour: a percentage is a judgement, and 91%
+ * and 58% mean different things to act on. Green for a strong match, amber
+ * for a middling one, grey below — the same ladder people already read on
+ * health bars and compatibility scores, so nothing has to be explained.
+ *
+ * Deliberately not `accent`. Blue is this app's "tappable" colour, and a
+ * number wearing it looked like a button that did nothing.
+ */
+function MatchBadge({ percent }: { percent: number }) {
+  const tone =
+    percent >= 80 ? colors.success : percent >= 60 ? colors.warning : colors.textTertiary;
+  return (
+    <View style={[styles.matchBadge, { borderColor: tone }]}>
+      <Text style={[styles.matchValue, { color: tone }]}>{percent}%</Text>
+      <Text style={styles.matchLabel}>match</Text>
+    </View>
+  );
+}
 
 export default function ExploreScreen() {
   const router = useRouter();
@@ -130,12 +190,18 @@ export default function ExploreScreen() {
           empty state a viewer with verified items never sees.
         */}
         <View style={styles.headerActions}>
-          <Pressable onPress={() => router.push('/link-account')} hitSlop={8}>
-            <Text style={styles.headerLink}>Verify</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push('/moderation')} hitSlop={8}>
-            <Text style={styles.headerLink}>Reports</Text>
-          </Pressable>
+          {/* Icon pills, matching the create actions elsewhere — two bare text
+              links in a header read as breadcrumbs rather than as controls. */}
+          <HeaderAction
+            glyph="✓"
+            label="Verify"
+            onPress={() => router.push('/link-account')}
+          />
+          <HeaderAction
+            glyph="⚑"
+            label="Reports"
+            onPress={() => router.push('/moderation')}
+          />
         </View>
       </View>
       {/* Anchored for the first-run walkthrough, which spotlights the heading
@@ -186,16 +252,18 @@ export default function ExploreScreen() {
                 size={44}
               />
               <View style={styles.rowBody}>
-                <View style={styles.rowTop}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {entry.user.displayName}
-                  </Text>
-                  <Text style={styles.percent}>{entry.percent}%</Text>
-                </View>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {entry.user.displayName}
+                </Text>
                 {/* §11 F5 — the reason is the feature, not decoration. */}
                 <Text style={styles.reason}>{entry.reason}</Text>
                 <Text style={styles.muted}>@{entry.user.handle}</Text>
               </View>
+
+              {/* A sibling of the avatar and body rather than a line inside the
+                  body, so the row's `alignItems: center` centres it against the
+                  whole card instead of pinning it to the first line of text. */}
+              <MatchBadge percent={entry.percent} />
             </Pressable>
           ))}
         </View>
@@ -282,6 +350,28 @@ const styles = StyleSheet.create({
   title: { ...typography.screenTitle, color: colors.textPrimary },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerActions: { flexDirection: 'row', gap: spacing.lg },
+  headerAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingLeft: 3,
+    paddingRight: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  headerActionDisc: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
+  headerActionGlyph: { color: colors.textOnAccent, fontSize: 12, lineHeight: 14, fontWeight: '700' },
+
   headerLink: { ...typography.meta, color: colors.accent },
   list: { gap: spacing.sm },
   /* Two across, matching the collection grid — communities are browsable tiles
@@ -301,7 +391,18 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, gap: 2 },
   rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   rowTitle: { ...typography.cardTitle, color: colors.textPrimary, flexShrink: 1 },
-  percent: { ...typography.cardTitle, color: colors.accent },
+  matchBadge: {
+    minWidth: 58,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    backgroundColor: colors.surfaceSunken,
+  },
+  matchValue: { ...typography.cardTitle, fontSize: 16, lineHeight: 20 },
+  matchLabel: { ...typography.meta, fontSize: 10, lineHeight: 13, color: colors.textTertiary },
   reason: { ...typography.meta, color: colors.textSecondary },
   muted: { ...typography.meta, color: colors.textTertiary },
   chevron: { fontSize: 22, color: colors.textTertiary },
