@@ -65,8 +65,8 @@ function TrustBadge({ level }: { level: TrustLevel }) {
   const verified = level === 'verified';
   return (
     <View style={[styles.trust, verified ? styles.trustVerified : styles.trustUnverified]}>
-      <Text style={[styles.trustText, { color: verified ? colors.success : colors.danger }]}>
-        {verified ? '✓ Verified' : '✕ Unverified'}
+      <Text style={[styles.trustText, { color: verified ? colors.success : colors.textTertiary }]}>
+        {verified ? '✓ Verified' : 'Unverified'}
       </Text>
     </View>
   );
@@ -843,11 +843,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
   },
-  /* Border matches its text. Unverified is red rather than grey because §9.4
-     made it consequential — it decides whether an item can enter a Showroom, so
-     it is a state to act on, not a neutral absence. */
+  /* Border matches its text. Verified is green because it unlocks something;
+     unverified is grey rather than red because most of a real inventory is
+     unverified — red on the majority of cards reads as a wall of errors, and
+     the nudge to connect an account belongs where the user is blocked, not on
+     every tile they own. */
   trustVerified: { borderColor: colors.success },
-  trustUnverified: { borderColor: colors.danger },
+  trustUnverified: { borderColor: colors.border },
   trustText: { ...typography.meta, fontSize: 10 },
 
   collectionCard: {
