@@ -44,23 +44,32 @@ export interface CreateCollectionInput {
  * (§12.1), so writes live here for the session. Reads always merge the two.
  */
 const created: Collection[] = [];
+const updated = new Map<string, Collection>();
 let nextId = 1;
+
+function allCollections(): Collection[] {
+  return [
+    ...COLLECTIONS.map((collection) => updated.get(collection.id) ?? collection),
+    ...created,
+  ];
+}
 
 export const collectionService = {
   async getPublicCollections(): Promise<Collection[]> {
-    const all = [...COLLECTIONS, ...created].filter(isDiscoverable);
+    const all = allCollections().filter(isDiscoverable);
     return delay(all, LATENCY_FETCH);
   },
 
   async getCollectionsByUser(userId: string, includePrivate = false): Promise<Collection[]> {
-    const all = [...COLLECTIONS, ...created]
+    const all = allCollections()
       .filter((c) => c.userId === userId)
       .filter((c) => includePrivate || isDiscoverable(c));
     return delay(all, LATENCY_FETCH);
   },
 
   async getCollection(id: string): Promise<Collection | null> {
-    const found = COLLECTIONS_BY_ID.get(id) ?? created.find((c) => c.id === id) ?? null;
+    const found =
+      updated.get(id) ?? created.find((c) => c.id === id) ?? COLLECTIONS_BY_ID.get(id) ?? null;
     return delay(found, LATENCY_INSTANT);
   },
 
@@ -99,10 +108,17 @@ export const collectionService = {
 
   async updateCollection(id: string, patch: Partial<Collection>): Promise<Collection | null> {
     const index = created.findIndex((c) => c.id === id);
-    if (index === -1) return delay(null, LATENCY_INSTANT);
-    const updated = { ...created[index]!, ...patch, id };
-    created[index] = updated;
-    return delay(updated, LATENCY_INSTANT);
+    if (index !== -1) {
+      const next = { ...created[index]!, ...patch, id };
+      created[index] = next;
+      return delay(next, LATENCY_INSTANT);
+    }
+
+    const base = updated.get(id) ?? COLLECTIONS_BY_ID.get(id);
+    if (!base) return delay(null, LATENCY_INSTANT);
+    const next = { ...base, ...patch, id };
+    updated.set(id, next);
+    return delay(next, LATENCY_INSTANT);
   },
 
   /**

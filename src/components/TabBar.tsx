@@ -1,7 +1,7 @@
 /**
  * TabBar — PRD §13.4 section 8 and the onboarding gate.
  *
- * Home · Explore · **+** (raised blue circle) · Collections · Profile
+ * Home · Explore · **Import** (raised blue action) · Collections · Profile
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
  * │  THE GATE LIVES HERE AND NOWHERE ELSE.                              │
@@ -11,89 +11,108 @@
  * │  Do not re-derive the gate in a screen.                             │
  * └─────────────────────────────────────────────────────────────────────┘
  *
- * The `+` is not a tab. It opens the action sheet from §13.5 (Scan inventory /
- * Create collection / Create room) — it appears in every flow and the PRD flags
- * it as previously unspecified.
+ * Import is not a tab. It opens the action sheet from §13.5 (Scan inventory /
+ * Create collection / Create room) and appears in every flow.
  *
- * Icons are drawn from Views rather than an icon font: §13.1 says nobody adds a
- * dependency without saying so in chat, and that includes an icon set. Unicode
- * glyphs were the previous answer and looked it — ⌂ ◎ ▦ ⏣ come from four
- * different type designs, so they disagreed on weight, size and baseline no
- * matter how they were styled. Four small shapes are more code and better
- * pixels, and they inherit the theme like everything else.
+ * Icons use the native symbol libraries already provided by Expo: SF Symbols
+ * on Apple platforms and Material Symbols on Android/web. This gives the bar
+ * one optical system without adding another icon dependency.
  */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { SFSymbol } from 'expo-symbols';
+import { SymbolView, type AndroidSymbol } from 'expo-symbols';
+import medium from 'expo-symbols/androidWeights/medium';
 import { usePathname, useRouter } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FEATURES } from '@/config/features';
 import * as haptics from '@/lib/haptics';
 import { useApp } from '@/state/AppContext';
 import { useTourAnchor } from '@/state/TourAnchors';
-import { colors, fonts, interaction, radius, spacing, typography } from '@/theme/theme';
+import { colors, interaction, radius, spacing, typography } from '@/theme/theme';
 
 interface Tab {
   href: '/' | '/explore' | '/collections' | '/profile';
   label: string;
-  kind: IconKind;
+  icon: TabIcon;
   /** True for the two tabs behind the onboarding gate. */
   gated?: boolean;
 }
 
+interface PlatformSymbol {
+  ios: SFSymbol;
+  android: AndroidSymbol;
+  web: AndroidSymbol;
+}
+
+interface TabIcon {
+  active: PlatformSymbol;
+  inactive: PlatformSymbol;
+}
+
 const TABS: readonly Tab[] = [
-  { href: '/', label: 'Home', kind: 'home' },
-  { href: '/explore', label: 'Explore', kind: 'explore' },
-  { href: '/collections', label: 'Collections', kind: 'collections', gated: true },
-  { href: '/profile', label: 'Profile', kind: 'profile', gated: true },
+  {
+    href: '/',
+    label: 'Home',
+    icon: {
+      active: { ios: 'house.fill', android: 'home_filled', web: 'home_filled' },
+      inactive: { ios: 'house', android: 'home', web: 'home' },
+    },
+  },
+  {
+    href: '/explore',
+    label: 'Explore',
+    icon: {
+      active: { ios: 'safari.fill', android: 'explore', web: 'explore' },
+      inactive: { ios: 'safari', android: 'explore', web: 'explore' },
+    },
+  },
+  {
+    href: '/collections',
+    label: 'Collections',
+    icon: {
+      active: {
+        ios: 'rectangle.stack.fill',
+        android: 'collections_bookmark',
+        web: 'collections_bookmark',
+      },
+      inactive: {
+        ios: 'rectangle.stack',
+        android: 'collections_bookmark',
+        web: 'collections_bookmark',
+      },
+    },
+    gated: true,
+  },
+  {
+    href: '/profile',
+    label: 'Profile',
+    icon: {
+      active: {
+        ios: 'person.crop.circle.fill',
+        android: 'account_circle',
+        web: 'account_circle',
+      },
+      inactive: {
+        ios: 'person.crop.circle',
+        android: 'account_circle',
+        web: 'account_circle',
+      },
+    },
+    gated: true,
+  },
 ];
 
-type IconKind = 'home' | 'explore' | 'collections' | 'profile';
-
-/**
- * The four tab icons, built from Views.
- *
- * Each is a 22x22 box so they share a baseline and optical weight — the thing
- * the mixed unicode glyphs could never do. Strokes are 2px borders throughout,
- * which keeps them consistent at a glance and legible at tab-bar size where
- * finer detail turns to mush.
- */
-function TabIcon({ kind, colour }: { kind: IconKind; colour: string }) {
-  if (kind === 'home') {
-    return (
-      <View style={styles.icon}>
-        {/* A rotated square is the roof; the body sits under it and clips the
-            lower half, which is cheaper than a triangle drawn from borders. */}
-        <View style={[styles.homeRoof, { borderColor: colour }]} />
-        <View style={[styles.homeBody, { borderColor: colour }]} />
-      </View>
-    );
-  }
-
-  if (kind === 'explore') {
-    return (
-      <View style={styles.icon}>
-        <View style={[styles.exploreRing, { borderColor: colour }]} />
-        <View style={[styles.exploreNeedle, { backgroundColor: colour }]} />
-      </View>
-    );
-  }
-
-  if (kind === 'collections') {
-    // Four cells, because a collection is a grid of things.
-    return (
-      <View style={[styles.icon, styles.grid]}>
-        {[0, 1, 2, 3].map((cell) => (
-          <View key={cell} style={[styles.gridCell, { borderColor: colour }]} />
-        ))}
-      </View>
-    );
-  }
-
+function TabIcon({ icon, active, colour }: { icon: TabIcon; active: boolean; colour: string }) {
   return (
-    <View style={styles.icon}>
-      <View style={[styles.profileHead, { borderColor: colour }]} />
-      <View style={[styles.profileBody, { borderColor: colour }]} />
+    <View style={[styles.iconIndicator, active && styles.iconIndicatorActive]}>
+      <SymbolView
+        name={active ? icon.active : icon.inactive}
+        size={22}
+        tintColor={colour}
+        weight={{ ios: active ? 'semibold' : 'medium', android: medium }}
+      />
     </View>
   );
 }
@@ -139,8 +158,9 @@ export function TabBar() {
         style={({ pressed }) => [styles.tab, pressed && !active && styles.pressed]}
       >
         <TabIcon
-          kind={tab.kind}
-          colour={locked ? colors.border : active ? colors.accent : colors.textTertiary}
+          icon={tab.icon}
+          active={active}
+          colour={locked ? colors.border : active ? colors.accent : colors.textSecondary}
         />
         <Text style={[styles.label, active && styles.active, locked && styles.locked]}>
           {tab.label}
@@ -158,11 +178,6 @@ export function TabBar() {
     >
       {left.map(renderTab)}
 
-      {/* Import sits level with the other four rather than as a raised circle.
-          §13.4 specifies the raised "+", but an unlabelled glyph in the most
-          prominent slot never said what it did — and the thing it does is the
-          activation event the whole product depends on (J1). Labelling it and
-          levelling it costs the flourish and buys a tab that explains itself. */}
       <Pressable
         ref={importAnchor}
         collapsable={false}
@@ -172,18 +187,25 @@ export function TabBar() {
         }}
         accessibilityRole="button"
         accessibilityLabel="Import inventory"
-        style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+        style={styles.importTab}
       >
-        {/* A filled accent plus. Level with the other four, but the only
-            coloured icon in the bar — import is the activation event the whole
-            product depends on (J1), so it earns the one bit of colour. */}
-        <View style={styles.icon}>
-          <View style={styles.plusDisc}>
-            <View style={styles.plusBarH} />
-            <View style={styles.plusBarV} />
-          </View>
-        </View>
-        <Text style={[styles.label, styles.active]}>Import</Text>
+        {({ pressed }) => (
+          <>
+            <View style={[styles.importButton, pressed && styles.importButtonPressed]}>
+              <SymbolView
+                name={{
+                  ios: 'tray.and.arrow.down.fill',
+                  android: 'download',
+                  web: 'download',
+                }}
+                size={23}
+                tintColor={colors.textOnAccent}
+                weight={{ ios: 'semibold', android: medium }}
+              />
+            </View>
+            <Text style={[styles.label, styles.active]}>Import</Text>
+          </>
+        )}
       </Pressable>
 
       {right.map(renderTab)}
@@ -198,97 +220,55 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: spacing.sm,
+    paddingTop: 6,
   },
-  tab: { flex: 1, alignItems: 'center', gap: 2 },
-  icon: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center' },
-
-  homeRoof: {
-    position: 'absolute',
-    top: 1,
-    width: 13,
-    height: 13,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-    transform: [{ rotate: '45deg' }],
+  tab: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: 1,
   },
-  homeBody: {
-    position: 'absolute',
-    bottom: 2,
-    width: 15,
-    height: 10,
-    borderWidth: 2,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
+  iconIndicator: {
+    width: 38,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
   },
-
-  exploreRing: { width: 18, height: 18, borderWidth: 2, borderRadius: radius.pill },
-  exploreNeedle: {
-    position: 'absolute',
-    width: 2,
-    height: 9,
-    borderRadius: 1,
-    transform: [{ rotate: '45deg' }],
+  iconIndicatorActive: { backgroundColor: colors.accentMuted },
+  label: {
+    ...typography.meta,
+    fontSize: 10,
+    lineHeight: 14,
+    color: colors.textTertiary,
   },
-
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, padding: 2 },
-  gridCell: { width: 7, height: 7, borderWidth: 2, borderRadius: 1.5 },
-
-  profileHead: {
-    position: 'absolute',
-    top: 1,
-    width: 9,
-    height: 9,
-    borderWidth: 2,
-    borderRadius: radius.pill,
-  },
-  profileBody: {
-    position: 'absolute',
-    bottom: 2,
-    width: 17,
-    height: 9,
-    borderWidth: 2,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: 9,
-    borderTopRightRadius: 9,
-  },
-  label: { ...typography.meta, fontSize: 10, color: colors.textTertiary },
   active: { color: colors.accent },
   /** §13.4 — greyed AND non-interactive, not just greyed. */
   locked: { color: colors.border },
 
-  plusDisc: {
-    width: 22,
-    height: 22,
+  importTab: {
+    flex: 1,
+    minHeight: 48,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.pill,
-    backgroundColor: colors.accent,
+    justifyContent: 'flex-start',
+    gap: 1,
   },
-  plusBarH: { position: 'absolute', width: 11, height: 2.5, borderRadius: 2, backgroundColor: colors.textOnAccent },
-  plusBarV: { position: 'absolute', width: 2.5, height: 11, borderRadius: 2, backgroundColor: colors.textOnAccent },
-
-  plusSlot: { flex: 1, alignItems: 'center' },
-  plus: {
-    width: 46,
-    height: 46,
+  importButton: {
+    width: 40,
+    height: 40,
     borderRadius: radius.pill,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -18,
-    borderWidth: 4,
-    borderColor: colors.background,
+    marginTop: -13,
+    borderWidth: 3,
+    borderColor: colors.surface,
   },
-  /* The + is the app's most-pressed control and sits on a flat bar, so it
-     gets a deliberate squash rather than the shared dim — the ring around it
-     already reads as depth, and dimming alone looked like it had failed. */
-  plusPressed: {
+  importButtonPressed: {
     backgroundColor: colors.accentPressed,
-    transform: [{ scale: 0.92 }],
+    transform: [{ scale: 0.94 }],
   },
-  plusText: { color: colors.textOnAccent, fontSize: 26, lineHeight: 30, fontFamily: fonts.display },
 
   pressed: { opacity: interaction.pressedOpacity },
 });

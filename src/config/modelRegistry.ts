@@ -37,20 +37,44 @@
 
 /** Catalogue item id → bundled .glb. Empty until the first model lands. */
 export const ITEM_MODELS: Record<string, number> = {
-  'codm-dlq33-lightbringer': require('../../assets/collectee/models/codm-dlq33-lightbringer.glb'),
+  'codm-ak117-cordite-storm': require('../../assets/collectee/models/weapons/codm-ak117-cordite-storm.glb'),
+  'codm-dlq33-lightbringer': require('../../assets/collectee/models/weapons/codm-dlq33-lightbringer.glb'),
+  'codm-drh-cerberus': require('../../assets/collectee/models/weapons/codm-drh-cerberus.glb'),
   'codm-fennec-ascended': require('../../assets/collectee/models/weapons/codm-fennec-ascended.glb'),
+  'codm-qq9-diavolo': require('../../assets/collectee/models/weapons/codm-qq9-diavolo.glb'),
   'mlbb-gusion-cyber-faust': require('../../assets/collectee/models/characters/mlbb-gusion-cyber-faust.glb'),
-  'val-elderflame-vandal': require('../../assets/collectee/models/val-elderflame-vandal.glb'),
-  'val-prime-karambit': require('../../assets/collectee/models/val-prime-karambit.glb'),
+  'val-elderflame-dagger': require('../../assets/collectee/models/weapons/val-elderflame-dagger.glb'),
+  'val-elderflame-operator': require('../../assets/collectee/models/weapons/val-elderflame-operator.glb'),
+  'val-elderflame-vandal': require('../../assets/collectee/models/weapons/val-elderflame-vandal.glb'),
+  'val-prime-karambit': require('../../assets/collectee/models/weapons/val-prime-karambit.glb'),
+  'val-prime-spectre': require('../../assets/collectee/models/weapons/val-prime-spectre.glb'),
+  'val-prime-vandal': require('../../assets/collectee/models/weapons/val-prime-vandal.glb'),
+  'val-singularity-knife': require('../../assets/collectee/models/weapons/val-singularity-knife.glb'),
+  'val-voidglass-blade': require('../../assets/collectee/models/weapons/val-voidglass-blade.glb'),
 };
 
 /**
- * Hybrid procedural models use a clean transparent reconstruction input rather
- * than the dramatic inventory-card art. Only the GLB material named
- * `projected-art` receives this texture; its structural PBR materials remain.
+ * Rounded weapon models use clean transparent reconstruction inputs rather than
+ * dramatic inventory-card scenes. The GLB material named `projected-art`
+ * receives this texture; the metallic silhouette edge retains its PBR material.
+ *
+ * This registry is consumed only by room renderers. Collection and inventory
+ * cards continue through `artRegistry` and remain 2D.
  */
 const ITEM_MODEL_TEXTURES: Record<string, number> = {
-  'codm-fennec-ascended': require('../../assets/collectee/trellis-inputs/crown-jewels-weapons/codm-fennec-ascended.png'),
+  'codm-ak117-cordite-storm': require('../../assets/collectee/model-inputs/verified-weapons/codm-ak117-cordite-storm.png'),
+  'codm-dlq33-lightbringer': require('../../assets/collectee/model-inputs/verified-weapons/codm-dlq33-lightbringer.png'),
+  'codm-drh-cerberus': require('../../assets/collectee/model-inputs/verified-weapons/codm-drh-cerberus.png'),
+  'codm-fennec-ascended': require('../../assets/collectee/model-inputs/verified-weapons/codm-fennec-ascended.png'),
+  'codm-qq9-diavolo': require('../../assets/collectee/model-inputs/verified-weapons/codm-qq9-diavolo.png'),
+  'val-elderflame-dagger': require('../../assets/collectee/model-inputs/verified-weapons/val-elderflame-dagger.png'),
+  'val-elderflame-operator': require('../../assets/collectee/model-inputs/verified-weapons/val-elderflame-operator.png'),
+  'val-elderflame-vandal': require('../../assets/collectee/model-inputs/verified-weapons/val-elderflame-vandal.png'),
+  'val-prime-karambit': require('../../assets/collectee/model-inputs/verified-weapons/val-prime-karambit.png'),
+  'val-prime-spectre': require('../../assets/collectee/model-inputs/verified-weapons/val-prime-spectre.png'),
+  'val-prime-vandal': require('../../assets/collectee/model-inputs/verified-weapons/val-prime-vandal.png'),
+  'val-singularity-knife': require('../../assets/collectee/model-inputs/verified-weapons/val-singularity-knife.png'),
+  'val-voidglass-blade': require('../../assets/collectee/model-inputs/verified-weapons/val-voidglass-blade.png'),
 };
 
 /**

@@ -164,7 +164,7 @@ export default function ExploreScreen() {
 
       {!busy && tab === 'Collectors' && matchState !== 'unverified-only' ? (
         <View style={styles.list}>
-          <SectionHeader title="Collectors you may like" />
+          <SectionHeader title="Collectors you may like" prominent />
           {collectors.length === 0 ? (
             <Text style={styles.muted}>
               No collectors share a verified item with you yet.
@@ -197,7 +197,7 @@ export default function ExploreScreen() {
 
       {!busy && tab === 'Communities' && mine.length > 0 ? (
         <View style={styles.list}>
-          <SectionHeader title="Your communities" />
+          <SectionHeader title="Your communities" prominent />
           {mine.map((community) => (
             <Pressable
               key={community.id}
@@ -223,7 +223,7 @@ export default function ExploreScreen() {
 
       {!busy && tab === 'Communities' ? (
         <View style={styles.list}>
-          <SectionHeader title="Communities for you" />
+          <SectionHeader title="Communities for you" prominent />
           {communities.map(({ community, reason }) => {
             const isMember = joined.has(community.id);
             return (

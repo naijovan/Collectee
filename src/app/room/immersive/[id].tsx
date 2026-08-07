@@ -38,6 +38,8 @@ import { catalogueService, inventoryService, roomService } from '@/services';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Item, Room, RoomTheme } from '@/types';
 
+const TOP_CONTROL_SIZE = 40;
+
 export default function ImmersiveRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -126,6 +128,8 @@ export default function ImmersiveRoomScreen() {
 
   const focusedPlacement = room.placements.find((p) => p.slotId === room.settings.focusedSlotId);
   const focusedItem = focusedPlacement ? itemsByOwnedId.get(focusedPlacement.ownedItemId) : null;
+  const topBarInset = Math.max(insets.top, spacing.md) + spacing.sm;
+  const sceneChromeTop = topBarInset + TOP_CONTROL_SIZE + spacing.md;
 
   return (
     <View style={styles.screen}>
@@ -143,6 +147,7 @@ export default function ImmersiveRoomScreen() {
         width={width}
         height={height}
         immersive
+        chromeTopInset={sceneChromeTop}
       />
 
       <Collectible3DViewer item={inspecting} onClose={() => setInspecting(null)} />
@@ -156,7 +161,7 @@ export default function ImmersiveRoomScreen() {
             styles.passThrough,
             // Web reports no safe-area inset, which would pin the controls to
             // y=0 hard against the top edge. Floor it.
-            { paddingTop: Math.max(insets.top, spacing.md) + spacing.sm },
+            { paddingTop: topBarInset },
           ]}
         >
           <Pressable
@@ -236,8 +241,8 @@ const styles = StyleSheet.create({
   subtitle: { ...typography.meta, color: colors.textSecondary },
 
   iconButton: {
-    width: 40,
-    height: 40,
+    width: TOP_CONTROL_SIZE,
+    height: TOP_CONTROL_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,

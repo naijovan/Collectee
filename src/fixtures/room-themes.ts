@@ -7,9 +7,9 @@
  * publishers. Do not add a theme whose name or style prompt references a real
  * franchise, character or game.
  *
- * Each theme ships a FIXED slot map. Generation only ever produces the backdrop
- * image, never the geometry — that is what "template-conditioned" means, and it
- * is what makes placement predictable and generation cost bounded.
+ * Each theme ships a BASE slot map. The room keeps that authored composition
+ * while the selection fits; larger selections use a deterministic generated
+ * pedestal grid over the same backdrop.
  *
  * Slot coordinates are fractional (0–1) so one map works at any resolution.
  * Depth: 0 = back, 1 = mid, 2 = front.

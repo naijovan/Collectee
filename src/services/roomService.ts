@@ -6,10 +6,10 @@
  * with §12.1 — behind a `generateBackdrop` call that a live generator could
  * replace without touching a screen.
  *
- * Generation only ever produces the BACKDROP. Slot geometry comes from the
- * theme and never changes. Backdrops are cached by (themeId, palette) so the
- * same theme is never "generated" twice — §11 F4 cost control, and it also
- * means the second demo run is instant.
+ * Generation keeps the theme BACKDROP unchanged. The theme supplies authored
+ * anchors for ordinary rooms, while larger selections receive a deterministic
+ * pedestal grid. Backdrops are cached by (themeId, palette), so the same theme
+ * is never generated twice.
  */
 
 import { ROOMS, ROOMS_BY_ID } from '@/fixtures/collections';
@@ -24,7 +24,9 @@ import {
   focusedPlacement,
   movePlacement,
   overflowItemIds,
+  placeWithNearestDisplacement,
   rotatePlacement,
+  slotsForItemCount,
   slotsByProminence,
   suggestRoomTitle,
   swapPlacements,
@@ -297,7 +299,10 @@ export const roomService = {
     if (!theme) throw new Error(`Unknown room theme "${params.themeId}"`);
 
     const backdropUrl = await this.generateBackdrop(params.themeId, params.onProgress);
-    const slots: Slot[] = [...theme.slots];
+    // The theme keeps its authored composition for ordinary rooms. Selections
+    // beyond that base capacity receive a generated multi-row pedestal layout,
+    // so every selected verified item still appears in the room.
+    const slots: Slot[] = slotsForItemCount(theme, params.ownedItems.length);
     const placements = autoPlace(params.ownedItems, ITEMS_BY_ID, slots);
     const hero = slotsByProminence(slots)[0];
 
@@ -349,6 +354,18 @@ export const roomService = {
     return this.mutate(roomId, (room) => ({
       ...room,
       placements: movePlacement(room.placements, ownedItemId, toSlotId),
+    }));
+  },
+
+  async placeItem(roomId: string, ownedItemId: string, toSlotId: string): Promise<Room | null> {
+    return this.mutate(roomId, (room) => ({
+      ...room,
+      placements: placeWithNearestDisplacement(
+        room.placements,
+        room.slots,
+        ownedItemId,
+        toSlotId,
+      ),
     }));
   },
 

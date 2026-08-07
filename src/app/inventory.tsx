@@ -23,7 +23,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -48,6 +48,7 @@ type TrustOption = (typeof TRUST_OPTIONS)[number];
 export default function InventoryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { inventory } = useApp();
 
   const [open, setOpen] = useState(false);
@@ -166,7 +167,11 @@ export default function InventoryScreen() {
             </View>
             <View style={styles.grid}>
               {group.items.map((item) => (
-                <ItemCard key={item.id} item={item} width="30%" />
+                <ItemCard
+                  key={item.id}
+                  item={item}
+                  width={width < 600 ? '47%' : '30%'}
+                />
               ))}
             </View>
           </View>

@@ -1,11 +1,13 @@
 /**
- * Builds hybrid weapon meshes without an image-to-3D service.
+ * Builds rounded interactive weapon reliefs without an image-to-3D service.
  *
  * The clean transparent render remains the exact front/back skin. A shallow
  * gold edge closes the silhouette so the showroom can light and rotate it
  * without inventing chunky geometry that contradicts the artwork.
  *
  * Usage:
+ *   npm run prepare:weapons
+ *   npm run bake:weapons
  *   npm run bake:weapons -- codm-fennec-ascended
  */
 
@@ -15,6 +17,11 @@ import { join } from 'node:path';
 import sharp from 'sharp';
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+
+import {
+  VERIFIED_WEAPONS,
+  verifiedWeaponInput,
+} from './verified-weapon-manifest';
 
 (globalThis as unknown as { FileReader: unknown }).FileReader = class {
   result: ArrayBuffer | string | null = null;
@@ -28,42 +35,48 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
   }
 };
 
-const INPUT_DIR = 'assets/collectee/trellis-inputs/crown-jewels-weapons';
 const OUTPUT_DIR = 'assets/collectee/models/weapons';
 const GRID = 256;
 const EDGE_DEPTH = 0.006;
-const MAX_SKIN_DEPTH = 0.066;
-
-const BUILDERS: Record<string, () => Promise<THREE.Scene>> = {
-  'codm-fennec-ascended': () =>
-    buildFennec(join(INPUT_DIR, 'codm-fennec-ascended.png')),
-};
 
 async function main() {
   const requested = process.argv.slice(2).filter((argument) => !argument.startsWith('--'));
-  const targets = requested.length > 0 ? requested : Object.keys(BUILDERS);
+  const targets =
+    requested.length > 0
+      ? VERIFIED_WEAPONS.filter((spec) => requested.includes(spec.id))
+      : VERIFIED_WEAPONS;
   mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  for (const id of targets) {
-    const build = BUILDERS[id];
-    if (!build) {
-      console.error(`No procedural weapon builder for ${id}`);
-      process.exitCode = 1;
-      continue;
-    }
-
-    const scene = await build();
+  for (const spec of targets) {
+    const scene = await buildWeapon(
+      spec.id,
+      verifiedWeaponInput(spec.id),
+      spec.edgeColor,
+      spec.maxDepth,
+    );
     const glb = await exportScene(scene);
-    const output = join(OUTPUT_DIR, `${id}.glb`);
+    const output = join(OUTPUT_DIR, `${spec.id}.glb`);
     writeFileSync(output, Buffer.from(glb));
     console.log(`Wrote ${output} (${Math.round(glb.byteLength / 1024)} KB)`);
   }
+
+  const missing = requested.filter(
+    (id) => !VERIFIED_WEAPONS.some((spec) => spec.id === id),
+  );
+  if (missing.length > 0) {
+    throw new Error(`No verified weapon manifest entry for: ${missing.join(', ')}`);
+  }
 }
 
-async function buildFennec(input: string): Promise<THREE.Scene> {
+async function buildWeapon(
+  id: string,
+  input: string,
+  edgeColor: string,
+  maxDepth: number,
+): Promise<THREE.Scene> {
   const scene = new THREE.Scene();
   const weapon = new THREE.Group();
-  weapon.name = 'Fennec Ascended hybrid';
+  weapon.name = `${id} interactive relief`;
   scene.add(weapon);
 
   const projectedArt = new THREE.MeshStandardMaterial({
@@ -74,15 +87,15 @@ async function buildFennec(input: string): Promise<THREE.Scene> {
   });
   const edgeGold = new THREE.MeshStandardMaterial({
     name: 'gold-edge',
-    color: '#C6943D',
-    emissive: '#7A4E12',
+    color: edgeColor,
+    emissive: edgeColor,
     emissiveIntensity: 0.16,
     metalness: 0.72,
     roughness: 0.24,
     side: THREE.DoubleSide,
   });
 
-  const silhouette = await buildSilhouette(input);
+  const silhouette = await buildSilhouette(input, maxDepth);
   const skin = new THREE.Mesh(silhouette.surface, projectedArt);
   skin.name = 'projected-skin';
   skin.castShadow = true;
@@ -106,6 +119,7 @@ async function buildFennec(input: string): Promise<THREE.Scene> {
 
 async function buildSilhouette(
   input: string,
+  maxDepth: number,
 ): Promise<{ surface: THREE.BufferGeometry; edge: THREE.BufferGeometry }> {
   const { data } = await sharp(input)
     .ensureAlpha()
@@ -118,7 +132,7 @@ async function buildSilhouette(
   const depthAt = (x: number, y: number) => {
     const distance = distances[y * GRID + x]!;
     const blend = Math.min(distance / 18, 1);
-    return EDGE_DEPTH + (MAX_SKIN_DEPTH - EDGE_DEPTH) * Math.sin((blend * Math.PI) / 2);
+    return EDGE_DEPTH + (maxDepth - EDGE_DEPTH) * Math.sin((blend * Math.PI) / 2);
   };
   const positions: number[] = [];
   const uvs: number[] = [];

@@ -8,9 +8,18 @@
  * later without changing either interaction surface.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ViewStyle } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Image,
+  PanResponder,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import type { PointerEvent as NativePointerEvent, ViewStyle } from 'react-native';
 
 import { backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
@@ -79,7 +88,31 @@ export function RoomScene({
    */
   const drag = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const activeDrag = useRef<string | null>(null);
+  const dragResponderActive = useRef(false);
+  const dropTarget = useRef<string | null>(null);
+  const pointerDragStart = useRef<{
+    pageX: number;
+    pageY: number;
+    slotId: string;
+  } | null>(null);
   const [draggingSlotId, setDraggingSlotId] = useState<string | null>(null);
+  const [dropTargetSlotId, setDropTargetSlotId] = useState<string | null>(null);
+
+  const updateDropTarget = useCallback((slotId: string | null) => {
+    if (dropTarget.current === slotId) return;
+    dropTarget.current = slotId;
+    setDropTargetSlotId(slotId);
+  }, []);
+
+  const clearDrag = useCallback(() => {
+    activeDrag.current = null;
+    dragResponderActive.current = false;
+    dropTarget.current = null;
+    pointerDragStart.current = null;
+    setDraggingSlotId(null);
+    setDropTargetSlotId(null);
+    drag.setValue({ x: 0, y: 0 });
+  }, [drag]);
 
   /** Pinch-zoom (§11 F4). Tracked as a manual scale on top of the camera. */
   const [zoom, setZoom] = useState(1);
@@ -169,16 +202,54 @@ export function RoomScene({
   const sizeRef = useRef({ width, height });
   sizeRef.current = { width, height };
 
+  const onPointerMove = useCallback(
+    (event: NativePointerEvent) => {
+      const start = pointerDragStart.current;
+      if (Platform.OS !== 'web' || !start || activeDrag.current !== start.slotId) return;
+
+      dragResponderActive.current = true;
+      const dx = event.nativeEvent.pageX - start.pageX;
+      const dy = event.nativeEvent.pageY - start.pageY;
+      drag.setValue({ x: dx, y: dy });
+
+      const source = slotsRef.current.find((slot) => slot.id === start.slotId);
+      if (!source) return;
+      const { width: w, height: h } = sizeRef.current;
+      const fx = source.x + source.w / 2 + dx / w;
+      const fy = source.y + source.h / 2 + dy / h;
+      const target = slotAtPoint(slotsRef.current, fx, fy);
+      updateDropTarget(target && target.id !== start.slotId ? target.id : null);
+    },
+    [drag, updateDropTarget],
+  );
+
+  const onPointerUp = useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    const from = pointerDragStart.current?.slotId;
+    const to = dropTarget.current;
+    if (from && to && from !== to) dropRef.current?.(from, to);
+    clearDrag();
+  }, [clearDrag]);
+
   const pan = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (event, gesture) =>
-          event.nativeEvent.touches.length === 2 ||
-          activeDrag.current !== null ||
-          (room.settings.parallaxEnabled && Math.hypot(gesture.dx, gesture.dy) > 4),
+        onMoveShouldSetPanResponder: (event, gesture) => {
+          const touchCount = event.nativeEvent.touches?.length ?? 0;
+          if (Platform.OS === 'web' && pointerDragStart.current) return false;
+          return (
+            touchCount === 2 ||
+            activeDrag.current !== null ||
+            (room.settings.parallaxEnabled && Math.hypot(gesture.dx, gesture.dy) > 4)
+          );
+        },
+
+        onPanResponderGrant: () => {
+          dragResponderActive.current = activeDrag.current !== null;
+        },
 
         onPanResponderMove: (event, gesture) => {
-          const touches = event.nativeEvent.touches;
+          const touches = event.nativeEvent.touches ?? [];
 
           if (touches.length === 2) {
             const [a, b] = touches;
@@ -194,6 +265,17 @@ export function RoomScene({
 
           if (activeDrag.current) {
             drag.setValue({ x: gesture.dx, y: gesture.dy });
+            const { width: w, height: h } = sizeRef.current;
+            const source = slotsRef.current.find(
+              (slot) => slot.id === activeDrag.current,
+            );
+            if (!source) return;
+            const fx = source.x + source.w / 2 + gesture.dx / w;
+            const fy = source.y + source.h / 2 + gesture.dy / h;
+            const target = slotAtPoint(slotsRef.current, fx, fy);
+            const nextTarget =
+              target && target.id !== activeDrag.current ? target.id : null;
+            updateDropTarget(nextTarget);
             return;
           }
 
@@ -208,20 +290,9 @@ export function RoomScene({
           const from = activeDrag.current;
 
           if (from) {
-            // Where the finger let go, as a fraction of the scene. Camera is
-            // identity while editing, so screen space maps straight to it.
-            const { width: w, height: h } = sizeRef.current;
-            const fx = event.nativeEvent.locationX / w;
-            const fy = event.nativeEvent.locationY / h;
-            const target = slotsRef.current.find(
-              (slot) =>
-                fx >= slot.x && fx <= slot.x + slot.w && fy >= slot.y && fy <= slot.y + slot.h,
-            );
-            if (target && target.id !== from) dropRef.current?.(from, target.id);
-
-            activeDrag.current = null;
-            setDraggingSlotId(null);
-            drag.setValue({ x: 0, y: 0 });
+            const to = dropTarget.current;
+            if (to && to !== from) dropRef.current?.(from, to);
+            clearDrag();
             return;
           }
 
@@ -235,12 +306,10 @@ export function RoomScene({
 
         onPanResponderTerminate: () => {
           pinchStart.current = null;
-          activeDrag.current = null;
-          setDraggingSlotId(null);
-          drag.setValue({ x: 0, y: 0 });
+          clearDrag();
         },
       }),
-    [room.settings.parallaxEnabled, tilt, drag, zoom],
+    [room.settings.parallaxEnabled, tilt, drag, zoom, clearDrag, updateDropTarget],
   );
 
   const palette = theme?.palette ?? [];
@@ -264,8 +333,12 @@ export function RoomScene({
 
   return (
     <View
+      accessibilityLabel={draggable ? 'Showroom arrangement canvas' : 'Showroom preview'}
       style={[styles.viewport, { width, height }]}
-      {...(room.settings.parallaxEnabled ? pan.panHandlers : {})}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={clearDrag}
+      {...(draggable || room.settings.parallaxEnabled ? pan.panHandlers : {})}
     >
       <Animated.View
         style={[
@@ -378,6 +451,9 @@ export function RoomScene({
               >
                 <Pressable
                   onPress={() => {
+                    if (activeDrag.current === slot.id && !dragResponderActive.current) {
+                      clearDrag();
+                    }
                     if (item && focused && onInspect3D) {
                       onInspect3D(item);
                       return;
@@ -385,22 +461,42 @@ export function RoomScene({
                     onSlotPress?.(slot);
                   }}
                   onLongPress={() => focused && setFlipped((prev) => !prev)}
+                  accessibilityLabel={
+                    item ? `${item.name}, ${slot.kind} slot` : `Empty ${slot.kind} slot`
+                  }
+                  accessibilityHint={
+                    draggable && item
+                      ? 'Drag to move, or tap and then choose another display slot'
+                      : undefined
+                  }
+                  accessibilityState={{ selected }}
                   // Claims the drag before the responder sees movement, so the
-                  // gesture knows which card it is carrying.
-                  onTouchStart={() => {
+                  // gesture knows which card it is carrying. PressIn covers
+                  // mouse, pen and touch; the previous TouchStart path did not.
+                  onPressIn={() => {
                     if (!draggable || !placement) return;
                     activeDrag.current = slot.id;
                     setDraggingSlotId(slot.id);
                   }}
-                  // A plain tap ends here and the responder never engages, so
-                  // the claim has to be released or the next gesture inherits
-                  // it. When the responder DOES take over, this fires as a
-                  // cancel instead and the release handler does the cleanup.
-                  onTouchEnd={() => {
-                    if (activeDrag.current !== slot.id) return;
-                    activeDrag.current = null;
-                    setDraggingSlotId(null);
-                    drag.setValue({ x: 0, y: 0 });
+                  onPointerDown={(event) => {
+                    if (Platform.OS !== 'web' || !draggable || !placement) return;
+                    pointerDragStart.current = {
+                      pageX: event.nativeEvent.pageX,
+                      pageY: event.nativeEvent.pageY,
+                      slotId: slot.id,
+                    };
+                  }}
+                  onPressOut={() => {
+                    // Responder grant and PressOut can happen in the same frame.
+                    // Defer cleanup so a real drag gets to retain its claim.
+                    setTimeout(() => {
+                      if (
+                        !dragResponderActive.current &&
+                        activeDrag.current === slot.id
+                      ) {
+                        clearDrag();
+                      }
+                    }, 0);
                   }}
                   style={[
                     styles.card,
@@ -412,6 +508,8 @@ export function RoomScene({
                     item ? { borderColor: rarityColors[item.rarityTier] } : styles.cardEmpty,
                     focused && styles.cardFocused,
                     selected && styles.cardSelected,
+                    draggingSlotId === slot.id && styles.cardDragging,
+                    dropTargetSlotId === slot.id && styles.cardDropTarget,
                     {
                       transform: [
                         { rotate: `${placement?.rotation ?? 0}deg` },
@@ -475,6 +573,17 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function slotAtPoint(slots: readonly Slot[], x: number, y: number): Slot | null {
+  return (
+    [...slots]
+      .sort((a, b) => b.depth - a.depth)
+      .find(
+        (slot) =>
+          x >= slot.x && x <= slot.x + slot.w && y >= slot.y && y <= slot.y + slot.h,
+      ) ?? null
+  );
+}
+
 const styles = StyleSheet.create({
   viewport: {
     overflow: 'hidden',
@@ -512,6 +621,8 @@ const styles = StyleSheet.create({
   cardEmpty: { borderStyle: 'dashed', borderColor: colors.border, backgroundColor: 'transparent' },
   cardFocused: { borderWidth: 3 },
   cardSelected: { borderColor: colors.accent, borderWidth: 3 },
+  cardDragging: { opacity: 0.82, borderColor: colors.accent, borderWidth: 3 },
+  cardDropTarget: { borderColor: colors.accent, borderWidth: 3 },
 
   // `width` is not decoration: the card centres its children on the cross axis,
   // so without it the face collapses to the width of the name and the

@@ -29,6 +29,7 @@ import {
   LoadingState,
   PrimaryButton,
   RoomScene,
+  SecondaryButton,
   SectionHeader,
   timeAgo,
 } from '@/components';
@@ -144,6 +145,7 @@ export default function RoomScreen() {
   const focusedPlacement = room.placements.find((p) => p.slotId === room.settings.focusedSlotId);
   const focusedItem = focusedPlacement ? itemsByOwnedId.get(focusedPlacement.ownedItemId) : null;
   const items = [...itemsByOwnedId.values()];
+  const isOwner = collection?.userId === viewerId;
 
   return (
     /* The comment composer sits at the bottom of this scroll view — without
@@ -198,6 +200,15 @@ export default function RoomScreen() {
       >
         <Text style={styles.enterCtaText}>⛶  Enter the room</Text>
       </Pressable>
+
+      {isOwner ? (
+        <SecondaryButton
+          label="Edit Showroom"
+          onPress={() =>
+            router.push({ pathname: '/room/new', params: { roomId: room.id } })
+          }
+        />
+      ) : null}
 
       {collection ? (
         <Pressable

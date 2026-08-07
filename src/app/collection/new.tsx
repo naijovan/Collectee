@@ -115,27 +115,41 @@ type ItemFilter = (typeof ITEM_FILTERS)[number];
 
 /** Screens outside the numbered bar. `steps` is the bar; `stage` is where we are. */
 type Stage = 'steps' | 'preview' | 'posted';
+type EditorMode = 'create' | 'edit' | 'add';
 
 export default function CreateCollectionScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory } = useApp();
 
-  // J1's completion screen can hand us a suggestion to start from (§14 chain).
-  const params = useLocalSearchParams<{ name?: string; itemIds?: string }>();
+  // J1 can seed a new collection; the detail page can reopen this same editor.
+  const params = useLocalSearchParams<{
+    name?: string;
+    itemIds?: string;
+    collectionId?: string;
+    mode?: string;
+  }>();
+  const editCollectionId = params.collectionId ?? null;
+  const editorMode: EditorMode =
+    editCollectionId === null ? 'create' : params.mode === 'add' ? 'add' : 'edit';
+  const isEditing = editorMode !== 'create';
+  const addItemsOnly = editorMode === 'add';
 
   const [stage, setStage] = useState<Stage>('steps');
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(addItemsOnly ? 1 : 0);
   /** Step 3 shows suggestions first, then the arrange list — both read "3 of 4". */
   const [arranging, setArranging] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [existingReady, setExistingReady] = useState(!isEditing);
+  const [existingError, setExistingError] = useState<string | null>(null);
 
   const [name, setName] = useState(params.name ?? '');
   const [description, setDescription] = useState('');
   const [selected, setSelected] = useState<string[]>(
     params.itemIds ? params.itemIds.split(',').filter(Boolean) : [],
   );
+  const [originalItemIds, setOriginalItemIds] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [allowComments, setAllowComments] = useState(true);
@@ -157,6 +171,64 @@ export default function CreateCollectionScreen() {
   const [fits, setFits] = useState<ItemFit[]>([]);
   const [fitting, setFitting] = useState(false);
   const [skipped, setSkipped] = useState(false);
+
+  useEffect(() => {
+    if (!editCollectionId) return;
+    let cancelled = false;
+
+    async function loadExisting() {
+      setExistingReady(false);
+      setExistingError(null);
+      const found = await collectionService.getCollection(editCollectionId!);
+      if (cancelled) return;
+      if (!found || found.userId !== viewerId) {
+        setExistingError('This collection cannot be edited.');
+        setExistingReady(true);
+        return;
+      }
+
+      setName(found.name);
+      setDescription(found.description);
+      setSelected([...found.itemIds]);
+      setOriginalItemIds([...found.itemIds]);
+      setTags([...found.themeTags]);
+      setVisibility(found.visibility);
+      setAllowComments(found.allowComments);
+      setShowOnProfile(found.showOnProfile);
+      setCoverItemId(null);
+      setCoverUpload(null);
+      setStep(addItemsOnly ? 1 : 0);
+      setExistingReady(true);
+    }
+
+    void loadExisting();
+    return () => {
+      cancelled = true;
+    };
+  }, [addItemsOnly, editCollectionId, viewerId]);
+
+  const originalItemSet = useMemo(() => new Set(originalItemIds), [originalItemIds]);
+  const pickerInventory = useMemo(() => {
+    if (!isEditing) return inventory;
+    return inventory.filter(
+      (entry) =>
+        entry.owned.trustLevel === 'verified' || originalItemSet.has(entry.item.id),
+    );
+  }, [inventory, isEditing, originalItemSet]);
+  const addableInventory = useMemo(
+    () =>
+      addItemsOnly
+        ? pickerInventory.filter((entry) => !originalItemSet.has(entry.item.id))
+        : pickerInventory,
+    [addItemsOnly, originalItemSet, pickerInventory],
+  );
+  const pickerSelected = useMemo(
+    () =>
+      addItemsOnly
+        ? selected.filter((itemId) => !originalItemSet.has(itemId))
+        : selected,
+    [addItemsOnly, originalItemSet, selected],
+  );
 
   const selectedItems = useMemo(
     () =>
@@ -247,7 +319,13 @@ export default function CreateCollectionScreen() {
     async function load() {
       setFitting(true);
       const owned = await inventoryService.getOwnedItems(viewerId);
-      const next = await collectionService.suggestForSelection(selected, owned);
+      const suggestionPool = isEditing
+        ? owned.filter(
+            (entry) =>
+              entry.trustLevel === 'verified' || originalItemSet.has(entry.itemId),
+          )
+        : owned;
+      const next = await collectionService.suggestForSelection(selected, suggestionPool);
       if (cancelled) return;
       setTheme(next.theme);
       setFits(next.fits);
@@ -257,7 +335,7 @@ export default function CreateCollectionScreen() {
     return () => {
       cancelled = true;
     };
-  }, [step, arranging, selected, viewerId]);
+  }, [step, arranging, selected, viewerId, isEditing, originalItemSet]);
 
   function toggleItem(itemId: string) {
     setSelected((prev) =>
@@ -281,13 +359,13 @@ export default function CreateCollectionScreen() {
     setSelected((prev) => [itemId, ...prev.filter((id) => id !== itemId)]);
   }
 
-  async function publish() {
+  async function persistCollection(): Promise<string | null> {
     // Without this guard a double tap creates two collections — the service has
     // no idempotency key and every call mints a fresh id.
-    if (publishing) return;
+    if (publishing) return null;
     setPublishing(true);
     try {
-      const collection = await collectionService.createCollection({
+      const input = {
         userId: viewerId,
         name: name.trim() || 'Untitled collection',
         description: description.trim(),
@@ -297,13 +375,31 @@ export default function CreateCollectionScreen() {
         visibility,
         allowComments,
         showOnProfile,
-      });
+      };
+      const collection = editCollectionId
+        ? await collectionService.updateCollection(editCollectionId, input)
+        : await collectionService.createCollection(input);
+      if (!collection) {
+        setExistingError('The collection could not be saved.');
+        return null;
+      }
       setPublishedId(collection.id);
       haptics.success();
-      setStage('posted');
+      return collection.id;
     } finally {
       setPublishing(false);
     }
+  }
+
+  async function publish() {
+    const id = await persistCollection();
+    if (id) setStage('posted');
+  }
+
+  async function addSelectedItems() {
+    const id = await persistCollection();
+    if (!id) return;
+    router.replace({ pathname: '/collection/[id]', params: { id } });
   }
 
   /* The native header is off for this route — the nav row below carries the
@@ -311,13 +407,34 @@ export default function CreateCollectionScreen() {
      its own top inset, on every stage including `preview` and `posted`. */
   const topPad = [styles.content, { paddingTop: insets.top + spacing.md }];
 
+  if (!existingReady) {
+    return (
+      <View style={[styles.screen, styles.content]}>
+        <LoadingState height={180} />
+      </View>
+    );
+  }
+
+  if (existingError) {
+    return (
+      <View style={[styles.screen, styles.content]}>
+        <Text style={styles.title}>{existingError}</Text>
+        <SecondaryButton label="Go back" onPress={() => router.back()} />
+      </View>
+    );
+  }
+
   const canAdvance = step === 0 ? name.trim().length > 0 : step === 1 ? selected.length > 0 : true;
 
   const stepTitle =
     step === 0
-      ? 'Create collection'
+      ? isEditing
+        ? 'Edit collection'
+        : 'Create collection'
       : step === 1
-        ? 'Select items'
+        ? addItemsOnly
+          ? 'Add verified items'
+          : 'Select items'
         : step === 2
           ? arranging
             ? 'Arrange collection'
@@ -329,7 +446,7 @@ export default function CreateCollectionScreen() {
     return (
       <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={topPad}>
         <Text style={styles.done}>✓</Text>
-        <Text style={styles.title}>{name} is live</Text>
+        <Text style={styles.title}>{isEditing ? `${name} updated` : `${name} is live`}</Text>
         <Text style={styles.muted}>
           {selected.length} items · {VISIBILITY_LABELS[visibility]}
         </Text>
@@ -424,7 +541,15 @@ export default function CreateCollectionScreen() {
           </View>
 
           <PrimaryButton
-            label={publishing ? 'Publishing…' : '↥  Publish collection'}
+            label={
+              publishing
+                ? isEditing
+                  ? 'Saving…'
+                  : 'Publishing…'
+                : isEditing
+                  ? 'Save changes'
+                  : '↥  Publish collection'
+            }
             disabled={publishing}
             onPress={() => void publish()}
           />
@@ -461,11 +586,13 @@ export default function CreateCollectionScreen() {
         <Pressable
           hitSlop={8}
           onPress={
-            step === 0
+            addItemsOnly
               ? () => router.back()
-              : step === 2 && arranging
-                ? () => setArranging(false)
-                : () => setStep(step - 1)
+              : step === 0
+                ? () => router.back()
+                : step === 2 && arranging
+                  ? () => setArranging(false)
+                  : () => setStep(step - 1)
           }
         >
           <Text style={styles.back}>←</Text>
@@ -474,7 +601,16 @@ export default function CreateCollectionScreen() {
         <Avatar name={viewer?.displayName ?? '?'} verified={viewer?.isAccountVerified} size={36} />
       </View>
 
-      <FlowStepper steps={COLLECTION_STEPS} current={step} />
+      {addItemsOnly ? (
+        <View style={styles.verifiedOnlyNote}>
+          <Text style={styles.rowTitle}>Verified inventory only</Text>
+          <Text style={styles.muted}>
+            Choose verified items to make them available to this collection and its Showroom.
+          </Text>
+        </View>
+      ) : (
+        <FlowStepper steps={COLLECTION_STEPS} current={step} />
+      )}
 
       {/* Cross-fades the step body on every step change, matching J1. The key
           includes `arranging` because step 2 has two distinct bodies and the
@@ -622,17 +758,18 @@ export default function CreateCollectionScreen() {
       {/* ── Step 2 — Select items (frame 3:44) ──────────────────────────── */}
       {step === 1 ? (
         <SelectItems
-          inventory={inventory}
-          selected={selected}
+          inventory={addableInventory}
+          selected={pickerSelected}
           query={query}
           onQuery={setQuery}
           filter={itemFilter}
           onFilter={setItemFilter}
           collectionName={name}
           onToggle={toggleItem}
-          onDeselectAll={() => setSelected([])}
+          onDeselectAll={() => setSelected(addItemsOnly ? [...originalItemIds] : [])}
           eligibility={eligibility}
           onKeepRoomEligible={keepRoomEligibleOnly}
+          verifiedOnly={isEditing}
         />
       ) : null}
 
@@ -892,7 +1029,17 @@ export default function CreateCollectionScreen() {
       </FadeInView>
 
       <View style={styles.footer}>
-        {step === 0 ? (
+        {step === 1 && addItemsOnly ? (
+          <PrimaryButton
+            label={
+              publishing
+                ? 'Saving…'
+                : `Add ${pickerSelected.length} verified item${pickerSelected.length === 1 ? '' : 's'}`
+            }
+            disabled={publishing || pickerSelected.length === 0}
+            onPress={() => void addSelectedItems()}
+          />
+        ) : step === 0 ? (
           <PrimaryButton label="Choose items" disabled={!canAdvance} onPress={() => setStep(1)} />
         ) : step === 1 ? (
           <PrimaryButton
@@ -976,6 +1123,7 @@ function SelectItems({
   onDeselectAll,
   eligibility,
   onKeepRoomEligible,
+  verifiedOnly,
 }: {
   inventory: readonly OwnedItemView[];
   selected: string[];
@@ -988,6 +1136,7 @@ function SelectItems({
   onDeselectAll: () => void;
   eligibility: RoomEligibility;
   onKeepRoomEligible: () => void;
+  verifiedOnly: boolean;
 }) {
   const matching = useMemo(
     () =>
@@ -1071,7 +1220,11 @@ function SelectItems({
           </Pressable>
         ) : null}
       </View>
-      <Text style={styles.footnote}>Items can belong to multiple collections (§11 F3).</Text>
+      <Text style={styles.footnote}>
+        {verifiedOnly
+          ? 'Only verified inventory items can be added while editing a Showroom collection.'
+          : 'Items can belong to multiple collections (§11 F3).'}
+      </Text>
 
       {/*
         §9.4 made visible while the user picks, rather than sprung on them at
@@ -1130,6 +1283,15 @@ function SelectItems({
           </View>
         </View>
       ))}
+
+      {matching.length === 0 ? (
+        <View style={styles.emptyPicker}>
+          <Text style={styles.rowTitle}>No verified items available</Text>
+          <Text style={styles.muted}>
+            Everything eligible is already in this collection, or does not match your search.
+          </Text>
+        </View>
+      ) : null}
 
       {selectedEntries.length > 0 ? (
         <View style={styles.tray}>
@@ -1278,7 +1440,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  coverArt: { width: '100%', height: 150, borderRadius: radius.card },
+  coverArt: { width: '100%', height: 240, borderRadius: radius.card },
   coverLink: { ...typography.meta, color: colors.accent },
   warn: { ...typography.meta, color: colors.warning },
   pencil: {
@@ -1397,7 +1559,7 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
   },
   selectCardActive: { borderColor: colors.accent },
-  selectArt: { width: '100%', height: 92 },
+  selectArt: { width: '100%', aspectRatio: 3 / 2 },
   check: {
     position: 'absolute',
     top: spacing.md,
@@ -1436,6 +1598,23 @@ const styles = StyleSheet.create({
   },
   roomNoteOk: { borderColor: colors.success },
   roomNoteOkText: { ...typography.cardTitle, color: colors.success },
+  verifiedOnlyNote: {
+    gap: spacing.xs,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.success,
+    backgroundColor: colors.surface,
+  },
+  emptyPicker: {
+    gap: spacing.xs,
+    alignItems: 'center',
+    padding: spacing.xl,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   gate: {
     gap: spacing.sm,
     backgroundColor: colors.surface,
@@ -1490,7 +1669,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     padding: spacing.sm,
   },
-  fitArt: { width: '100%', height: 84 },
+  fitArt: { width: '100%', aspectRatio: 3 / 2 },
   fitReason: { ...typography.meta, color: colors.textSecondary },
   skip: { alignSelf: 'center', paddingVertical: spacing.sm },
   skipText: { ...typography.meta, color: colors.accent },

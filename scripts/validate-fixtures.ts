@@ -17,12 +17,12 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { assertRoomValid } from '../src/domain/room';
+import { assertRoomValid, placeWithNearestDisplacement } from '../src/domain/room';
 import { assertScanConsistent, countScan } from '../src/domain/scan';
 import { RARITY_LABELS } from '../src/domain/rarity';
 import { CONTENT_REPORT_THRESHOLD } from '../src/domain/trust';
 import { THREADS, THREAD_REPLIES } from '../src/fixtures/threads';
-import type { Flag } from '../src/types';
+import type { Flag, Placement, Slot } from '../src/types';
 import { GAME_TITLES } from '../src/types';
 import { GAME_DIGESTS } from '../src/fixtures/digests';
 import { ALL_ITEMS, ALL_SETS, ITEMS_BY_ID } from '../src/fixtures/catalogue';
@@ -139,6 +139,43 @@ for (const room of ROOMS) {
     errors.push((error as Error).message);
   }
 }
+
+// An occupied drag target must keep both items and use the nearest vacancy.
+const dragSlots = [
+  { id: 'source', kind: 'wall', x: 0, y: 0, w: 0.1, h: 0.1, depth: 0 },
+  { id: 'target', kind: 'wall', x: 0.5, y: 0, w: 0.1, h: 0.1, depth: 0 },
+  { id: 'near', kind: 'wall', x: 0.62, y: 0, w: 0.1, h: 0.1, depth: 0 },
+  { id: 'far', kind: 'wall', x: 0.9, y: 0, w: 0.1, h: 0.1, depth: 0 },
+] satisfies readonly Slot[];
+const dragPlacements = [
+  { slotId: 'source', ownedItemId: 'dragged', rotation: 15 },
+  { slotId: 'target', ownedItemId: 'displaced', rotation: 30 },
+  { slotId: 'far', ownedItemId: 'stationary', rotation: 45 },
+] satisfies readonly Placement[];
+const dragResult = placeWithNearestDisplacement(
+  dragPlacements,
+  dragSlots,
+  'dragged',
+  'target',
+);
+check(
+  dragResult.some(
+    (placement) =>
+      placement.ownedItemId === 'dragged' &&
+      placement.slotId === 'target' &&
+      placement.rotation === 15,
+  ),
+  'Room drag: dragged item did not take the occupied target',
+);
+check(
+  dragResult.some(
+    (placement) =>
+      placement.ownedItemId === 'displaced' &&
+      placement.slotId === 'near' &&
+      placement.rotation === 30,
+  ),
+  'Room drag: displaced item did not move to the nearest empty slot',
+);
 
 for (const post of POSTS) {
   check(userIds.has(post.userId), `Post ${post.id}: unknown user`);

@@ -15,13 +15,22 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import {
   Avatar,
+  CollectionCoverMosaic,
   KeyboardSafe,
-  ItemArt,
   ItemCard,
   LoadingState,
   PrimaryButton,
@@ -55,6 +64,7 @@ import type { Collection, Comment, FlagReason, Item, OwnedItem, User } from '@/t
 export default function CollectionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { viewerId } = useApp();
 
@@ -196,17 +206,18 @@ export default function CollectionScreen() {
    * up a flag would be an auto-removal — which §9.2 says flags never do.
    */
   const roomBlocked = !roomStatus?.published && eligibility !== null && !eligibility.eligible;
+  const coverHeight = Math.min(360, (width - spacing.lg * 2) / 3);
 
   return (
     /* The comment composer sits at the bottom of this scroll view — without
        this the iOS keyboard covers the field the user just tapped. */
     <KeyboardSafe>
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
-      <ItemArt
-        seed={collection.id}
+      <CollectionCoverMosaic
+        itemIds={collection.itemIds}
         tier={items[0]?.rarityTier ?? 'epic'}
-        renderUrl={items[0]?.renderUrl}
-        style={styles.cover}
+        fallbackSeed={collection.id}
+        style={[styles.cover, { height: coverHeight }]}
       />
 
       <Text style={styles.title}>{collection.name}</Text>
@@ -238,7 +249,16 @@ export default function CollectionScreen() {
       */}
       <View style={styles.actionGrid}>
         <View style={styles.actionCell}>
-          <SecondaryButton label="✎ Edit collection" disabled />
+          <SecondaryButton
+            label="✎ Edit collection"
+            disabled={!isOwner}
+            onPress={() =>
+              router.push({
+                pathname: '/collection/new',
+                params: { collectionId: collection.id, mode: 'edit' },
+              })
+            }
+          />
         </View>
         <View style={styles.actionCell}>
           <PrimaryButton
@@ -255,20 +275,22 @@ export default function CollectionScreen() {
           <SecondaryButton label="⇪ Share" onPress={() => void shareCollection()} />
         </View>
         <View style={styles.actionCell}>
-          <SecondaryButton label="+ Add items" disabled />
+          <SecondaryButton
+            label="+ Add items"
+            disabled={!isOwner}
+            onPress={() =>
+              router.push({
+                pathname: '/collection/new',
+                params: { collectionId: collection.id, mode: 'add' },
+              })
+            }
+          />
         </View>
       </View>
 
-      {/*
-        §9.4 again — these two are disabled because the edit flow is not built,
-        not because of anything about this collection. A greyed button with no
-        reason is exactly the failure CLAUDE.md names, and "we ran out of days"
-        is a legitimate reason to print.
-      */}
-      <Text style={styles.footnote}>
-        Editing a published collection lands after the demo. Create a new collection to change what
-        is in one.
-      </Text>
+      {!isOwner ? (
+        <Text style={styles.footnote}>Only the collection owner can change its items.</Text>
+      ) : null}
 
       {/*
         §9.4 — a disabled button with no explanation is the failure CLAUDE.md
@@ -309,11 +331,13 @@ export default function CollectionScreen() {
           // reverse.
           const claim = claims.get(item.id);
           return (
-            <View key={item.id} style={styles.itemWrap}>
+            <View
+              key={item.id}
+              style={[styles.itemWrap, width < 600 && styles.itemWrapNarrow]}
+            >
               <ItemCard
                 item={item}
                 width="100%"
-                artHeight={82}
                 trustLevel={claim?.trustLevel}
               />
               {FEATURES.trustUi && claim ? (
@@ -447,7 +471,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.md },
 
-  cover: { height: 168 },
+  cover: { width: '100%' },
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   actionCell: { width: '47%' },
   pending: { ...typography.meta, color: colors.warning },
@@ -476,6 +500,7 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   itemWrap: { width: '30%' },
+  itemWrapNarrow: { width: '47%' },
   kebab: { position: 'absolute', top: 2, right: 2, paddingHorizontal: spacing.xs },
   kebabText: { color: colors.textPrimary, fontSize: 16 },
 

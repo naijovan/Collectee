@@ -146,7 +146,7 @@ export default function ProfileScreen() {
           different structure per user. An empty state that says what a room is
           does more work than a gap. */}
       <View>
-        <SectionHeader title="Showrooms" />
+        <SectionHeader title="Showrooms" prominent />
         {publishedRooms.length === 0 ? (
           <Pressable style={styles.roomEmpty} onPress={() => router.push('/room/new')}>
             <Text style={styles.devLabel}>No rooms yet</Text>
@@ -184,6 +184,7 @@ export default function ProfileScreen() {
       <View>
         <SectionHeader
           title="Collections"
+          prominent
           onSeeAll={() => router.navigate('/collections')}
         />
         {collections.length === 0 ? (
@@ -212,6 +213,7 @@ export default function ProfileScreen() {
       <View>
         <SectionHeader
           title="Inventory"
+          prominent
           actionLabel="View full inventory"
           onSeeAll={() => router.push('/inventory')}
         />
@@ -231,7 +233,7 @@ export default function ProfileScreen() {
       {busy ? <LoadingState height={120} /> : null}
 
       <View>
-        <SectionHeader title="Developer" />
+        <SectionHeader title="Developer" prominent />
         <Pressable style={styles.devRow} onPress={() => router.push('/diagnostics')}>
           <Text style={styles.devLabel}>Foundation checks</Text>
           <Text style={styles.muted}>Every service, called the way a screen calls it ›</Text>
@@ -358,7 +360,12 @@ const styles = StyleSheet.create({
 
   statHint: { ...typography.meta, color: colors.accent, textAlign: 'center', marginTop: 2 },
 
-  previewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  previewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+  },
   previewCell: { width: '22%' },
 
   collectionGrid: {

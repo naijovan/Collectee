@@ -71,13 +71,13 @@ export function ItemCard({
   item,
   trustLevel,
   width = 132,
-  artHeight = 100,
+  artHeight,
   onPress,
 }: {
   item: Item;
   trustLevel?: TrustLevel;
   width?: DimensionValue;
-  /** Art height. Fixed rather than derived, so a percentage width still works. */
+  /** Fixed height for compact strips. Grids default to the artwork's 3:2 frame. */
   artHeight?: number;
   onPress?: () => void;
 }) {
@@ -117,7 +117,7 @@ export function ItemCard({
           seed={item.id}
           tier={item.rarityTier}
           renderUrl={item.renderUrl}
-          style={{ height: artHeight }}
+          style={artHeight === undefined ? styles.itemArt : { height: artHeight }}
         />
         {/* Compact — the full native label ("Legendary", "Epic Skin", …) does
             not fit over 132px of art, and it is already printed below. */}
@@ -361,12 +361,13 @@ const styles = StyleSheet.create({
   /* Radius + overflow so an epic/legendary border clips the art corners rather
      than drawing a square frame around a rounded image. */
   itemCard: { borderRadius: radius.card, overflow: 'hidden' },
+  itemArt: { width: '100%', aspectRatio: 3 / 2 },
   rarityOverlay: { position: 'absolute', top: spacing.xs, right: spacing.xs },
 
   itemBody: {
-    gap: 2,
+    gap: spacing.xs,
     paddingHorizontal: spacing.sm,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     paddingBottom: spacing.md,
   },
   // Two lines' worth of height whether the name needs one or two, so a row of
@@ -414,7 +415,7 @@ const styles = StyleSheet.create({
   ownerOverlayName: { ...typography.meta, color: colors.textPrimary, maxWidth: 96 },
   /** Only the top third — a full-height scrim would grey out the artwork. */
   coverScrim: { position: 'absolute', top: 0, left: 0, right: 0, height: '38%' },
-  collectionBody: { padding: spacing.md, gap: spacing.xs },
+  collectionBody: { padding: spacing.md, gap: spacing.sm },
   ownerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   ownerName: { ...typography.meta, color: colors.textSecondary, flexShrink: 1 },
   // Bigger and heavier than cardTitle: on a browse grid the collection name is
@@ -436,10 +437,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
-    gap: spacing.xs,
+    gap: spacing.sm,
     alignItems: 'flex-start',
   },
-  collectorName: { ...typography.cardTitle, color: colors.textPrimary, marginTop: spacing.sm },
+  collectorName: { ...typography.cardTitle, color: colors.textPrimary },
   /* Family-baked weight, not `fontWeight` — Android would synthesise a fake
      bold over the loaded Inter cut and it reads muddy at 12px. */
   matchPercent: {
@@ -456,7 +457,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   articleTagRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   articleTag: {

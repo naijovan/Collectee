@@ -3,8 +3,8 @@
  *
  * The bar itself is `@/components/TabBar`, passed in whole rather than
  * configured tab-by-tab, because two things in it are not standard tab
- * behaviour: the raised blue `+` circle (which opens an action sheet instead of
- * navigating) and the onboarding gate on Collections and Profile.
+ * behaviour: the raised blue Import action and the onboarding gate on
+ * Collections and Profile.
  *
  * The gate reads `hasImported` from context inside TabBar. Do not add a
  * `redirect` here as a second implementation of the same rule (§13.4).

@@ -51,9 +51,11 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "validate:fixtures": "tsx scripts/validate-fixtures.ts",
+    "validate:weapons": "tsx scripts/validate-weapon-models.ts",
     "audit:art": "tsx scripts/audit-art.ts",
     "bake:depth": "tsx scripts/bake-depth.ts",
     "bake:mesh": "tsx scripts/bake-mesh.ts",
+    "prepare:weapons": "tsx scripts/prepare-verified-weapons.ts",
     "bake:weapons": "tsx scripts/bake-procedural-weapons.ts",
     "bake:palette": "tsx scripts/bake-palette.ts"
   },

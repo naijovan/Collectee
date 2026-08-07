@@ -63,9 +63,56 @@ export function autoPlace(
   }));
 }
 
-/** How many items a theme can display. Collections larger than this overflow. */
+/** Number of authored anchors before generation switches to a larger pedestal grid. */
 export function roomCapacity(theme: RoomTheme): number {
   return theme.slots.length;
+}
+
+/**
+ * Resolve the anchors used by a newly generated room.
+ *
+ * A theme's authored slots remain the preferred composition while the
+ * selection fits. Larger selections switch to a deterministic, staggered
+ * pedestal gallery rather than dropping items as overflow. The rows run from
+ * back to front so both the 2.5D editor and the 3D renderer keep meaningful
+ * depth ordering.
+ */
+export function slotsForItemCount(theme: RoomTheme, itemCount: number): Slot[] {
+  const count = Math.max(0, Math.floor(itemCount));
+  if (count <= theme.slots.length) return [...theme.slots];
+
+  const rows = Math.min(3, Math.max(1, Math.ceil(count / 5)));
+  const rowTops = rows === 1 ? [0.38] : rows === 2 ? [0.22, 0.55] : [0.12, 0.36, 0.6];
+  const rowHeights = rows === 1 ? [0.28] : rows === 2 ? [0.22, 0.22] : [0.18, 0.18, 0.18];
+  const depths: Slot['depth'][] = rows === 1 ? [2] : rows === 2 ? [0, 2] : [0, 1, 2];
+  const prefix = theme.id.replace(/^theme-/, '');
+  const generated: Slot[] = [];
+  let remaining = count;
+  let itemIndex = 0;
+
+  for (let row = 0; row < rows; row += 1) {
+    const inRow = Math.ceil(remaining / (rows - row));
+    const gap = inRow <= 5 ? 0.035 : 0.018;
+    const slotWidth = Math.min(0.17, (0.9 - gap * (inRow - 1)) / inRow);
+    const rowWidth = inRow * slotWidth + (inRow - 1) * gap;
+    const startX = (1 - rowWidth) / 2;
+
+    for (let column = 0; column < inRow; column += 1) {
+      generated.push({
+        id: `${prefix}-generated-pedestal-${itemIndex + 1}`,
+        kind: 'pedestal',
+        x: startX + column * (slotWidth + gap),
+        y: rowTops[row]!,
+        w: slotWidth,
+        h: rowHeights[row]!,
+        depth: depths[row]!,
+      });
+      itemIndex += 1;
+    }
+    remaining -= inRow;
+  }
+
+  return generated;
 }
 
 /** Items that did not fit — surfaced so the user can choose what to swap in. */
@@ -87,6 +134,73 @@ export function movePlacement(
   const existing = placements.find((p) => p.ownedItemId === ownedItemId);
   next.push({ slotId: toSlotId, ownedItemId, rotation: existing?.rotation ?? 0 });
   return next;
+}
+
+/**
+ * Place an item in a slot without stacking or silently evicting another item.
+ *
+ * When the target is occupied, the dragged item takes that position and the
+ * displaced item moves to the closest empty slot. The source slot becomes a
+ * valid empty candidate after a drag, but a nearer existing gap wins.
+ */
+export function placeWithNearestDisplacement(
+  placements: readonly Placement[],
+  slots: readonly Slot[],
+  ownedItemId: string,
+  toSlotId: string,
+): Placement[] {
+  const source = placements.find((placement) => placement.ownedItemId === ownedItemId);
+  const target = placements.find((placement) => placement.slotId === toSlotId);
+  if (source?.slotId === toSlotId) return [...placements];
+
+  const targetSlot = slots.find((slot) => slot.id === toSlotId);
+  if (!targetSlot) return [...placements];
+
+  if (!target) return movePlacement(placements, ownedItemId, toSlotId);
+
+  const occupiedAfterPickup = new Set(
+    placements
+      .filter(
+        (placement) =>
+          placement.ownedItemId !== ownedItemId && placement.slotId !== target.slotId,
+      )
+      .map((placement) => placement.slotId),
+  );
+  const nearestEmpty = slots
+    .filter((slot) => slot.id !== toSlotId && !occupiedAfterPickup.has(slot.id))
+    .sort(
+      (a, b) =>
+        slotDistanceSquared(a, targetSlot) - slotDistanceSquared(b, targetSlot) ||
+        a.id.localeCompare(b.id),
+    )[0];
+
+  // A full room cannot accept a new tray item because there is nowhere to
+  // relocate the displaced item. A drag from inside the room always has its
+  // newly-vacated source slot available.
+  if (!nearestEmpty) return [...placements];
+
+  const next = placements.filter(
+    (placement) =>
+      placement.ownedItemId !== ownedItemId && placement.ownedItemId !== target.ownedItemId,
+  );
+  next.push({
+    ...target,
+    slotId: nearestEmpty.id,
+  });
+  next.push({
+    slotId: toSlotId,
+    ownedItemId,
+    rotation: source?.rotation ?? 0,
+  });
+  return next;
+}
+
+function slotDistanceSquared(a: Slot, b: Slot): number {
+  const ax = a.x + a.w / 2;
+  const ay = a.y + a.h / 2;
+  const bx = b.x + b.w / 2;
+  const by = b.y + b.h / 2;
+  return (ax - bx) ** 2 + (ay - by) ** 2;
 }
 
 /** Swap two occupied slots — the common manual-adjust gesture. */

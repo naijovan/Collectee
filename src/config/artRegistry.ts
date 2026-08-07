@@ -37,10 +37,9 @@ import type { GameTitle } from '@/types';
 /**
  * A render plus how it should sit in its box.
  *
- * `fit` is per-asset because the packs ship two shapes: 3:2 character portraits
- * that should fill the frame, and 1:1 objects on empty backgrounds that must
- * not be cropped. One rule for both either letterboxes every portrait or slices
- * the ends off every blade.
+ * Collectible artwork uses a safe fit. Cards range from compact strips to wide
+ * desktop grids, so cropping at this layer can remove a face, barrel or blade.
+ * Decorative room backdrops still use `cover` in their own component.
  */
 export interface ArtEntry {
   source: ImageSourcePropType;
@@ -51,7 +50,7 @@ export interface ArtEntry {
 
 const portrait = (source: ImageSourcePropType, alt: string): ArtEntry => ({
   source,
-  fit: 'cover',
+  fit: 'contain',
   alt,
 });
 
@@ -62,10 +61,10 @@ const object = (source: ImageSourcePropType, alt: string): ArtEntry => ({
   alt,
 });
 
-/** Full-bleed key art: the environment is part of the collectible artwork. */
+/** Scene-backed item art still preserves the complete collectible. */
 const scene = (source: ImageSourcePropType, alt: string): ArtEntry => ({
   source,
-  fit: 'cover',
+  fit: 'contain',
   alt,
 });
 

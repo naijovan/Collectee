@@ -3,7 +3,7 @@
  *
  *   1. Header — greeting + display name, bell with unread dot, avatar
  *   2. Filter chips — All / Collections / Collectors / Rooms
- *   3. Hero banner — sparkle eyebrow, headline, Explore button, game logos
+ *   3. Hero banner — artwork, sparkle eyebrow, headline, Explore button
  *   4. Gaming updates rail          (behind FEATURES.news — §14 rung 1)
  *   5. Explore collectibles — 2×2 grid
  *   6. Your Inventory — compact item rail, See all → Profile
@@ -62,8 +62,7 @@ import {
 import type { CollectorRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useAssistantDock } from '@/state/AssistantDock';
-import { colors, radius, spacing, typography } from '@/theme/theme';
-import { GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
+import { colors, interaction, radius, spacing, typography } from '@/theme/theme';
 import type { Article, Collection, Item, Room, User } from '@/types';
 
 const FILTERS = ['All', 'Collections', 'Collectors', 'Rooms'] as const;
@@ -273,6 +272,7 @@ export default function HomeScreen() {
               key={itemId}
               seed={itemId}
               tier={inventory.find((entry) => entry.item.id === itemId)?.item.rarityTier ?? 'mythic'}
+              fit="cover"
               style={styles.heroTile}
             />
           ))}
@@ -284,19 +284,16 @@ export default function HomeScreen() {
         <View style={styles.heroCta}>
           <PrimaryButton label="Explore" onPress={() => router.navigate('/explore')} />
         </View>
-        <View style={styles.logoRow}>
-          {GAME_TITLES.map((title) => (
-            <View key={title} style={styles.logo}>
-              <Text style={styles.logoText}>{GAME_SHORT_LABELS[title]}</Text>
-            </View>
-          ))}
-        </View>
       </View>
 
       {/* 4 — Gaming updates (§14 rung 1: flip FEATURES.news and this disappears) */}
       {FEATURES.news && filter === 'All' ? (
         <View>
-          <SectionHeader title="Gaming updates" onSeeAll={() => router.push('/news')} />
+          <SectionHeader
+            title="Gaming updates"
+            prominent
+            onSeeAll={() => router.push('/news')}
+          />
           {busy ? (
             <LoadingState height={132} />
           ) : (
@@ -325,6 +322,7 @@ export default function HomeScreen() {
         <View>
           <SectionHeader
             title="Explore collectibles"
+            prominent
             onSeeAll={() => router.navigate('/explore')}
           />
           {busy ? (
@@ -356,7 +354,11 @@ export default function HomeScreen() {
               viewer's own inventory, and Profile is where the full inventory
               lives. Collections is curated groupings, which is a different
               question from "everything I own". */}
-          <SectionHeader title="Your Inventory" onSeeAll={() => router.navigate('/profile')} />
+          <SectionHeader
+            title="Your Inventory"
+            prominent
+            onSeeAll={() => router.navigate('/profile')}
+          />
           {inventory.length === 0 ? (
             <EmptyState
               title="No items yet"
@@ -382,7 +384,11 @@ export default function HomeScreen() {
       {/* 7 — Collectors you may like */}
       {show('Collectors') ? (
         <View>
-          <SectionHeader title="Collectors you may like" onSeeAll={() => router.navigate('/explore')} />
+          <SectionHeader
+            title="Collectors you may like"
+            prominent
+            onSeeAll={() => router.navigate('/explore')}
+          />
           {busy ? (
             <LoadingState height={150} />
           ) : (
@@ -410,7 +416,7 @@ export default function HomeScreen() {
       {/* Rooms — the chip the Figma implies but never fills */}
       {show('Rooms') ? (
         <View>
-          <SectionHeader title="Published rooms" />
+          <SectionHeader title="Published rooms" prominent />
           {busy ? (
             <LoadingState height={150} />
           ) : (
@@ -507,22 +513,19 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.sm,
   },
-  heroArt: { flexDirection: 'row', gap: 2, marginBottom: spacing.sm },
-  heroTile: { flex: 1, height: 72 },
+  heroArt: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm },
+  heroTile: { flex: 1, height: 112 },
   eyebrow: { ...typography.meta, color: colors.accent, letterSpacing: 0.5 },
   heroHeadline: { ...typography.sectionHeader, color: colors.textPrimary, fontSize: 20 },
   heroCta: { alignSelf: 'flex-start', marginTop: spacing.sm },
-  logoRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
-  logo: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-  },
-  logoText: { ...typography.meta, fontSize: 10, color: colors.textTertiary },
 
-  rail: { gap: spacing.md, paddingRight: spacing.lg },
+  /* Horizontal FlatLists clip on their cross-axis. The shared hover rises 3px,
+     so this inset keeps the highlighted top border inside the list viewport. */
+  rail: {
+    gap: spacing.md,
+    paddingRight: spacing.lg,
+    paddingVertical: Math.abs(interaction.hoverLift) + 1,
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
   /** Was the card's own `width="48%"`; moved out when FadeInView wrapped it. */
   gridCell: { width: '48%' },

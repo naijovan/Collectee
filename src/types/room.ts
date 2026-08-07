@@ -12,12 +12,12 @@
 import type { DisplayStyle, IsoDateString, LightingPreset, Visibility } from './common';
 
 /**
- * A fixed placement location in a themed room.
+ * A placement location in a themed room.
  *
  * Coordinates are FRACTIONAL (0–1), not pixel, so one slot map works at any
- * backdrop resolution and on any device. Each theme ships a fixed slot map;
- * generation only ever produces the backdrop image, never the geometry.
- * This is what "template-conditioned" in §11 F4 means concretely.
+ * backdrop resolution and on any device. Each theme ships a base slot map;
+ * larger selections can expand it into a deterministic pedestal grid while
+ * retaining the same bundled backdrop.
  */
 export interface Slot {
   id: string;
@@ -54,7 +54,7 @@ export interface RoomTheme {
   stylePrompt: string;
   /** Bundled backdrop for the demo — generation is mocked (§12.1). */
   backdropUrl: string;
-  /** Fixed slot map. Generation never produces geometry. */
+  /** Authored base anchors. Large item selections can expand them at room creation. */
   slots: Slot[];
   /** Dominant palette, used to key the backdrop cache. */
   palette: string[];

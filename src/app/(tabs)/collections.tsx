@@ -189,6 +189,7 @@ export default function CollectionsScreen() {
 
       <SectionHeader
         title="Your Collections"
+        prominent
         actionLabel="Add Collection"
         actionIcon="+"
         onSeeAll={() => router.push('/collection/new')}
@@ -237,6 +238,7 @@ export default function CollectionsScreen() {
       <View>
         <SectionHeader
           title="Your Showrooms"
+          prominent
           actionLabel="Add Showroom"
           actionIcon="+"
           onSeeAll={() => router.push('/room/new')}
@@ -275,7 +277,7 @@ export default function CollectionsScreen() {
       {/* ── Suggestions ─────────────────────────────────────────────── */}
       {ideas.length > 0 ? (
         <View>
-          <SectionHeader title="Suggestions" />
+          <SectionHeader title="Suggestions" prominent />
           <Text style={styles.muted}>
             Groupings we found in your inventory. Verified ones can become an interactive
             Showroom in one step; the rest become a 2D collection.

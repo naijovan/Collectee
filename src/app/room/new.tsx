@@ -108,9 +108,15 @@ export default function CreateRoomScreen() {
    */
   const {
     collectionId: param,
+    roomId: editRoomId,
     name: suggestedName,
     itemIds: suggestedItemIds,
-  } = useLocalSearchParams<{ collectionId?: string; name?: string; itemIds?: string }>();
+  } = useLocalSearchParams<{
+    collectionId?: string;
+    roomId?: string;
+    name?: string;
+    itemIds?: string;
+  }>();
 
   /**
    * Draft item ids — from the URL when a suggestion was accepted, or from the
@@ -148,7 +154,7 @@ export default function CreateRoomScreen() {
    * Style. A draft — from a suggestion or the inventory picker — has items but
    * no chosen theme yet, and picking the look is the point of that step.
    */
-  const [step, setStep] = useState(param ? 1 : 0);
+  const [step, setStep] = useState(editRoomId ? 2 : param ? 1 : 0);
   /** Every step opens at the top — the flow is one route, so nothing remounts. */
   const scrollRef = useTopOnFocus(step);
   const [collectionId, setCollectionId] = useState<string | null>(param ?? null);
@@ -185,6 +191,7 @@ export default function CreateRoomScreen() {
   const [published, setPublished] = useState<Room | null>(null);
   const [invites, setInvites] = useState<CollectorRecommendation[]>([]);
   const [busy, setBusy] = useState(true);
+  const [existingRoomError, setExistingRoomError] = useState<string | null>(null);
   const previewTheme = themes.find((theme) => theme.id === previewThemeId) ?? null;
 
   // ── Load ────────────────────────────────────────────────────────────
@@ -218,6 +225,70 @@ export default function CreateRoomScreen() {
       cancelled = true;
     };
   }, [viewerId]);
+
+  useEffect(() => {
+    if (!editRoomId) return;
+    let cancelled = false;
+
+    async function loadExistingRoom() {
+      setBusy(true);
+      setExistingRoomError(null);
+      const existing = await roomService.getRoom(editRoomId!);
+      const found = existing
+        ? await collectionService.getCollection(existing.collectionId)
+        : null;
+      if (!existing || !found || found.userId !== viewerId) {
+        if (!cancelled) {
+          setExistingRoomError('This Showroom cannot be edited.');
+          setBusy(false);
+        }
+        return;
+      }
+
+      const all = await inventoryService.getOwnedItems(viewerId);
+      const everythingInCollection = all.filter((entry) =>
+        found.itemIds.includes(entry.itemId),
+      );
+      const gateResult = roomEligibility(everythingInCollection, (id) =>
+        socialService.isUnderReview(id),
+      );
+      const placeable = new Set(gateResult.eligibleOwnedItemIds);
+      const available = everythingInCollection.filter((entry) => placeable.has(entry.id));
+      const catalogue = await catalogueService.getItems(available.map((entry) => entry.itemId));
+      const byItemId = new Map(catalogue.map((item) => [item.id, item]));
+      const pick = await roomService.recommendTheme(available);
+
+      if (cancelled) return;
+      setCollectionId(existing.collectionId);
+      setCollection(found);
+      setOwned(available);
+      setGate(gateResult);
+      setItemsByOwnedId(
+        new Map(
+          available
+            .map((entry) => [entry.id, byItemId.get(entry.itemId)] as const)
+            .filter((pair): pair is readonly [string, Item] => pair[1] !== undefined),
+        ),
+      );
+      setRecommended(pick);
+      setThemeId(existing.themeId);
+      setRoom(existing);
+      setOverflow(roomService.overflow(existing, available.map((entry) => entry.id)));
+      setTitle(existing.title);
+      setDescription(existing.description);
+      setVisibility(existing.visibility);
+      setAllowComments(existing.allowComments);
+      setShowOnProfile(existing.showOnProfile);
+      setReady(true);
+      setStep(2);
+      setBusy(false);
+    }
+
+    void loadExistingRoom();
+    return () => {
+      cancelled = true;
+    };
+  }, [editRoomId, viewerId]);
 
   /**
    * Draft path — a suggestion, not yet a collection. Same downstream shape as
@@ -262,7 +333,7 @@ export default function CreateRoomScreen() {
 
   // Everything downstream keys off the chosen collection, so this is one effect.
   useEffect(() => {
-    if (!collectionId) return;
+    if (!collectionId || editRoomId) return;
     let cancelled = false;
 
     async function load() {
@@ -304,7 +375,7 @@ export default function CreateRoomScreen() {
     return () => {
       cancelled = true;
     };
-  }, [collectionId, viewerId]);
+  }, [collectionId, editRoomId, viewerId]);
 
   // ── Generate ────────────────────────────────────────────────────────
   /**
@@ -387,14 +458,7 @@ export default function CreateRoomScreen() {
   }, [step, room, themeId, owned.length, gate, generate]);
 
   // ── Edit ────────────────────────────────────────────────────────────
-  /**
-   * One tap-place model across both surfaces: hold an item (from the tray or by
-   * tapping a placed one), then tap where it goes. An occupied target swaps.
-   *
-   * The frames call for drag-and-drop; that is the next pass. Tap-place covers
-   * the same acceptance criterion — every AI placement is overridable — and it
-   * is the accessible fallback a drag surface needs anyway.
-   */
+  /** Tap-to-place remains the accessible fallback for direct dragging. */
   async function onSlotPress(slot: Slot) {
     if (!room) return;
 
@@ -416,9 +480,7 @@ export default function CreateRoomScreen() {
     const placement = roomService.placementFor(room, slot.id);
 
     if (heldOwnedItemId) {
-      const updated = placement
-        ? await roomService.swapSlots(room.id, selectedSlotId ?? slot.id, slot.id)
-        : await roomService.moveItem(room.id, heldOwnedItemId, slot.id);
+      const updated = await roomService.placeItem(room.id, heldOwnedItemId, slot.id);
       setRoom(updated ?? room);
       setHeldOwnedItemId(null);
       setSelectedSlotId(slot.id);
@@ -431,18 +493,12 @@ export default function CreateRoomScreen() {
     }
   }
 
-  /**
-   * Drag ended over another slot. Occupied target swaps, empty target moves —
-   * the same rule as tap-to-place, so the two input methods cannot disagree.
-   */
+  /** Direct drag and tap-to-place share the same collision behavior. */
   async function onDropItem(fromSlotId: string, toSlotId: string) {
     if (!room) return;
     const held = roomService.placementFor(room, fromSlotId);
     if (!held) return;
-    const target = roomService.placementFor(room, toSlotId);
-    const updated = target
-      ? await roomService.swapSlots(room.id, fromSlotId, toSlotId)
-      : await roomService.moveItem(room.id, held.ownedItemId, toSlotId);
+    const updated = await roomService.placeItem(room.id, held.ownedItemId, toSlotId);
     setRoom(updated ?? room);
     setSelectedSlotId(toSlotId);
     setHeldOwnedItemId(null);
@@ -472,6 +528,23 @@ export default function CreateRoomScreen() {
   /* The native header is off for this route — it sat on top of StepperHeader's
      own back chevron. Every branch here owns its top inset instead. */
   const topPad = [styles.content, { paddingTop: insets.top + spacing.md }];
+
+  if (existingRoomError) {
+    return (
+      <View style={[styles.screen, styles.content]}>
+        <Text style={styles.title}>{existingRoomError}</Text>
+        <SecondaryButton label="Go back" onPress={() => router.back()} />
+      </View>
+    );
+  }
+
+  if (editRoomId && (!room || !collectionId)) {
+    return (
+      <View style={[styles.screen, styles.content]}>
+        <LoadingState height={220} />
+      </View>
+    );
+  }
 
   // ── Published (outside the numbered bar) ────────────────────────────
   if (published) {
@@ -639,13 +712,9 @@ export default function CreateRoomScreen() {
                        button permanently disabled. The card takes the handler
                        directly and the wrapper is an inert View. */
                     <View key={item.id} style={[styles.pickCell, on && styles.pickCellOn]}>
-                      {/* Taller than the 100 default: character renders are
-                          `cover`-fitted portraits, and in a short box the crop
-                          takes the head off. A tall cell shows the subject. */}
                       <ItemCard
                         item={item}
                         width="100%"
-                        artHeight={172}
                         onPress={() =>
                           setPicked((prev) =>
                             prev.includes(item.id)
@@ -691,7 +760,13 @@ export default function CreateRoomScreen() {
       <StepperHeader
         steps={ROOM_STEPS}
         current={step}
-        onBack={step === 0 ? () => router.back() : () => setStep(step - 1)}
+        onBack={
+          editRoomId
+            ? () => router.back()
+            : step === 0
+              ? () => router.back()
+              : () => setStep(step - 1)
+        }
       />
 
       <Collectible3DViewer item={threeDItem} onClose={() => setThreeDItem(null)} />
@@ -812,7 +887,10 @@ export default function CreateRoomScreen() {
                       <Text style={styles.themeMuted}>
                         {isBest && recommended ? recommended.reason : theme.description}
                       </Text>
-                      <Text style={styles.themeFootnote}>{theme.slots.length} placement slots</Text>
+                      <Text style={styles.themeFootnote}>
+                        {owned.length} {owned.length === 1 ? 'pedestal' : 'pedestals'} generated
+                        for your items
+                      </Text>
                     </View>
                     {selected ? (
                       <View style={styles.selectedMark}>
@@ -946,8 +1024,8 @@ export default function CreateRoomScreen() {
 
               {overflow.length > 0 ? (
                 <Text style={styles.warn}>
-                  {overflow.length} items did not fit this style&apos;s slots. Swap them in from the
-                  Items tab, or pick a style with more slots.
+                  {overflow.length} items are not currently placed. Use the Items tab to swap them
+                  into the room.
                 </Text>
               ) : null}
 
@@ -1005,8 +1083,8 @@ export default function CreateRoomScreen() {
             <View style={styles.block}>
               <Text style={styles.muted}>
                 {heldOwnedItemId
-                  ? 'Now tap a slot to place it. Tapping an occupied slot swaps.'
-                  : 'Tap an item to pick it up, then tap a display slot.'}
+                  ? 'Choose a display slot.'
+                  : `${room.placements.length} items placed`}
               </Text>
               <View style={styles.tray}>
                 {owned.map((entry) => {
@@ -1134,60 +1212,70 @@ export default function CreateRoomScreen() {
           {editTab === 'Background' ? (
             <View style={styles.block}>
               <Text style={styles.warn}>
-                Changing style rebuilds the room: geometry comes from the style, so placements are
-                re-arranged from scratch.
+                {editRoomId
+                  ? 'The room style stays fixed while editing a published Showroom, so your existing placements remain intact.'
+                  : 'Changing style rebuilds the room: geometry comes from the style, so placements are re-arranged from scratch.'}
               </Text>
               {/* Show the room, not its name. Choosing a backdrop from a list of
                   titles asks the user to remember what "Cyber Shrine" looks
                   like — and the whole point of the step is the look. */}
-              <View style={styles.bgGrid}>
-                {themes.map((theme) => {
-                  const art = themeBackdrop(theme);
-                  const active = room.themeId === theme.id;
-                  return (
-                    <Pressable
-                      key={theme.id}
-                      onPress={() => {
-                        setThemeId(theme.id);
-                        // Passed explicitly — see `generate`. Relying on the
-                        // state update here is what made this button do nothing.
-                        generating.current = false;
-                        // Drop the room this replaces, or every backdrop tried
-                        // leaves an orphan draft behind.
-                        if (room) void roomService.discardDraft(room.id);
-                        void generate(theme.id);
-                      }}
-                      style={[styles.bgCell, active && styles.bgCellActive]}
-                    >
-                      <View style={styles.bgArtWrap}>
-                        {art ? (
-                          <Image source={art} style={StyleSheet.absoluteFill} contentFit="cover" />
-                        ) : (
-                          <View style={[StyleSheet.absoluteFill, styles.bgFallback]} />
-                        )}
-                        {/* Palette strip: two themes can share a room shape and
-                            differ entirely in colour, which the crop may not show. */}
-                        <View style={styles.bgSwatches}>
-                          {theme.palette.map((tone) => (
-                            <View key={tone} style={[styles.bgSwatch, { backgroundColor: tone }]} />
-                          ))}
-                        </View>
-                        {active ? (
-                          <View style={styles.bgTick}>
-                            <Text style={styles.bgTickText}>✓</Text>
+              {!editRoomId ? (
+                <View style={styles.bgGrid}>
+                  {themes.map((theme) => {
+                    const art = themeBackdrop(theme);
+                    const active = room.themeId === theme.id;
+                    return (
+                      <Pressable
+                        key={theme.id}
+                        onPress={() => {
+                          setThemeId(theme.id);
+                          // Passed explicitly — see `generate`. Relying on the
+                          // state update here is what made this button do nothing.
+                          generating.current = false;
+                          // Drop the room this replaces, or every backdrop tried
+                          // leaves an orphan draft behind.
+                          if (room) void roomService.discardDraft(room.id);
+                          void generate(theme.id);
+                        }}
+                        style={[styles.bgCell, active && styles.bgCellActive]}
+                      >
+                        <View style={styles.bgArtWrap}>
+                          {art ? (
+                            <Image
+                              source={art}
+                              style={StyleSheet.absoluteFill}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <View style={[StyleSheet.absoluteFill, styles.bgFallback]} />
+                          )}
+                          {/* Palette strip: two themes can share a room shape and
+                              differ entirely in colour, which the crop may not show. */}
+                          <View style={styles.bgSwatches}>
+                            {theme.palette.map((tone) => (
+                              <View
+                                key={tone}
+                                style={[styles.bgSwatch, { backgroundColor: tone }]}
+                              />
+                            ))}
                           </View>
-                        ) : null}
-                      </View>
-                      <Text style={styles.rowTitle} numberOfLines={1}>
-                        {theme.name}
-                      </Text>
-                      <Text style={styles.muted} numberOfLines={2}>
-                        {theme.description}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+                          {active ? (
+                            <View style={styles.bgTick}>
+                              <Text style={styles.bgTickText}>✓</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={styles.rowTitle} numberOfLines={1}>
+                          {theme.name}
+                        </Text>
+                        <Text style={styles.muted} numberOfLines={2}>
+                          {theme.description}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -1297,7 +1385,10 @@ export default function CreateRoomScreen() {
           <Toggle label="Show on profile" value={showOnProfile} onChange={setShowOnProfile} />
           <Toggle label="Share to Home feed" value={shareToFeed} onChange={setShareToFeed} />
 
-          <PrimaryButton label="Publish room" onPress={() => void publish()} />
+          <PrimaryButton
+            label={editRoomId ? 'Save Showroom' : 'Publish room'}
+            onPress={() => void publish()}
+          />
         </View>
       ) : null}
 

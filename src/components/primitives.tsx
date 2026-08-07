@@ -62,12 +62,15 @@ export function ItemArt({
   seed,
   tier,
   renderUrl,
+  fit,
   style,
 }: {
   seed: string;
   tier: RarityTier;
   /** `Item.renderUrl`. Omit for non-item art such as collection covers. */
   renderUrl?: string;
+  /** Override the registry fit for decorative placements such as mosaics. */
+  fit?: 'cover' | 'contain';
   style?: StyleProp<ViewStyle>;
 }) {
   const art = artFor(seed);
@@ -77,15 +80,15 @@ export function ItemArt({
     // does the clipping. Styling the Image directly does not typecheck —
     // callers pass ViewStyle, and ImageStyle has no `overflow: 'scroll'`.
     //
-    // Objects get inset rather than bleeding to the edge: they are rendered on
-    // empty space, so a little breathing room reads as a display case instead
-    // of a cropped photo.
+    // The registry owns the fit. The image always receives the full box so
+    // `contain` can preserve the complete subject without an extra inset making
+    // weapons needlessly small.
     return (
       <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
         <Image
           source={art.source}
-          style={art.fit === 'contain' ? styles.artInset : styles.artFill}
-          resizeMode={art.fit}
+          style={styles.artFill}
+          resizeMode={fit ?? art.fit}
           accessible
           accessibilityLabel={art.alt}
           accessibilityIgnoresInvertColors
@@ -101,7 +104,7 @@ export function ItemArt({
         <Image
           source={bundled}
           style={styles.artFill}
-          resizeMode="cover"
+          resizeMode={fit ?? 'contain'}
           accessibilityIgnoresInvertColors
         />
       </View>
@@ -262,6 +265,7 @@ export function SectionHeader({
   onSeeAll,
   actionLabel = 'See all',
   actionIcon,
+  prominent = false,
 }: {
   title: string;
   onSeeAll?: () => void;
@@ -277,11 +281,15 @@ export function SectionHeader({
    * separates "make a new one" from a navigation link at a glance.
    */
   actionIcon?: string;
+  /** Larger display treatment for top-level sections on the main tab screens. */
+  prominent?: boolean;
 }) {
   const hover = useHoverLift();
   return (
     <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={[styles.sectionTitle, prominent && styles.sectionTitleProminent]}>
+        {title}
+      </Text>
       {onSeeAll ? (
         <Pressable
           onPress={onSeeAll}
@@ -553,8 +561,6 @@ const styles = StyleSheet.create({
    * see its top-left corner at 8x zoom instead of the picture.
    */
   artFill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
-  /** Small inset for `contain` renders; the PNGs already carry ~10% margin. */
-  artInset: { position: 'absolute', top: '4%', left: '4%', width: '92%', height: '92%' },
   artStripe: { position: 'absolute', width: '160%', height: 26, left: '-30%', top: '42%' },
   artGlow: {
     position: 'absolute',
@@ -641,9 +647,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
   },
   sectionTitle: { ...typography.sectionHeader, color: colors.textPrimary },
+  sectionTitleProminent: { fontSize: 22, lineHeight: 28, letterSpacing: 0 },
   seeAll: { ...typography.meta, color: colors.accent },
 
   chipRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },

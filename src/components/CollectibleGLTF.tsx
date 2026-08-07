@@ -47,6 +47,7 @@ export function CollectibleGLTF({
   texture: textureModule,
   accent,
   size = 2.4,
+  bottomY,
 }: {
   /** The value from `modelFor(item.id)` — a Metro module id. */
   module: number;
@@ -60,6 +61,8 @@ export function CollectibleGLTF({
   accent: string;
   /** Longest axis after normalisation, in world units. */
   size?: number;
+  /** Optional room-local surface to seat the model on. Omitted in the viewer. */
+  bottomY?: number;
 }) {
   const uri = useMemo(() => sourceUri(module), [module]);
   const gltf = useLoader(GLTFLoader, uri);
@@ -72,13 +75,20 @@ export function CollectibleGLTF({
   const scene = useMemo(() => cloneScene(gltf.scene), [gltf]);
 
   return textureModule == null ? (
-    <PreparedCollectible scene={scene} skin={null} accent={accent} size={size} />
+    <PreparedCollectible
+      scene={scene}
+      skin={null}
+      accent={accent}
+      size={size}
+      bottomY={bottomY}
+    />
   ) : (
     <ProjectedCollectible
       scene={scene}
       textureModule={textureModule}
       accent={accent}
       size={size}
+      bottomY={bottomY}
     />
   );
 }
@@ -88,14 +98,24 @@ function ProjectedCollectible({
   textureModule,
   accent,
   size,
+  bottomY,
 }: {
   scene: Object3D;
   textureModule: number;
   accent: string;
   size: number;
+  bottomY?: number;
 }) {
   const skin = useLoader(TextureLoader, textureModule as unknown as string);
-  return <PreparedCollectible scene={scene} skin={skin} accent={accent} size={size} />;
+  return (
+    <PreparedCollectible
+      scene={scene}
+      skin={skin}
+      accent={accent}
+      size={size}
+      bottomY={bottomY}
+    />
+  );
 }
 
 function PreparedCollectible({
@@ -103,30 +123,42 @@ function PreparedCollectible({
   skin,
   accent,
   size,
+  bottomY,
 }: {
   scene: Object3D;
   skin: Texture | null;
   accent: string;
   size: number;
+  bottomY?: number;
 }) {
   const holder = useRef<Group>(null);
+  // Capture source-space metrics once, before the scene is normalised. Reusing
+  // these prevents a responsive resize from measuring an already-scaled scene
+  // and applying the scale a second time.
+  const metrics = useMemo(() => {
+    const bounds = new Box3().setFromObject(scene);
+    const span = bounds.getSize(new Vector3());
+    return {
+      centre: bounds.getCenter(new Vector3()),
+      longest: Math.max(span.x, span.y, span.z),
+      minY: bounds.min.y,
+    };
+  }, [scene]);
 
   useLayoutEffect(() => {
     const group = holder.current;
     if (!group) return;
 
-    const bounds = new Box3().setFromObject(scene);
-    const span = bounds.getSize(new Vector3());
-    const longest = Math.max(span.x, span.y, span.z);
-    if (longest === 0) return;
+    if (metrics.longest === 0) return;
 
-    const scale = size / longest;
+    const scale = size / metrics.longest;
     scene.scale.setScalar(scale);
 
     // Recentre after scaling, not before — the box is measured in the mesh's
     // own units and the offset has to be applied in the scaled frame.
-    const centre = bounds.getCenter(new Vector3()).multiplyScalar(scale);
-    scene.position.set(-centre.x, -centre.y, -centre.z);
+    const centre = metrics.centre.clone().multiplyScalar(scale);
+    const alignedY = bottomY === undefined ? -centre.y : bottomY - metrics.minY * scale;
+    scene.position.set(-centre.x, alignedY, -centre.z);
 
     let hasProjectedMaterial = false;
     scene.traverse((child) => {
@@ -168,7 +200,7 @@ function PreparedCollectible({
         material.needsUpdate = true;
       }
     });
-  }, [scene, size, skin]);
+  }, [scene, size, skin, bottomY, metrics]);
 
   return (
     <group ref={holder}>
@@ -176,7 +208,7 @@ function PreparedCollectible({
       {/* Floor bounce. Sits below the model so the silhouette keeps a rim even
           when the theme's key lights are pointing the other way. */}
       <pointLight
-        position={[0, -size * 0.55, size * 0.3]}
+        position={[0, bottomY ?? -size * 0.55, size * 0.3]}
         intensity={3.2}
         distance={size * 3}
         color={accent}
