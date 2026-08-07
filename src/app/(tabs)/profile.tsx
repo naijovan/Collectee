@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,7 +28,7 @@ import { intensityOption } from '@/domain/onboarding';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { collectionService, inventoryService, roomService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme/theme';
 import type { Collection, Item, RarityTier, Room, User } from '@/types';
 
 export default function ProfileScreen() {
@@ -87,7 +87,7 @@ export default function ProfileScreen() {
           name={viewer?.displayName ?? '?'}
           avatarId={viewer?.avatar}
           verified={viewer?.isAccountVerified}
-          size={72}
+          size={112}
         />
         <Text style={styles.name}>{viewer?.displayName ?? '—'}</Text>
         <Text style={styles.muted}>@{viewer?.handle ?? '—'}</Text>
@@ -257,13 +257,26 @@ export default function ProfileScreen() {
           {inventory.length} items · {verifiedCount} verified · {inventory.length - verifiedCount}{' '}
           unverified
         </Text>
-        <View style={styles.previewGrid}>
-          {inventory.slice(0, 4).map((entry) => (
-            <View key={entry.owned.id} style={styles.previewCell}>
-              <ItemCard item={entry.item} width="100%" />
-            </View>
-          ))}
-        </View>
+        {/* A scrollable eight rather than a fixed four. A wrapping grid has to
+            pick a row count and then either truncate hard or grow the page; a
+            rail shows more in the same height and the overflow is obvious
+            because the last card is half-cut. The full grid, with filters,
+            stays behind "View full inventory". */}
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={inventory.slice(0, 8)}
+          keyExtractor={(entry) => entry.owned.id}
+          contentContainerStyle={styles.previewRail}
+          renderItem={({ item: entry }: { item: (typeof inventory)[number] }) => (
+            <ItemCard
+              item={entry.item}
+              trustLevel={entry.owned.trustLevel}
+              width={132}
+              onPress={() => router.push('/inventory')}
+            />
+          )}
+        />
       </View>
 
       {busy ? <LoadingState height={120} /> : null}
@@ -325,7 +338,7 @@ function Stat({
       style={({ pressed }) => [styles.stat, hover.hoverStyle, pressed && { opacity: 0.7 }]}
     >
       <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.muted}>{label}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
       {hover.hovered ? <Text style={styles.statHint}>{hint}</Text> : null}
     </Pressable>
   );
@@ -360,16 +373,39 @@ const styles = StyleSheet.create({
   },
   intensityText: { ...typography.meta, color: colors.textSecondary },
 
-  stats: {
-    flexDirection: 'row',
+  /**
+   * Four separate tiles rather than one bar with invisible columns.
+   *
+   * Each of these is its own destination, and a single container made them
+   * read as one read-only summary — nothing suggested four different taps.
+   * Gaps between them also let the hover lift land on the tile the pointer is
+   * actually over, which inside a shared box looked like the whole bar moving.
+   */
+  stats: { flexDirection: 'row', gap: spacing.sm },
+  stat: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xs,
     backgroundColor: colors.surface,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: spacing.md,
   },
-  stat: { flex: 1, alignItems: 'center', gap: 2 },
-  statValue: { ...typography.sectionHeader, color: colors.textPrimary },
+  /* Display face and tabular figures: these are numbers read at a glance and
+     compared against each other, so they should not reflow as digits change
+     width. */
+  statValue: {
+    ...typography.sectionHeader,
+    ...typography.numeric,
+    fontSize: 24,
+    lineHeight: 30,
+    fontFamily: fonts.display,
+    color: colors.textPrimary,
+  },
+  /** Smaller and quieter than the number it labels. */
+  statLabel: { ...typography.meta, fontSize: 11, color: colors.textSecondary },
 
   actions: { flexDirection: 'row', gap: spacing.md },
 
@@ -406,13 +442,7 @@ const styles = StyleSheet.create({
 
   statHint: { ...typography.meta, color: colors.accent, textAlign: 'center', marginTop: 2 },
 
-  previewGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-  previewCell: { width: '22%' },
+  previewRail: { gap: spacing.md, paddingRight: spacing.lg, paddingTop: spacing.sm },
 
   collectionGrid: {
     flexDirection: 'row',

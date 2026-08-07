@@ -6,9 +6,12 @@
  *   3. Hero banner — artwork, sparkle eyebrow, headline, Explore button
  *   4. Gaming updates rail          (behind FEATURES.news — §14 rung 1)
  *   5. Explore collectibles — 2×2 grid
- *   6. Your Inventory — compact item rail, See all → Profile
- *   7. Collectors you may like — match cards
- *   8. Tab bar (lives in the layout)
+ *   6. Collectors you may like — match cards
+ *   7. Tab bar (lives in the layout)
+ *
+ * Inventory is NOT here. It lives on Profile, which is the surface about the
+ * viewer — Home is about what is happening, and a rail of your own items said
+ * nothing new every time you opened it.
  *
  * Canonical variant is the one WITH the gaming updates rail. If J5 is cut, flip
  * `FEATURES.news` and the rail disappears cleanly rather than leaving a hole.
@@ -377,39 +380,6 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {/* 6 — Recently added */}
-      {filter === 'All' ? (
-        <View>
-          {/* "See all" goes to Profile, not Collections: this rail is the
-              viewer's own inventory, and Profile is where the full inventory
-              lives. Collections is curated groupings, which is a different
-              question from "everything I own". */}
-          <SectionHeader
-            title="Your Inventory"
-            prominent
-            onSeeAll={() => router.navigate('/profile')}
-          />
-          {inventory.length === 0 ? (
-            <EmptyState
-              title="No items yet"
-              body="Import a screenshot or recording of your inventory and your items appear here."
-              actionLabel="Import inventory"
-              onAction={() => router.push('/import')}
-            />
-          ) : (
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={inventory.slice(0, 8)}
-              keyExtractor={(entry) => entry.owned.id}
-              contentContainerStyle={styles.rail}
-              renderItem={({ item }) => (
-                <ItemCard item={item.item} trustLevel={item.owned.trustLevel} width={124} />
-              )}
-            />
-          )}
-        </View>
-      ) : null}
 
       {/* 7 — Collectors you may like */}
       {show('Collectors') ? (
