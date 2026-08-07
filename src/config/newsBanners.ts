@@ -54,13 +54,6 @@ export const NEWS_BANNERS: Record<GameTitle, ImageSourcePropType | null> = {
   mlbb: require('../../assets/collectee/news/news-mlbb.png'),
 };
 
-/** The agreed slot id for a title. Used by the art list and /diagnostics. */
-export const NEWS_BANNER_SLOTS: Record<GameTitle, string> = {
-  codm: 'news-codm',
-  valorant: 'news-val',
-  mlbb: 'news-mlbb',
-};
-
 /** The bundled banner for a game, or null when it has none yet. */
 export function newsBannerFor(title: GameTitle): ImageSourcePropType | null {
   return NEWS_BANNERS[title] ?? null;
