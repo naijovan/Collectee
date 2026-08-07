@@ -29,7 +29,7 @@ import { ALL_ITEMS, ALL_SETS, ITEMS_BY_ID } from '../src/fixtures/catalogue';
 import { COLLECTIONS, ROOMS, POSTS } from '../src/fixtures/collections';
 import { OWNED_ITEMS } from '../src/fixtures/owned-items';
 import { ROOM_THEMES } from '../src/fixtures/room-themes';
-import { SCAN_RESULTS } from '../src/fixtures/scan-results';
+import { SCAN_RESULTS, SCAN_RESULTS_BY_TITLE } from '../src/fixtures/scan-results';
 import { ARTICLES } from '../src/fixtures/articles';
 import { COMMENTS, COMMUNITIES, FLAGS, FOLLOWS, NOTIFICATIONS, SAVED_ARTICLES } from '../src/fixtures/social';
 import { USERS, USERS_BY_ID, GAME_ACCOUNTS } from '../src/fixtures/users';
@@ -173,6 +173,16 @@ for (const scan of SCAN_RESULTS) {
       );
     }
   }
+}
+
+// The Needs Review branch is a requirement of the DEMO scans — §11 F1 wants it
+// shown rather than skipped, because a screen that admits uncertainty is more
+// convincing than a clean 100%. It is not a requirement of every ScanResult in
+// the repo: the single-item upload fallbacks exist to match a one-tile
+// screenshot, and a one-item scan cannot demonstrate a branch it has no second
+// item to take. Checking the walkthroughs by name keeps the rule enforced where
+// it means something instead of relaxing it everywhere.
+for (const scan of Object.values(SCAN_RESULTS_BY_TITLE)) {
   const counts = countScan([...scan.detections]);
   check(
     counts.needsReview > 0,

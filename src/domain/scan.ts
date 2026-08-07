@@ -38,14 +38,33 @@ export function routeByConfidence(confidence: Confidence): Exclude<ScanOutcome, 
  *
  * Fixtures store `outcome` for readability, but this function is what the
  * service actually runs, so a fixture whose confidence and outcome disagree is
- * corrected rather than trusted.
+ * corrected rather than trusted. The live path relies on the same thing: the
+ * model is asked for a confidence, never for an outcome, so a model that
+ * invented `"outcome": "matched"` could not put it on screen.
+ *
+ * Order matters and is the pipeline's:
+ *   1. below the floor        → discarded, whatever else is true of it
+ *   2. no item, but a reading → unmatched  (read fine, not in the catalogue)
+ *   3. no item, no reading    → discarded  (nothing was read at all)
+ *   4. item seen already      → duplicate
+ *   5. otherwise              → matched / needs_review by confidence
+ *
+ * Step 1 sits above step 2 on purpose: a low-confidence reading is not
+ * evidence that an item exists and we don't stock it, it is evidence that we
+ * misread a tile. Only confident readings earn `unmatched`.
  */
 export function routeDetections(detections: ScanDetection[]): ScanDetection[] {
   const seen = new Set<string>();
   return detections.map((detection) => {
     const routed = routeByConfidence(detection.confidence);
-    if (routed === 'discarded' || detection.itemId === null) {
+    if (routed === 'discarded') {
       return { ...detection, outcome: 'discarded' as const };
+    }
+    if (detection.itemId === null) {
+      return {
+        ...detection,
+        outcome: detection.reading ? ('unmatched' as const) : ('discarded' as const),
+      };
     }
     if (seen.has(detection.itemId)) {
       return { ...detection, outcome: 'duplicate' as const };
@@ -61,7 +80,10 @@ export function routeDetections(detections: ScanDetection[]): ScanDetection[] {
  * Invariant (PRD acceptance criteria):
  *   detected === matched + needsReview + duplicates
  * `discarded` is deliberately outside `detected` — those are surfaced
- * separately as "N items we couldn't read".
+ * separately as "N items we couldn't read". `unmatched` is outside it for the
+ * same reason and surfaced on its own line: they were read, so they are not
+ * unreadable, but they cannot be imported, so counting them as detected would
+ * put a number on screen that the Import CTA can never reach.
  *
  * `confirmed` is what the CTA prints. It starts at `matched`, grows as the user
  * resolves Needs Review items, and shrinks as they remove auto-accepted ones,
@@ -84,6 +106,7 @@ export function countScan(
   let needsReview = 0;
   let duplicates = 0;
   let discarded = 0;
+  let unmatched = 0;
   let resolvedConfirmed = 0;
 
   for (const d of routed) {
@@ -107,6 +130,9 @@ export function countScan(
       case 'discarded':
         discarded += 1;
         break;
+      case 'unmatched':
+        unmatched += 1;
+        break;
     }
   }
 
@@ -116,6 +142,7 @@ export function countScan(
     needsReview,
     duplicates,
     discarded,
+    unmatched,
     confirmed: matched - matchedRemoved + resolvedConfirmed,
   };
 }
