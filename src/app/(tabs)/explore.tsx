@@ -81,17 +81,23 @@ function HeaderAction({
 /**
  * The match score.
  *
- * Tiered rather than one flat colour: a percentage is a judgement, and 91%
- * and 58% mean different things to act on. Green for a strong match, amber
- * for a middling one, grey below — the same ladder people already read on
- * health bars and compatibility scores, so nothing has to be explained.
+ * Tiered rather than one flat colour: a percentage is a judgement, and 70%
+ * and 20% mean different things to act on. Green for a strong match, amber
+ * for a middling one, grey below — the ladder people already read on health
+ * bars and compatibility scores, so nothing has to be explained.
+ *
+ * ⚠️ Thresholds are calibrated to the real distribution, not to round numbers.
+ * Matching uses an overlap coefficient over co-owned items weighted by inverse
+ * popularity (§11 F5), and the seeded spread runs 70 down to 20 — so an 80/60
+ * ladder painted one row amber and four identical grey, which is worse than no
+ * tiering at all. 65/40 separates the list the way a reader would.
  *
  * Deliberately not `accent`. Blue is this app's "tappable" colour, and a
  * number wearing it looked like a button that did nothing.
  */
 function MatchBadge({ percent }: { percent: number }) {
   const tone =
-    percent >= 80 ? colors.success : percent >= 60 ? colors.warning : colors.textTertiary;
+    percent >= 65 ? colors.success : percent >= 40 ? colors.warning : colors.textTertiary;
   return (
     <View style={[styles.matchBadge, { borderColor: tone }]}>
       <Text style={[styles.matchValue, { color: tone }]}>{percent}%</Text>
