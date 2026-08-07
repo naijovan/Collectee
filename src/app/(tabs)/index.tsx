@@ -29,7 +29,6 @@ import {
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   ArticleCard,
@@ -45,6 +44,7 @@ import {
   PrimaryButton,
   SectionHeader,
   useHoverLift,
+  PinnedHeader,
 } from '@/components';
 import { ART_PLACEMENTS, backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
@@ -118,7 +118,6 @@ function Hoverable({
 
 export default function HomeScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory, unreadNotifications, loading } = useApp();
   const { openPanel } = useAssistantDock();
 
@@ -208,7 +207,7 @@ export default function HomeScreen() {
           the app's account controls — reaching them should not require
           scrolling back to the top of a long feed. A bottom rule demarcates it
           from the content moving underneath. */}
-      <View style={[styles.pinnedHeader, { paddingTop: insets.top + spacing.md }]}>
+      <PinnedHeader>
       <View style={styles.header}>
           <View style={styles.headerText}>
             {/* One line, one size. Two stacked lines at different sizes made the
@@ -254,7 +253,7 @@ export default function HomeScreen() {
             </Hoverable>
           </View>
         </View>
-      </View>
+      </PinnedHeader>
 
     <ScrollView
       ref={scrollRef}
@@ -539,15 +538,6 @@ const styles = StyleSheet.create({
    * them. Display face and a tight tracking, because this is the first thing
    * on a gaming social app and a plain body face reads like a settings screen.
    */
-  pinnedHeader: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    zIndex: 10,
-  },
-
   greetingLine: { fontSize: 22, lineHeight: 28, fontFamily: fonts.display },
   /** Muted so the name wins without needing a second, larger size. */
   greetingWord: { color: colors.textSecondary },

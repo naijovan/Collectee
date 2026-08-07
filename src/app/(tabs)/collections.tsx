@@ -13,7 +13,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   CollectionCard,
@@ -25,6 +24,7 @@ import {
   PrimaryButton,
   SectionHeader,
   ASSISTANT_CLEARANCE,
+  PinnedHeader,
 } from '@/components';
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
@@ -76,7 +76,6 @@ interface Entry {
 
 export default function CollectionsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory } = useApp();
 
   const scrollRef = useTopOnFocus();
@@ -162,7 +161,7 @@ export default function CollectionsScreen() {
       {/* Pinned: the four tab screens keep their title and filters on screen
           while the list moves under them, so the user never loses the context
           for what they are scrolling through. */}
-      <View style={[styles.pinned, { paddingTop: insets.top + spacing.md }]}>
+      <PinnedHeader>
         <View style={styles.header}>
           <View style={styles.rowBody}>
             <Text style={styles.title}>Collections</Text>
@@ -170,7 +169,7 @@ export default function CollectionsScreen() {
           </View>
         </View>
         <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
-      </View>
+      </PinnedHeader>
 
     <ScrollView
       ref={scrollRef}
@@ -496,15 +495,6 @@ function RoomCta({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.lg },
-  pinned: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm,
-    gap: spacing.sm,
-    backgroundColor: colors.background,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    zIndex: 10,
-  },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, justifyContent: 'space-between' },
   createButton: {

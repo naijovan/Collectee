@@ -87,20 +87,31 @@ export default function InventoryScreen() {
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + ASSISTANT_CLEARANCE }]}
     >
-      <View>
-        <Text style={styles.title}>Your inventory</Text>
-        <Text style={styles.muted}>
-          {filtered.length} of {inventory.length} items · {verifiedCount} verified
-        </Text>
+      {/* The toggle sits beside the title rather than as a full-width bar under
+          it. The page is the inventory; the controls should take a corner, not
+          a row. A dot marks active filters so the state is legible closed. */}
+      <View style={styles.titleRow}>
+        <View style={styles.rowBody}>
+          <Text style={styles.title}>Your inventory</Text>
+          <Text style={styles.muted}>
+            {filtered.length} of {inventory.length} items · {verifiedCount} verified
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={open ? 'Hide filters' : 'Show filters'}
+          hitSlop={10}
+          onPress={() => setOpen((prev) => !prev)}
+          style={({ pressed }) => [
+            styles.filterIcon,
+            (open || activeCount > 0) && styles.filterIconActive,
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Text style={styles.filterGlyph}>⚙</Text>
+          {activeCount > 0 ? <View style={styles.filterDot} /> : null}
+        </Pressable>
       </View>
-
-      {/* Collapsed by default: the page is the inventory, not the controls. */}
-      <Pressable style={styles.filterToggle} onPress={() => setOpen((prev) => !prev)}>
-        <Text style={styles.filterToggleText}>
-          Filters{activeCount > 0 ? ` · ${activeCount} active` : ''}
-        </Text>
-        <Text style={styles.chevron}>{open ? '⌃' : '⌄'}</Text>
-      </Pressable>
 
       {open ? (
         <View style={styles.filterPanel}>
@@ -240,23 +251,39 @@ const styles = StyleSheet.create({
   title: { ...typography.screenTitle, color: colors.textPrimary },
   muted: { ...typography.meta, color: colors.textSecondary },
 
-  filterToggle: {
+  titleRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: spacing.md,
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.card,
+  },
+  rowBody: { flex: 1, minWidth: 0 },
+  filterIcon: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  filterToggleText: { ...typography.cardTitle, color: colors.textPrimary },
-  chevron: { color: colors.textSecondary, fontSize: 16 },
+  filterIconActive: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
+  filterGlyph: { color: colors.textPrimary, fontSize: 17, lineHeight: 20 },
+  /** Marks active filters while the panel is closed. */
+  filterDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.accent,
+  },
 
   filterPanel: {
-    gap: spacing.md,
-    padding: spacing.md,
+    gap: spacing.sm,
+    padding: spacing.sm,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -269,15 +296,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
   },
   chipActive: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
   chipDot: { width: 8, height: 8, borderRadius: radius.pill },
-  chipText: { ...typography.meta, color: colors.textSecondary },
+  chipText: { ...typography.meta, fontSize: 11, color: colors.textSecondary },
   chipTextActive: { color: colors.accent },
   clear: { ...typography.meta, color: colors.accent },
 

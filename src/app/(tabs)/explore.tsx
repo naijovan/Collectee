@@ -11,7 +11,6 @@
 import { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   Avatar,
@@ -22,6 +21,7 @@ import {
   LoadingState,
   SectionHeader,
   useHoverLift,
+  PinnedHeader,
 } from '@/components';
 import { FEATURES } from '@/config/features';
 import { VIEWER_UNVERIFIED_REASON } from '@/domain/matching';
@@ -108,7 +108,6 @@ function MatchBadge({ percent }: { percent: number }) {
 
 export default function ExploreScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const titleAnchor = useTourAnchor('explore-title');
   const chipsAnchor = useTourAnchor('explore-chips');
   const { viewerId } = useApp();
@@ -174,50 +173,43 @@ export default function ExploreScreen() {
   const { refreshing, onRefresh } = usePullToRefresh(load);
 
   return (
-    <ScrollView
-      ref={scrollRef}
-      style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={colors.textSecondary}
-          colors={[colors.accent]}
-          progressBackgroundColor={colors.surface}
-        />
-      }
-    >
-      <View ref={titleAnchor} collapsable={false} style={styles.headerRow}>
-        <Text style={styles.title}>Discover</Text>
-        {/*
-          Utility entries for the two surfaces that otherwise have no route in:
-          the review queue, and account linking — whose only other entry is an
-          empty state a viewer with verified items never sees.
-        */}
-        <View style={styles.headerActions}>
-          {/* Icon pills, matching the create actions elsewhere — two bare text
-              links in a header read as breadcrumbs rather than as controls. */}
-          <HeaderAction
-            glyph="✓"
-            label="Verify"
-            onPress={() => router.push('/link-account')}
-          />
-          <HeaderAction
-            glyph="⚑"
-            label="Reports"
-            onPress={() => router.push('/moderation')}
-          />
+    <View style={styles.screen}>
+      {/* Same pinned header as Home and Collections — they are sibling tabs and
+          a header that moves or changes between them reads as three apps. */}
+      <PinnedHeader>
+        <View ref={titleAnchor} collapsable={false} style={styles.headerRow}>
+          <Text style={styles.title}>Discover</Text>
+          {/*
+            Utility entries for the two surfaces that otherwise have no route in:
+            the review queue, and account linking — whose only other entry is an
+            empty state a viewer with verified items never sees.
+          */}
+          <View style={styles.headerActions}>
+            <HeaderAction glyph="✓" label="Verify" onPress={() => router.push('/link-account')} />
+            <HeaderAction glyph="⚑" label="Reports" onPress={() => router.push('/moderation')} />
+          </View>
         </View>
-      </View>
-      {/* Anchored for the first-run walkthrough, which spotlights the heading
-          and these chips together as one region. Two refs unioned rather than
-          a wrapper View — the content container is gap-based, so wrapping two
-          children into one would change the spacing between them. */}
-      <View ref={chipsAnchor} collapsable={false}>
-        <FilterChips options={TABS} value={tab} onChange={setTab} />
-      </View>
+        {/* Anchored for the first-run walkthrough, which spotlights the heading
+            and these chips together as one region. */}
+        <View ref={chipsAnchor} collapsable={false}>
+          <FilterChips options={TABS} value={tab} onChange={setTab} />
+        </View>
+      </PinnedHeader>
 
+      <ScrollView
+        ref={scrollRef}
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.textSecondary}
+            colors={[colors.accent]}
+            progressBackgroundColor={colors.surface}
+          />
+        }
+      >
       {busy ? <LoadingState height={200} /> : null}
 
       {/*
@@ -347,6 +339,7 @@ export default function ExploreScreen() {
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
+    </View>
   );
 }
 

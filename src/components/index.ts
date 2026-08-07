@@ -63,3 +63,5 @@ export { TourOverlay } from './TourOverlay';
 export { AssistantButton, ASSISTANT_CLEARANCE } from './AssistantButton';
 export { AssistantPanel } from './AssistantPanel';
 export { useHoverLift } from './primitives';
+
+export { PinnedHeader } from './PinnedHeader';
