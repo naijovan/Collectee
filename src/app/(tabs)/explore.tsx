@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Avatar,
   CollectorCard,
+  CommunityCard,
   EmptyState,
   FilterChips,
   LoadingState,
@@ -178,7 +179,12 @@ export default function ExploreScreen() {
               }
               style={styles.row}
             >
-              <Avatar name={entry.user.displayName} verified={entry.user.isAccountVerified} size={44} />
+              <Avatar
+                name={entry.user.displayName}
+                avatarId={entry.user.avatar}
+                verified={entry.user.isAccountVerified}
+                size={44}
+              />
               <View style={styles.rowBody}>
                 <View style={styles.rowTop}>
                   <Text style={styles.rowTitle} numberOfLines={1}>
@@ -198,65 +204,64 @@ export default function ExploreScreen() {
       {!busy && tab === 'Communities' && mine.length > 0 ? (
         <View style={styles.list}>
           <SectionHeader title="Your communities" />
-          {mine.map((community) => (
-            <Pressable
-              key={community.id}
-              onPress={() =>
-                router.push({ pathname: '/community/[id]', params: { id: community.id } })
-              }
-              style={styles.row}
-            >
-              <Avatar name={community.name} size={44} />
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
-                  {community.name}
-                </Text>
-                <Text style={styles.muted}>
-                  {socialService.memberCountFor(community).toLocaleString()} members
-                </Text>
+          {/* Two across, like the collection grid — communities and collections
+              are both browsable tiles and should not be two tiers of content. */}
+          <View style={styles.communityGrid}>
+            {mine.map((community) => (
+              <View key={community.id} style={styles.communityCell}>
+                <CommunityCard
+                  community={community}
+                  memberCount={socialService.memberCountFor(community)}
+                  width="100%"
+                  onPress={() =>
+                    router.push({ pathname: '/community/[id]', params: { id: community.id } })
+                  }
+                />
               </View>
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
-          ))}
+            ))}
+          </View>
         </View>
       ) : null}
 
       {!busy && tab === 'Communities' ? (
         <View style={styles.list}>
           <SectionHeader title="Communities for you" />
+          <View style={styles.communityGrid}>
           {communities.map(({ community, reason }) => {
             const isMember = joined.has(community.id);
             return (
-              <Pressable
-                key={community.id}
-                onPress={() =>
-                  router.push({ pathname: '/community/[id]', params: { id: community.id } })
-                }
-                style={styles.row}
-              >
-                <Avatar name={community.name} size={44} />
-                <View style={styles.rowBody}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {community.name}
-                  </Text>
-                  <Text style={styles.reason}>{reason}</Text>
-                  <Text style={styles.muted}>
-                    {/* Live count — a session join has to move the number it sits next to. */}
-                    {socialService.memberCountFor(community).toLocaleString()} members
-                    {FEATURES.communityPosting ? '' : ' · view only'}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => void toggleJoin(community.id)}
-                  style={[styles.join, isMember && styles.joinActive]}
-                >
-                  <Text style={[styles.joinText, isMember && styles.joinTextActive]}>
-                    {isMember ? 'Joined' : 'Join'}
-                  </Text>
-                </Pressable>
-              </Pressable>
+              <View key={community.id} style={styles.communityCell}>
+                <CommunityCard
+                  community={community}
+                  /* Live count — a session join has to move the number it sits
+                     next to. */
+                  memberCount={socialService.memberCountFor(community)}
+                  reason={
+                    FEATURES.communityPosting ? reason : `${reason} · view only`
+                  }
+                  width="100%"
+                  onPress={() =>
+                    router.push({ pathname: '/community/[id]', params: { id: community.id } })
+                  }
+                  action={
+                    <Pressable
+                      onPress={() => void toggleJoin(community.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        isMember ? `Leave ${community.name}` : `Join ${community.name}`
+                      }
+                      style={[styles.join, isMember && styles.joinActive]}
+                    >
+                      <Text style={[styles.joinText, isMember && styles.joinTextActive]}>
+                        {isMember ? 'Joined' : 'Join'}
+                      </Text>
+                    </Pressable>
+                  }
+                />
+              </View>
             );
           })}
+          </View>
           {communities.length === 0 ? (
             <Text style={styles.muted}>
               You&apos;re in every community we&apos;d suggest. Import more items and new ones
@@ -279,6 +284,10 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: spacing.lg },
   headerLink: { ...typography.meta, color: colors.accent },
   list: { gap: spacing.sm },
+  /* Two across, matching the collection grid — communities are browsable tiles
+     of the same weight, not a denser list beneath them. */
+  communityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  communityCell: { width: '48%', flexGrow: 1, minWidth: 220 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

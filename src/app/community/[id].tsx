@@ -22,6 +22,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import {
   Avatar,
+  CommunityArt,
   EmptyState,
   KeyboardSafe,
   LoadingState,
@@ -156,7 +157,15 @@ export default function CommunityScreen() {
     <KeyboardSafe>
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.identity}>
-        <Avatar name={community.name} size={72} />
+        {/* A header image, the same asset the card uses. The 72px circle that
+            was here made the detail screen look like a smaller version of the
+            list it came from — a destination should open with something the
+            row could not show. */}
+        <CommunityArt
+          communityId={community.id}
+          name={community.name}
+          style={styles.headerArt}
+        />
         <Text style={styles.title}>{community.name}</Text>
         <Text style={styles.body}>{community.description}</Text>
         <Text style={styles.muted}>{memberCount.toLocaleString()} members</Text>
@@ -285,7 +294,12 @@ export default function CommunityScreen() {
               }
               style={styles.row}
             >
-              <Avatar name={member.displayName} verified={member.isAccountVerified} size={40} />
+              <Avatar
+              name={member.displayName}
+              avatarId={member.avatar}
+              verified={member.isAccountVerified}
+              size={40}
+            />
               <View style={styles.rowBody}>
                 <Text style={styles.rowTitle} numberOfLines={1}>
                   {member.displayName}
@@ -311,6 +325,9 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md },
 
   identity: { alignItems: 'center', gap: spacing.xs },
+  /* Full-bleed within the content padding, 3:2 like the source asset so the
+     crop matches the card and the same file serves both. */
+  headerArt: { width: '100%', height: 180, borderRadius: radius.card },
   title: { ...typography.screenTitle, color: colors.textPrimary, marginTop: spacing.sm },
   body: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
   muted: { ...typography.meta, color: colors.textSecondary },
