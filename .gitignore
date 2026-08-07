@@ -69,3 +69,16 @@ assets/collectee/collectee-app-ready/images/
 # cloud sync leaves behind — same class of stray file the fixture validator
 # rejects (see 5d414d8).
 .claude/
+
+# Local working area. Never shipped, never reviewed, never committed.
+#
+# `scratchpad/refs/` holds REFERENCE IMAGERY handed to the art agent — third-party
+# character art we do not own and must not redistribute. The art we ship is
+# original prototype work (§15, and the header of `config/avatarRoster.ts`); a
+# reference that reached a commit would put someone else's asset in our history
+# permanently, which no later deletion undoes.
+#
+# This line stops an accidental `git add -A`. It does NOT stop `git add -f` —
+# the pre-commit hook in `.git/hooks/pre-commit` is what covers that, and hooks
+# are local, so anyone cloning this repo needs their own copy.
+scratchpad/
