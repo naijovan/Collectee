@@ -468,19 +468,41 @@ export function CollectorCard({
  * Without a related item — one seeded article has none — it draws the game's
  * accent, which is the same block the banner uses and reads as intentional.
  */
-function ArticleThumb({ article, itemId }: { article: Article; itemId?: string | null }) {
-  /* Falls back to the article's own first id so the component still renders
-     something sensible on its own — but News passes an id chosen by
-     `pickThumbnailIds`, which is what stops two adjacent rows showing the same
-     picture. See that function for why the list, not the card, decides. */
+/**
+ * The item render behind an article's thumbnail, or null.
+ *
+ * Shared by the card and the thumb so the two cannot disagree: the card needs
+ * to know whether art exists BEFORE it picks a layout — the micro variant drops
+ * to text-only when there is none — and the thumb needs the same answer to draw
+ * it. Both do one map lookup rather than one deciding and the other guessing.
+ *
+ * Falls back to the article's own first id so a lone card still renders
+ * sensibly, but callers rendering a LIST pass an id from
+ * `domain/news.pickThumbnailIds`, which is what stops two rows sharing a
+ * picture. See that function for why the list, not the card, decides.
+ */
+function articleItemArt(article: Article, itemId?: string | null) {
   const chosen = itemId ?? article.relatedItemIds[0] ?? null;
-  const art = chosen ? artFor(chosen) : null;
+  return chosen ? artFor(chosen) : null;
+}
+
+function ArticleThumb({
+  article,
+  itemId,
+  variant,
+}: {
+  article: Article;
+  itemId?: string | null;
+  variant: ThumbVariant;
+}) {
+  const art = articleItemArt(article, itemId);
   const title = article.relatedGames[0];
   const accent = title ? gameAccents[title] : null;
+  const box = variant === 'micro' ? styles.articleThumbMicro : styles.articleThumb;
 
   if (art) {
     return (
-      <View style={styles.articleThumb}>
+      <View style={box}>
         <Image
           source={art.source}
           /* Objects ship on empty backgrounds and are inset so they are not
@@ -496,6 +518,13 @@ function ArticleThumb({ article, itemId }: { article: Article; itemId?: string |
       </View>
     );
   }
+
+  /* Micro has NO fallback by design — no generic image, no accent block. At
+     56px any placeholder is a smudge that reads as noise rather than as art, so
+     a card with no item render simply keeps the text layout. `ArticleCard`
+     already checked this via `articleItemArt` and will not render the row at
+     all; this guard is here so the component is honest on its own. */
+  if (variant === 'micro') return null;
 
   /* No related item — the cross-game spend piece is the seeded example. The
      generic per-game image is the honest picture for a story about no single
@@ -537,12 +566,31 @@ function ArticleThumb({ article, itemId }: { article: Article; itemId?: string |
   return <View style={[styles.articleThumb, styles.articleThumbEmpty]} />;
 }
 
+/**
+ * How an article card carries its picture.
+ *
+ * A single variant rather than two booleans: `media` plus a `micro` flag would
+ * have a meaningless both-set state, and the two differ in more than size —
+ * their fallback behaviour is deliberately opposite.
+ *
+ *   'media'  88px, News list. Always renders something: item art, else the
+ *            generic per-game image, else the accent block.
+ *   'micro'  56px, Home rail. Item art ONLY — no generic, no block. A card
+ *            without a render keeps the plain text layout, because at that size
+ *            a placeholder is noise rather than art.
+ *
+ * Undefined is text-only, which is what every caller had before thumbnails
+ * existed.
+ */
+export type ThumbVariant = 'media' | 'micro';
+
 export function ArticleCard({
   article,
   reason,
   width,
   accentTags,
-  media,
+  accentEdge,
+  thumb,
   thumbItemId,
   onPress,
 }: {
@@ -564,26 +612,48 @@ export function ArticleCard({
    */
   accentTags?: boolean;
   /**
-   * Render as a media card — thumbnail left, text right — instead of the
-   * text-only row.
+   * Slim left edge in the game's accent, matching the digest card on News.
    *
-   * Opt-in and off by default, so Home's news rail is untouched. Left rather
-   * than top because this is a dense vertical list: the top-image treatment is
-   * the pattern for the GRID cards (`CollectionCard`, `CommunityCard`), and a
-   * top image here would roughly halve the articles on screen.
+   * Opt-in. Takes the FIRST tag's game for a cross-game article, the same rule
+   * the thumbnail and the banner use. An edge rather than a full outline for
+   * the reason the digest gives: a whole card ringed in ember competes with
+   * everything around it, and the job is to tie the card to a game, not shout.
    */
-  media?: boolean;
+  accentEdge?: boolean;
+  /**
+   * Thumbnail treatment — see `ThumbVariant`. Omitted, the card is text-only,
+   * which is what it was before thumbnails existed.
+   *
+   * Thumbnail-left rather than top because both callers are dense lists: the
+   * top-image treatment is the pattern for the GRID cards (`CollectionCard`,
+   * `CommunityCard`), and a top image would roughly halve what fits on screen.
+   */
+  thumb?: ThumbVariant;
   /**
    * Which related item supplies the thumbnail, when the caller has worked it
    * out across the whole list — see `domain/news.pickThumbnailIds`. Omitted,
    * the card falls back to the article's own first related item, which is
    * correct for a lone card and wrong for a list.
    *
-   * Ignored unless `media` is set.
+   * Ignored unless `thumb` is set.
    */
   thumbItemId?: string | null;
   onPress?: () => void;
 }) {
+  /* Resolved before the layout is chosen, because for `micro` it DECIDES the
+     layout: no item render means no thumbnail and no row, just the text card.
+     `media` always shows a thumbnail, so for it this only picks the picture. */
+  const hasItemArt = articleItemArt(article, thumbItemId) !== null;
+  const showThumb = thumb === 'media' || (thumb === 'micro' && hasItemArt);
+
+  const edgeGame = accentEdge ? article.relatedGames[0] : undefined;
+  const edge = edgeGame ? gameAccents[edgeGame] : null;
+
+  /* Only the media variant trades the second summary line for density. Micro
+     keeps the full text stack deliberately: the rail's card height is set by
+     that stack, and shortening it here would resize every card on Home. */
+  const tight = thumb === 'media';
+
   const body = (
     <>
       <View style={styles.articleTagRow}>
@@ -606,14 +676,13 @@ export function ArticleCard({
       <Text style={styles.articleTitle} numberOfLines={2}>
         {article.title}
       </Text>
-      {/* One line beside a thumbnail, two in the full-width text card. The
-          media variant trades summary for density on purpose. */}
-      <Text style={styles.articleBlurb} numberOfLines={media ? 1 : 2}>
+      {/* One line beside a media thumbnail, two everywhere else. */}
+      <Text style={styles.articleBlurb} numberOfLines={tight ? 1 : 2}>
         {article.summary}
       </Text>
 
       {reason ? (
-        <Text style={styles.articleReason} numberOfLines={media ? 1 : undefined}>
+        <Text style={styles.articleReason} numberOfLines={tight ? 1 : undefined}>
           ◆ {reason}
         </Text>
       ) : null}
@@ -623,7 +692,7 @@ export function ArticleCard({
     </>
   );
 
-  if (media) {
+  if (showThumb && thumb) {
     return (
       <Pressable
         onPress={onPress}
@@ -631,10 +700,11 @@ export function ArticleCard({
           styles.articleCard,
           styles.articleCardMedia,
           width ? { width } : null,
+          edge ? { borderLeftColor: edge.base, borderLeftWidth: 3 } : null,
           pressed && styles.pressed,
         ]}
       >
-        <ArticleThumb article={article} itemId={thumbItemId} />
+        <ArticleThumb article={article} itemId={thumbItemId} variant={thumb} />
         {/* `minWidth: 0` is what lets numberOfLines actually truncate: without
             it a flex child sizes to its content and the title pushes the card
             wider instead of ellipsing. */}
@@ -646,7 +716,12 @@ export function ArticleCard({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.articleCard, width ? { width } : null, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.articleCard,
+        width ? { width } : null,
+        edge ? { borderLeftColor: edge.base, borderLeftWidth: 3 } : null,
+        pressed && styles.pressed,
+      ]}
     >
       {body}
     </Pressable>
@@ -807,6 +882,16 @@ const styles = StyleSheet.create({
   articleThumb: {
     width: 88,
     height: 88,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSunken,
+  },
+  /* 56 rather than 88: the rail card is 248 wide and its height is set by the
+     text stack (~118px), so a thumb shorter than the stack cannot change the
+     card's height — which is what keeps Home's layout below the rail fixed. */
+  articleThumbMicro: {
+    width: 56,
+    height: 56,
     borderRadius: radius.sm,
     overflow: 'hidden',
     backgroundColor: colors.surfaceSunken,

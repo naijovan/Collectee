@@ -323,7 +323,7 @@ export default function NewsScreen() {
               article={entry.article}
               reason={entry.reason}
               accentTags
-              media
+              thumb="media"
               thumbItemId={feedThumbs[index]}
               onPress={() => open(entry.article.id)}
             />
@@ -346,7 +346,7 @@ export default function NewsScreen() {
                 key={article.id}
                 article={article}
                 accentTags
-                media
+                thumb="media"
                 thumbItemId={savedThumbs[index]}
                 onPress={() => open(article.id)}
               />
