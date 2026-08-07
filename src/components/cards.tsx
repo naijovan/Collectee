@@ -24,6 +24,7 @@ import type { Article, Collection, Community, Item, TrustLevel, User } from '@/t
 import {
   colors,
   fonts,
+  gameAccents,
   interaction,
   radius,
   rarityColors,
@@ -452,12 +453,26 @@ export function ArticleCard({
   article,
   reason,
   width,
+  accentTags,
   onPress,
 }: {
   article: Article;
   /** FYP only — why this surfaced. Discover has no reason and shows none. */
   reason?: string | null;
   width?: DimensionValue;
+  /**
+   * Colour each game tag with that game's own accent instead of the blue.
+   *
+   * Opt-in, and off by default, so Home's news rail renders exactly as it did
+   * before this prop existed. News turns it on because its tabs are already
+   * game-themed and a blue tag inside an ember-themed tab reads as a different
+   * control.
+   *
+   * Per TAG, not per screen: an article tagged both CODM and VALORANT shows one
+   * ember chip and one red one, which says more than tinting both with whatever
+   * tab you happen to be standing on.
+   */
+  accentTags?: boolean;
   onPress?: () => void;
 }) {
   return (
@@ -466,11 +481,19 @@ export function ArticleCard({
       style={({ pressed }) => [styles.articleCard, width ? { width } : null, pressed && styles.pressed]}
     >
       <View style={styles.articleTagRow}>
-        {article.relatedGames.map((title) => (
-          <View key={title} style={styles.articleTag}>
-            <Text style={styles.articleTagText}>{GAME_SHORT_LABELS[title]}</Text>
-          </View>
-        ))}
+        {article.relatedGames.map((title) => {
+          const accent = accentTags ? gameAccents[title] : null;
+          return (
+            <View
+              key={title}
+              style={[styles.articleTag, accent ? { backgroundColor: accent.soft } : null]}
+            >
+              <Text style={[styles.articleTagText, accent ? { color: accent.base } : null]}>
+                {GAME_SHORT_LABELS[title]}
+              </Text>
+            </View>
+          );
+        })}
         <Text style={styles.itemMeta}>{timeAgo(article.publishedAt)}</Text>
       </View>
 

@@ -341,20 +341,33 @@ export function SectionHeader({
   );
 }
 
-/** Pill-shaped filter chips (§13.2). */
+/**
+ * Pill-shaped filter chips (§13.2).
+ *
+ * `accentFor` is opt-in and defaults to undefined, which is the behaviour every
+ * one of the seven call sites had before it existed: the active chip fills with
+ * `colors.accent`. Return a colour from it and that option's active fill uses
+ * the colour instead — News uses it to give each game tab its own identity
+ * (`theme.gameAccents`), and returning undefined for an option leaves that one
+ * on the blue. Nothing else in the app passes it, so nothing else changes.
+ */
 export function FilterChips<T extends string>({
   options,
   value,
   onChange,
+  accentFor,
 }: {
   options: readonly T[];
   value: T;
   onChange: (next: T) => void;
+  /** Per-option active colour. Undefined — for any option — keeps `colors.accent`. */
+  accentFor?: (option: T) => string | undefined;
 }) {
   return (
     <View style={styles.chipRow} accessibilityRole="tablist">
       {options.map((option) => {
         const active = option === value;
+        const accent = accentFor?.(option);
         return (
           <Pressable
             key={option}
@@ -371,6 +384,10 @@ export function FilterChips<T extends string>({
             style={({ pressed }) => [
               styles.chip,
               active && styles.chipActive,
+              /* Overrides the fill only. The inactive chip keeps the neutral
+                 surface on every tab, so the row reads as one control rather
+                 than three differently-coloured ones. */
+              active && accent ? { backgroundColor: accent, borderColor: accent } : null,
               pressed && !active && styles.pressed,
             ]}
           >
