@@ -79,6 +79,8 @@ interface RoomEntry {
   room: Room;
   themeName: string;
   collectionName: string;
+  /** Whose room it is. A showroom is a person's, and the rail says so. */
+  owner: User | null;
 }
 
 /**
@@ -163,6 +165,7 @@ export default function HomeScreen() {
           room,
           themeName: theme?.name ?? 'Room',
           collectionName: collection?.name ?? 'Collection',
+          owner: collection ? (usersById.get(collection.userId) ?? null) : null,
         };
       }),
     );
@@ -317,10 +320,10 @@ export default function HomeScreen() {
               renderItem={({ item, index }) => (
                 <ArticleCard
                   article={item}
-                  width={248}
+                  width={280}
                   accentTags
                   accentEdge
-                  thumb="micro"
+                  thumb="hero"
                   thumbItemId={railThumbs[index]}
                   onPress={() =>
                     router.push({ pathname: '/article/[id]', params: { id: item.id } })
@@ -431,7 +434,7 @@ export default function HomeScreen() {
       {/* Rooms — the chip the Figma implies but never fills */}
       {show('Rooms') ? (
         <View>
-          <SectionHeader title="Published rooms" prominent />
+          <SectionHeader title="Check out showrooms from other collectors" prominent />
           {busy ? (
             <LoadingState height={150} />
           ) : (
@@ -448,10 +451,24 @@ export default function HomeScreen() {
                       these rows a colour block. Rooms have their own backdrop. */}
                   <RoomThumb themeId={entry.room.themeId} />
                   <View style={styles.roomMeta}>
-                    <Text style={styles.roomName}>{entry.collectionName}</Text>
-                    <Text style={styles.muted}>
-                      {entry.themeName} · {entry.room.placements.length} items placed
-                    </Text>
+                    <Text style={styles.roomName}>{entry.room.title}</Text>
+                    {/* Attribution first among the meta: whose room it is, is the
+                        reason to open someone else's. The theme and item count
+                        are detail. */}
+                    <View style={styles.roomOwner}>
+                      {entry.owner ? (
+                        <Avatar
+                          name={entry.owner.displayName}
+                          avatarId={entry.owner.avatar}
+                          verified={entry.owner.isAccountVerified}
+                          size={18}
+                        />
+                      ) : null}
+                      <Text style={styles.muted} numberOfLines={1}>
+                        {entry.owner?.displayName ?? 'A collector'} · {entry.themeName} ·{' '}
+                        {entry.room.placements.length} items
+                      </Text>
+                    </View>
                   </View>
                   <Text style={styles.chevron}>›</Text>
                 </Hoverable>
@@ -529,7 +546,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   heroArt: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm },
-  heroTile: { flex: 1, height: 112 },
+  // 168, not 112. The collage is character art cropped to `cover`, and at 112
+  // in a narrow tile the crop took the heads off — the one part of a character
+  // render worth showing.
+  heroTile: { flex: 1, height: 168 },
   eyebrow: { ...typography.meta, color: colors.accent, letterSpacing: 0.5 },
   heroHeadline: { ...typography.sectionHeader, color: colors.textPrimary, fontSize: 20 },
   heroCta: { alignSelf: 'flex-start', marginTop: spacing.sm },
@@ -544,6 +564,8 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
   /** Was the card's own `width="48%"`; moved out when FadeInView wrapped it. */
   gridCell: { width: '48%' },
+
+  roomOwner: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
 
   roomList: { gap: spacing.sm },
   roomRow: {

@@ -513,7 +513,12 @@ function ArticleThumb({
   const art = articleItemArt(article, itemId);
   const title = article.relatedGames[0];
   const accent = title ? gameAccents[title] : null;
-  const box = variant === 'micro' ? styles.articleThumbMicro : styles.articleThumb;
+  const box =
+    variant === 'hero'
+      ? styles.articleThumbHero
+      : variant === 'micro'
+        ? styles.articleThumbMicro
+        : styles.articleThumb;
 
   if (art) {
     return (
@@ -597,7 +602,19 @@ function ArticleThumb({
  * Undefined is text-only, which is what every caller had before thumbnails
  * existed.
  */
-export type ThumbVariant = 'media' | 'micro';
+/**
+ * How an article card carries its picture.
+ *
+ *   micro   56px square beside the text — dense lists
+ *   media   88px square beside the text — the news screen's rows
+ *   hero    full-width 16:9 above the text
+ *
+ * `hero` follows the standard news-card hierarchy: the image earns attention,
+ * the title gives the topic, the excerpt earns the click. A 56px square cannot
+ * do the first job, which is why a rail of them read as a list of links rather
+ * than as content.
+ */
+export type ThumbVariant = 'media' | 'micro' | 'hero';
 
 export function ArticleCard({
   article,
@@ -661,7 +678,9 @@ export function ArticleCard({
      layout: no item render means no thumbnail and no row, just the text card.
      `media` always shows a thumbnail, so for it this only picks the picture. */
   const hasItemArt = articleItemArt(article, thumbItemId) !== null;
-  const showThumb = thumb === 'media' || (thumb === 'micro' && hasItemArt);
+  // `hero` always shows its image: the layout is built around it, and falling
+  // back to a text card mid-rail would break the row's shared height.
+  const showThumb = thumb === 'media' || thumb === 'hero' || (thumb === 'micro' && hasItemArt);
 
   const edgeGame = accentEdge ? article.relatedGames[0] : undefined;
   const edge = edgeGame ? gameAccents[edgeGame] : null;
@@ -708,6 +727,30 @@ export function ArticleCard({
       </Text>
     </>
   );
+
+  if (showThumb && thumb === 'hero') {
+    return (
+      <Pressable
+        onPress={onPress}
+        {...hover.hoverProps}
+        style={({ pressed }) => [
+          styles.articleCard,
+          styles.articleCardHero,
+          width ? { width } : null,
+          hover.hoverStyle,
+          edge ? null : hover.hoverBorder,
+          pressed && styles.pressed,
+        ]}
+      >
+        <ArticleThumb article={article} itemId={thumbItemId} variant="hero" />
+        {/* Accent as a rule under the image rather than a left border: on a
+            stacked card a left border runs the full height and reads as a
+            quote block. */}
+        {edge ? <View style={[styles.articleHeroRule, { backgroundColor: edge.base }]} /> : null}
+        <View style={styles.articleHeroBody}>{body}</View>
+      </Pressable>
+    );
+  }
 
   if (showThumb && thumb) {
     return (
@@ -901,10 +944,24 @@ const styles = StyleSheet.create({
   /* Row instead of column, and a wider gap — `articleCard`'s `xs` is the gap
      between stacked text lines, which would be far too tight beside an 88px
      thumbnail. */
+  articleCardHero: { flexDirection: 'column', gap: 0, padding: 0, overflow: 'hidden' },
+  articleHeroRule: { height: 3, width: '100%' },
+  articleHeroBody: { gap: spacing.xs, padding: spacing.md },
+
   articleCardMedia: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   /* minWidth 0 lets the text truncate rather than stretch the card. A flex
      child defaults to min-content width, which ignores numberOfLines. */
   articleBody: { flex: 1, minWidth: 0, gap: spacing.xs },
+  /** 16:9 above the text. Fixed ratio so a rail of cards is one height. */
+  articleThumbHero: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderTopLeftRadius: radius.card,
+    borderTopRightRadius: radius.card,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSunken,
+  },
+
   articleThumb: {
     width: 88,
     height: 88,

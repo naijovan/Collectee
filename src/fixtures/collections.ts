@@ -209,7 +209,109 @@ const collectorsStudy = ROOM_THEMES[5];
  */
 // Explicitly typed rather than `as const satisfies` — an empty literal narrows
 // to never[], and every `.map(r => r.id)` downstream stops compiling.
-export const ROOMS: readonly Room[] = [];
+/**
+ * Seeded Showrooms — other collectors' only.
+ *
+ * The viewer's own stay empty on purpose: rooms are the flow the demo walks
+ * (§14's never-cut path), so shipping one pre-built makes the most important
+ * surface something the audience watches rather than sees built.
+ *
+ * Other people's are the opposite problem. Home's "Showrooms from other
+ * collectors" rail and Explore both read as broken when nobody in the world
+ * has ever made one, and the social thesis (§5) depends on the room being a
+ * thing people publish and visit.
+ *
+ * ⚠️ Only mei and rei appear here, and that is not arbitrary: §9.4 needs three
+ * verified items, and they are the only seeded collectors whose collections
+ * clear it. Inventing a room for someone with one verified item would make the
+ * fixtures contradict the rule the app enforces — the exact "seeded data looks
+ * fake" tell §15 warns about, and the first thing a judge who reads the gate
+ * would go looking for.
+ */
+export const ROOMS: readonly Room[] = [
+  {
+    id: 'room-mei-elderflame',
+    collectionId: 'col-mei-elderflame',
+    themeId: 'theme-fantasy-armoury',
+    title: 'The Dragon Hoard',
+    description: 'Two years of Elderflame, finally on a shelf.',
+    coverUrl: '',
+    backdropUrl: 'room-backdrops/fantasy-armoury.png',
+    /* Copied from the theme at creation, which is what a real room does — the
+       theme owns the map, the room owns its copy. */
+    slots: [
+      { id: 'armoury-pedestal-hero', kind: 'pedestal', x: 0.38, y: 0.44, w: 0.24, h: 0.34, depth: 2 },
+      { id: 'armoury-case-left', kind: 'case', x: 0.08, y: 0.5, w: 0.18, h: 0.26, depth: 1 },
+      { id: 'armoury-case-right', kind: 'case', x: 0.74, y: 0.5, w: 0.18, h: 0.26, depth: 1 },
+      { id: 'armoury-wall-1', kind: 'wall', x: 0.12, y: 0.14, w: 0.16, h: 0.22, depth: 0 },
+      { id: 'armoury-wall-2', kind: 'wall', x: 0.32, y: 0.1, w: 0.16, h: 0.22, depth: 0 },
+      { id: 'armoury-wall-3', kind: 'wall', x: 0.52, y: 0.1, w: 0.16, h: 0.22, depth: 0 },
+      { id: 'armoury-wall-4', kind: 'wall', x: 0.72, y: 0.14, w: 0.16, h: 0.22, depth: 0 },
+    ],
+    placements: [
+      { slotId: 'armoury-pedestal-hero', ownedItemId: 'own-mei-val-elderflame-vandal', rotation: 0 },
+      { slotId: 'armoury-case-left', ownedItemId: 'own-mei-val-elderflame-operator', rotation: 0 },
+      { slotId: 'armoury-case-right', ownedItemId: 'own-mei-val-elderflame-dagger', rotation: 0 },
+    ],
+    settings: {
+      parallaxEnabled: true,
+      focusedSlotId: null,
+      lightingPreset: 'warm-gold',
+      brightness: 0.7,
+      animatedLighting: true,
+      displayStyle: 'framed',
+    },
+    visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 1284,
+    visitorCount: 3921,
+    publishedAt: '2026-07-30T12:15:00.000Z',
+    createdAt: '2026-07-29T09:02:00.000Z',
+  },
+  {
+    id: 'room-rei-mythic',
+    collectionId: 'col-rei-mythic-only',
+    themeId: 'theme-weapon-vault',
+    title: 'Mythic Only',
+    description: 'If it is not Mythic it does not get a pedestal.',
+    coverUrl: '',
+    backdropUrl: 'room-backdrops/weapon-vault.png',
+    slots: [
+      { id: 'vault-wall-1', kind: 'wall', x: 0.05, y: 0.1, w: 0.19, h: 0.24, depth: 0 },
+      { id: 'vault-wall-2', kind: 'wall', x: 0.28, y: 0.08, w: 0.19, h: 0.24, depth: 0 },
+      { id: 'vault-wall-3', kind: 'wall', x: 0.52, y: 0.08, w: 0.19, h: 0.24, depth: 0 },
+      { id: 'vault-wall-4', kind: 'wall', x: 0.75, y: 0.1, w: 0.19, h: 0.24, depth: 0 },
+      { id: 'vault-case-1', kind: 'case', x: 0.05, y: 0.38, w: 0.17, h: 0.13, depth: 1 },
+      { id: 'vault-case-2', kind: 'case', x: 0.24, y: 0.4, w: 0.15, h: 0.12, depth: 1 },
+      { id: 'vault-case-3', kind: 'case', x: 0.6, y: 0.4, w: 0.15, h: 0.12, depth: 1 },
+      { id: 'vault-case-4', kind: 'case', x: 0.77, y: 0.38, w: 0.17, h: 0.13, depth: 1 },
+      { id: 'vault-pedestal-hero', kind: 'pedestal', x: 0.4, y: 0.42, w: 0.2, h: 0.32, depth: 2 },
+      { id: 'vault-pedestal-left', kind: 'pedestal', x: 0.15, y: 0.58, w: 0.16, h: 0.26, depth: 2 },
+      { id: 'vault-pedestal-right', kind: 'pedestal', x: 0.68, y: 0.58, w: 0.16, h: 0.26, depth: 2 },
+    ],
+    placements: [
+      { slotId: 'vault-pedestal-hero', ownedItemId: 'own-rei-codm-dlq33-lightbringer', rotation: 0 },
+      { slotId: 'vault-pedestal-left', ownedItemId: 'own-rei-codm-fennec-ascended', rotation: 0 },
+      { slotId: 'vault-pedestal-right', ownedItemId: 'own-rei-codm-ak117-cordite-storm', rotation: 0 },
+    ],
+    settings: {
+      parallaxEnabled: true,
+      focusedSlotId: null,
+      lightingPreset: 'cool-blue',
+      brightness: 0.68,
+      animatedLighting: true,
+      displayStyle: 'hologram',
+    },
+    visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 842,
+    visitorCount: 2160,
+    publishedAt: '2026-08-01T18:40:00.000Z',
+    createdAt: '2026-08-01T17:55:00.000Z',
+  },
+];
 
 export const ROOMS_BY_ID: ReadonlyMap<string, Room> = new Map(ROOMS.map((r) => [r.id, r]));
 
