@@ -16,6 +16,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DimensionValue, StyleProp, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { artFor } from '@/config/artRegistry';
 import { communityArtFor } from '@/config/communityArt';
 import { FEATURES } from '@/config/features';
 import { rarityLabelFor } from '@/domain/rarity';
@@ -449,11 +450,68 @@ export function CollectorCard({
 }
 
 /** §13.4 section 4 — game tag, headline, blurb, timestamp. */
+/**
+ * The thumbnail on a media-variant `ArticleCard`.
+ *
+ * Resolves the article's FIRST related item through the real art registry —
+ * `config/artRegistry`, not `components/item-art`, whose `ITEM_ART` map is empty
+ * and has no entries to give. All 12 related-item ids across the seeded
+ * articles resolve, so this is a real render rather than a block in practice.
+ *
+ * ── Why not `ItemArt` ─────────────────────────────────────────────────────
+ * `ItemArt` requires a `RarityTier` to draw its fallback. An article has no
+ * rarity, and inventing one to satisfy the signature would put a rarity
+ * decision outside `domain/rarity.ts`. Going to `artFor` directly keeps the
+ * rule intact and skips a fallback this component does not want anyway.
+ *
+ * Without a related item — one seeded article has none — it draws the game's
+ * accent, which is the same block the banner uses and reads as intentional.
+ */
+function ArticleThumb({ article }: { article: Article }) {
+  const itemId = article.relatedItemIds[0];
+  const art = itemId ? artFor(itemId) : null;
+  const title = article.relatedGames[0];
+  const accent = title ? gameAccents[title] : null;
+
+  if (art) {
+    return (
+      <View style={styles.articleThumb}>
+        <Image
+          source={art.source}
+          /* Objects ship on empty backgrounds and are inset so they are not
+             cropped; portraits fill. Same split `ItemArt` makes, for the same
+             reason — one rule for both either letterboxes every face or slices
+             the ends off every blade. */
+          style={art.fit === 'contain' ? styles.articleThumbInset : styles.articleThumbFill}
+          resizeMode={art.fit}
+          accessible
+          accessibilityLabel={art.alt}
+          accessibilityIgnoresInvertColors
+        />
+      </View>
+    );
+  }
+
+  if (accent) {
+    return (
+      <LinearGradient
+        colors={[accent.base, accent.secondary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.articleThumb}
+      />
+    );
+  }
+
+  return <View style={[styles.articleThumb, styles.articleThumbEmpty]} />;
+}
+
 export function ArticleCard({
   article,
   reason,
   width,
   accentTags,
+  media,
   onPress,
 }: {
   article: Article;
@@ -473,13 +531,20 @@ export function ArticleCard({
    * tab you happen to be standing on.
    */
   accentTags?: boolean;
+  /**
+   * Render as a media card — thumbnail left, text right — instead of the
+   * text-only row.
+   *
+   * Opt-in and off by default, so Home's news rail is untouched. Left rather
+   * than top because this is a dense vertical list: the top-image treatment is
+   * the pattern for the GRID cards (`CollectionCard`, `CommunityCard`), and a
+   * top image here would roughly halve the articles on screen.
+   */
+  media?: boolean;
   onPress?: () => void;
 }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.articleCard, width ? { width } : null, pressed && styles.pressed]}
-    >
+  const body = (
+    <>
       <View style={styles.articleTagRow}>
         {article.relatedGames.map((title) => {
           const accent = accentTags ? gameAccents[title] : null;
@@ -500,12 +565,49 @@ export function ArticleCard({
       <Text style={styles.articleTitle} numberOfLines={2}>
         {article.title}
       </Text>
-      <Text style={styles.articleBlurb} numberOfLines={2}>
+      {/* One line beside a thumbnail, two in the full-width text card. The
+          media variant trades summary for density on purpose. */}
+      <Text style={styles.articleBlurb} numberOfLines={media ? 1 : 2}>
         {article.summary}
       </Text>
 
-      {reason ? <Text style={styles.articleReason}>◆ {reason}</Text> : null}
-      <Text style={styles.articleSource}>{article.sourceTitle}</Text>
+      {reason ? (
+        <Text style={styles.articleReason} numberOfLines={media ? 1 : undefined}>
+          ◆ {reason}
+        </Text>
+      ) : null}
+      <Text style={styles.articleSource} numberOfLines={1}>
+        {article.sourceTitle}
+      </Text>
+    </>
+  );
+
+  if (media) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.articleCard,
+          styles.articleCardMedia,
+          width ? { width } : null,
+          pressed && styles.pressed,
+        ]}
+      >
+        <ArticleThumb article={article} />
+        {/* `minWidth: 0` is what lets numberOfLines actually truncate: without
+            it a flex child sizes to its content and the title pushes the card
+            wider instead of ellipsing. */}
+        <View style={styles.articleBody}>{body}</View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.articleCard, width ? { width } : null, pressed && styles.pressed]}
+    >
+      {body}
     </Pressable>
   );
 }
@@ -654,6 +756,25 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.xs,
   },
+  /* Row instead of column, and a wider gap — `articleCard`'s `xs` is the gap
+     between stacked text lines, which would be far too tight beside an 88px
+     thumbnail. */
+  articleCardMedia: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
+  /* minWidth 0 lets the text truncate rather than stretch the card. A flex
+     child defaults to min-content width, which ignores numberOfLines. */
+  articleBody: { flex: 1, minWidth: 0, gap: spacing.xs },
+  articleThumb: {
+    width: 88,
+    height: 88,
+    borderRadius: radius.sm,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSunken,
+  },
+  articleThumbFill: { width: '100%', height: '100%' },
+  /* Objects sit on empty space; a little inset reads as a display case rather
+     than a cropped photo. */
+  articleThumbInset: { width: '100%', height: '100%', padding: spacing.xs },
+  articleThumbEmpty: { borderWidth: 1, borderColor: colors.border },
   articleTagRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   articleTag: {
     backgroundColor: colors.accentMuted,

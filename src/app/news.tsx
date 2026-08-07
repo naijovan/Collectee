@@ -288,6 +288,7 @@ export default function NewsScreen() {
               article={entry.article}
               reason={entry.reason}
               accentTags
+              media
               onPress={() => open(entry.article.id)}
             />
           ))}
@@ -309,6 +310,7 @@ export default function NewsScreen() {
                 key={article.id}
                 article={article}
                 accentTags
+                media
                 onPress={() => open(article.id)}
               />
             ))
