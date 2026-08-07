@@ -467,9 +467,13 @@ export function CollectorCard({
  * Without a related item — one seeded article has none — it draws the game's
  * accent, which is the same block the banner uses and reads as intentional.
  */
-function ArticleThumb({ article }: { article: Article }) {
-  const itemId = article.relatedItemIds[0];
-  const art = itemId ? artFor(itemId) : null;
+function ArticleThumb({ article, itemId }: { article: Article; itemId?: string | null }) {
+  /* Falls back to the article's own first id so the component still renders
+     something sensible on its own — but News passes an id chosen by
+     `pickThumbnailIds`, which is what stops two adjacent rows showing the same
+     picture. See that function for why the list, not the card, decides. */
+  const chosen = itemId ?? article.relatedItemIds[0] ?? null;
+  const art = chosen ? artFor(chosen) : null;
   const title = article.relatedGames[0];
   const accent = title ? gameAccents[title] : null;
 
@@ -512,6 +516,7 @@ export function ArticleCard({
   width,
   accentTags,
   media,
+  thumbItemId,
   onPress,
 }: {
   article: Article;
@@ -541,6 +546,15 @@ export function ArticleCard({
    * top image here would roughly halve the articles on screen.
    */
   media?: boolean;
+  /**
+   * Which related item supplies the thumbnail, when the caller has worked it
+   * out across the whole list — see `domain/news.pickThumbnailIds`. Omitted,
+   * the card falls back to the article's own first related item, which is
+   * correct for a lone card and wrong for a list.
+   *
+   * Ignored unless `media` is set.
+   */
+  thumbItemId?: string | null;
   onPress?: () => void;
 }) {
   const body = (
@@ -593,7 +607,7 @@ export function ArticleCard({
           pressed && styles.pressed,
         ]}
       >
-        <ArticleThumb article={article} />
+        <ArticleThumb article={article} itemId={thumbItemId} />
         {/* `minWidth: 0` is what lets numberOfLines actually truncate: without
             it a flex child sizes to its content and the title pushes the card
             wider instead of ellipsing. */}
