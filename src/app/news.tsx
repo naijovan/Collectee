@@ -248,9 +248,32 @@ export default function NewsScreen() {
         />
       </View>
 
-      {/* Game identity, above the digest. Fixed height (`BANNER_HEIGHT`), so it
-          cannot resize after the tour has measured the digest below it — see
-          the note on that constant. Saved has no game and gets no banner. */}
+      {/*
+        Game identity, above the digest. Saved has no game and gets no banner.
+
+        ── This banner is load-bearing for the first-run walkthrough ─────────
+        The tour spotlights the digest BELOW this. Adding the banner moves that
+        target down by exactly 128px (BANNER_HEIGHT 112 + spacing.lg), putting
+        the digest at ~222px from the top of the scroll content and its bottom
+        edge at ~394px.
+
+        Two consequences, both checked before this landed:
+
+        1. The digest still clears the fold on the shortest viewport we care
+           about (iPhone SE, 667) with ~229px to spare, so the spotlight never
+           lands on something scrolled out of view.
+
+        2. At 667 the tour CARD flips from below the hole to above it —
+           `TourOverlay` puts it on whichever side has more room, and below
+           drops to 229px against 266px above. That is the overlay working as
+           designed, not a regression, but it is why the banner cannot grow:
+           past ~112px the card is forced above the hole on more devices, and
+           past ~160px the digest itself starts crowding the fold.
+
+        If this height ever changes, re-do that arithmetic. `BANNER_HEIGHT` is
+        a fixed constant rather than an intrinsic image height precisely so the
+        number stays knowable.
+      */}
       {title !== null ? <NewsBanner title={title} /> : null}
 
       {/* Wrapped so both branches share one measurable box: the walkthrough
