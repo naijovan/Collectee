@@ -134,10 +134,18 @@ export function ItemCard({
         <Text style={styles.itemName} numberOfLines={2}>
           {item.name}
         </Text>
-        <Text style={[styles.itemMeta, showcase && { color: treatment.base }]}>
-          {GAME_SHORT_LABELS[item.title]} · {rarityLabelFor(item.rarityTier, item.title)}
-        </Text>
-        {trustLevel ? <TrustBadge level={trustLevel} /> : null}
+        {/* Trust sits on the meta line rather than under it: it belongs to the
+            same tier of information as game and rarity, and stacking it added a
+            row that pushed every card taller for one word. */}
+        <View style={styles.itemMetaRow}>
+          <Text
+            style={[styles.itemMeta, styles.itemMetaText, showcase && { color: treatment.base }]}
+            numberOfLines={1}
+          >
+            {GAME_SHORT_LABELS[item.title]} · {rarityLabelFor(item.rarityTier, item.title)}
+          </Text>
+          {trustLevel ? <TrustBadge level={trustLevel} /> : null}
+        </View>
       </View>
     </Pressable>
   );
@@ -443,16 +451,24 @@ export function CollectorCard({
         pressed && styles.pressed,
       ]}
     >
-      <Avatar
-        name={user.displayName}
-        avatarId={user.avatar}
-        verified={user.isAccountVerified}
-        size={44}
-      />
-      <Text style={styles.collectorName} numberOfLines={1}>
-        {user.displayName}
-      </Text>
-      {percent !== undefined ? <Text style={styles.matchPercent}>{percent}% match</Text> : null}
+      {/* Portrait, name and score centred as one block: this is a card ABOUT a
+          person, and a small avatar in the corner made it read as a list row
+          that happened to be boxed. The reason stays left-aligned below —
+          it is a sentence, and centred prose is harder to scan. */}
+      <View style={styles.collectorHead}>
+        <Avatar
+          name={user.displayName}
+          avatarId={user.avatar}
+          verified={user.isAccountVerified}
+          size={84}
+        />
+        <Text style={styles.collectorName} numberOfLines={1}>
+          {user.displayName}
+        </Text>
+        {percent !== undefined ? (
+          <Text style={styles.matchPercent}>{percent}% match</Text>
+        ) : null}
+      </View>
       {reason ? (
         <Text style={styles.collectorReason} numberOfLines={2}>
           {reason}
@@ -834,10 +850,18 @@ const styles = StyleSheet.create({
   // cards is one height. Without it the grid stair-steps by name length.
   itemName: { ...typography.cardTitle, color: colors.textPrimary, minHeight: 40 },
   itemMeta: { ...typography.meta, color: colors.textSecondary },
+  itemMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+  },
+  /** Shrinks first, so a long game+rarity pair never pushes the badge out. */
+  itemMetaText: { flexShrink: 1, minWidth: 0 },
 
   trust: {
-    alignSelf: 'flex-start',
-    marginTop: 2,
+    alignSelf: 'center',
+    flexShrink: 0,
     paddingHorizontal: spacing.sm,
     paddingVertical: 1,
     borderRadius: radius.pill,
@@ -927,6 +951,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     alignItems: 'flex-start',
   },
+  collectorHead: { alignSelf: 'stretch', alignItems: 'center', gap: spacing.xs },
   collectorName: { ...typography.cardTitle, color: colors.textPrimary },
   /* Family-baked weight, not `fontWeight` — Android would synthesise a fake
      bold over the loaded Inter cut and it reads muddy at 12px. */

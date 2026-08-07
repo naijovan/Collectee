@@ -58,7 +58,7 @@ function ResolvedItemImage({
         source={source}
         style={[styles.artFill, styles.artSurroundings]}
         resizeMode="cover"
-        blurRadius={24}
+        blurRadius={8}
         accessible={false}
         accessibilityIgnoresInvertColors
       />
@@ -651,12 +651,12 @@ const styles = StyleSheet.create({
    */
   artFill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   artSurroundings: {
-    opacity: 0.66,
-    transform: [{ scale: 1.12 }],
+    opacity: 0.88,
+    transform: [{ scale: 1.06 }],
   },
   artSurroundingsShade: {
     backgroundColor: colors.surfaceSunken,
-    opacity: 0.18,
+    opacity: 0.08,
   },
   artStripe: { position: 'absolute', width: '160%', height: 26, left: '-30%', top: '42%' },
   artGlow: {
