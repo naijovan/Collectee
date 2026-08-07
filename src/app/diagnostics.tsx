@@ -18,6 +18,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { FEATURES, SKIP_FIRST_RUN } from '@/config/features';
 import { avatarArtCoverage } from '@/config/avatarRegistry';
 import { communityArtCoverage } from '@/config/communityArt';
+import { newsBannerCoverage } from '@/config/newsBanners';
 import { intensityOption } from '@/domain/onboarding';
 import { countScan } from '@/domain/scan';
 import { FLAG_THRESHOLD } from '@/domain/trust';
@@ -55,6 +56,7 @@ export default function FoundationScreen() {
   } = useApp();
   const scrollRef = useTopOnFocus();
   const avatarCoverage = avatarArtCoverage();
+  const bannerCoverage = newsBannerCoverage();
   const [communityCoverage, setCommunityCoverage] = useState({ covered: 0, total: 0 });
   const [checks, setChecks] = useState<Check[]>([]);
   const [running, setRunning] = useState(true);
@@ -241,6 +243,11 @@ export default function FoundationScreen() {
           label="Community images"
           value={`${communityCoverage.covered}/${communityCoverage.total} — the rest render as colour blocks`}
           ok={communityCoverage.covered === communityCoverage.total}
+        />
+        <Row
+          label="News banners"
+          value={`${bannerCoverage.covered}/${bannerCoverage.total} — the rest render as accent gradients`}
+          ok={bannerCoverage.covered === bannerCoverage.total}
         />
       </View>
 
