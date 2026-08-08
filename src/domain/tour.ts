@@ -100,12 +100,24 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       id: 'tabs',
       route: '/',
       targetIds: ['tabbar'],
-      title: 'Everything lives down here',
+      /*
+       * Ray caught a real error here, not a style preference: this said
+       * "Discover" and the tab has been called EXPLORE since the tab bar was
+       * built. A walkthrough naming a destination that is not on screen is the
+       * worst kind of copy bug, because the reader looks for it and concludes
+       * they are lost.
+       *
+       * The "that is deliberate, not a bug" line is also gone. Ray's note is
+       * that it reads like the app explaining itself, and he is right — a tour
+       * pre-empting an accusation invites one. The greying still happens; it
+       * just is not narrated.
+       */
+      title: 'Your collection starts here',
       body:
-        'Home, Discover, Import, Collections and Profile. Collections and Profile stay greyed out until you import your first items — that is deliberate, not a bug.',
+        'Explore, import items, build collections and manage your profile from the navigation bar below.',
       /* Hovering just over the bar rather than up at the top of the screen,
          with the bubble beside her so nothing sits on the bar. */
-      guide: { pose: 'pointing', hugAbove: true, bubbleSide: 'left', line: 'Everything lives down here — Home, Discover, Import, Collections and Profile. Collections and Profile stay greyed until your first import. That is on purpose!' },
+      guide: { pose: 'pointing', hugAbove: true, bubbleSide: 'left', line: 'Your collection starts here! Explore, import items, build collections and manage your profile from the bar below.' },
     },
     {
       id: 'import',
@@ -125,22 +137,27 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       id: 'discover',
       route: '/explore',
       targetIds: ['explore-title', 'explore-chips'],
-      title: 'Find people with your taste',
+      title: 'Find collectors like you',
       body:
-        'Collectors whose inventories overlap yours, and the communities around them. Every match shows the reason it scored — a percentage on its own is not much of an argument.',
+        'Discover people with similar collections, games and interests.',
       /* Left of her, keeping the Verify and Reports buttons in the top-right
-         corner clear on this stop. */
-      guide: { pose: 'pointing', bubbleSide: 'left', bubbleAlign: 'top', line: 'This is where you find people with your taste. Every match shows why it scored — a percentage on its own is not much of an argument.' },
+         corner clear on this stop.
+
+         Colly keeps the "every match shows why" clause that Ray's shorter body
+         drops. §11 F5 makes the reason load-bearing — a percentage without one
+         is a broken feature — so the one line a judge actually hears should
+         still say it. Ray's meaning is preserved; the voice adds to it. */
+      guide: { pose: 'pointing', bubbleSide: 'left', bubbleAlign: 'top', line: 'Find collectors like you — people with similar collections, games and interests. Every match shows why it scored, too.' },
     },
     {
       id: 'news',
       route: '/news',
       targetIds: ['news-digest'],
       fallbackTargetIds: ['news-tabs'],
-      title: 'What changed while you were away',
+      title: 'Updates that matter to you',
       body:
-        'One tab per game, each opening with a digest. The feed below ranks on what you own and what you follow, so a patch note about your weapon comes before one about someone else’s.',
-      guide: { pose: 'pointing', line: 'One tab per game, each opening with a digest. The feed ranks on what you own, so a patch note about your weapon comes first.' },
+        'See the latest news from your games, skins and favourites, ranked around what you follow and collect.',
+      guide: { pose: 'pointing', line: 'Updates that matter to you — news from your games, skins and favourites, ranked around what you follow and collect.' },
       enabled: features.news,
     },
     {

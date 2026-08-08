@@ -443,6 +443,12 @@ function DetailsStep({
         No real loss: the picker is horizontal and all fifteen scroll past, so
         the ordering only ever changed which four you saw first.
       */}
+      {/* Ray asked for "Pick a face" to become "Pick your avatar". That string
+          was a STEP NAME, removed when the face and the name became one answer,
+          so there was nothing to rename — and the picker had been left with no
+          label at all, which is the thing the note was really about. Ray's
+          wording, on the heading the picker was missing. */}
+      <Text style={styles.fieldHeading}>Pick your avatar</Text>
       <AvatarPicker value={avatarId} onChange={onAvatar} horizontal size={72} />
 
       <View style={styles.fields}>
@@ -587,9 +593,11 @@ function TasteStep({
 }) {
   return (
     <View style={styles.step}>
-      <Text style={styles.question}>Anything you collect in particular?</Text>
+      <Text style={styles.question}>Anything you&apos;re into right now?</Text>
       <Text style={styles.hint}>
-        Skins and heroes our news actually covers — following one moves it up your feed.{' '}
+        Choose skins, heroes and games that you like, and we&apos;ll tailor your feed around them.{' '}
+        {/* (Optional) stays. It is not decoration — this step does not gate
+            Continue, and a picker with no visible way past it reads as a wall. */}
         <Text style={styles.optional}>(Optional)</Text>
       </Text>
 
@@ -779,6 +787,9 @@ const styles = StyleSheet.create({
   fields: { gap: spacing.md, alignSelf: 'stretch' },
   field: { gap: spacing.xs },
   fieldLabel: { ...typography.meta, color: colors.textSecondary },
+  /* Slightly stronger than `fieldLabel`: it introduces the picker rather than
+     sitting above a single input, and it is the first thing under the hint. */
+  fieldHeading: { ...typography.cardTitle, color: colors.textPrimary, alignSelf: 'flex-start' },
   fieldBox: {
     flexDirection: 'row',
     alignItems: 'center',

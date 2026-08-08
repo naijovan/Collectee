@@ -46,28 +46,38 @@ export interface IntensityOption {
  * it only ever appears as a choice and as their own profile line.
  */
 export const INTENSITY_OPTIONS: readonly IntensityOption[] = [
+  /*
+   * `blurb` is Ray's copy, verbatim — these four strings were specified exactly
+   * and are not to be paraphrased.
+   *
+   * `profileFlavour` is deliberately NOT the blurb. The blurb is the collector
+   * speaking in first person while choosing ("I collect what I like"), and the
+   * flavour is how the choice reads back on a profile another person is looking
+   * at, in third person. Copying the blurb into it would put "I collect what I
+   * like" under someone else's handle.
+   */
   {
     value: 'casual',
     label: 'Casual',
-    blurb: 'I pick up what I like and log off.',
+    blurb: 'I collect what I like.',
     profileFlavour: 'Collects what catches their eye',
   },
   {
     value: 'enthusiast',
     label: 'Enthusiast',
-    blurb: 'I know when the banner drops.',
+    blurb: 'I keep up with every drop.',
     profileFlavour: 'Knows when the banner drops',
   },
   {
     value: 'completionist',
     label: 'Completionist',
-    blurb: 'A set with a gap in it is not a set.',
+    blurb: "If there's a gap, I'm filling it.",
     profileFlavour: 'Will not leave a set unfinished',
   },
   {
     value: 'whale',
     label: 'Whale',
-    blurb: 'It was going to sell out. I had no choice.',
+    blurb: 'Limited edition? Say less.',
     profileFlavour: 'Has never let a bundle sell out',
   },
 ] as const;
