@@ -295,10 +295,17 @@ report:
   never adapt one, and never return an id because the name merely sounds like a
   real item from this game. If nothing in the catalogue is the same item, this
   is null — that is a normal and expected answer.
-- "confidence": 0 to 1, your confidence in the "itemId" decision specifically.
+- "confidence": 0 to 1, your confidence in the "itemId" DECISION specifically —
+  how sure you are that this is that catalogue item. It is not a score for how
+  much text you could read, and a missing label is not by itself a reason to be
+  unsure.
   A confident null counts as HIGH confidence: if you read the label clearly and
-  it is genuinely not in the catalogue, that is 0.95, not 0.2. Use a low value
-  only when the tile itself was hard to read.
+  it is genuinely not in the catalogue, that is 0.95, not 0.2.
+  On a kind-B image there is usually no label at all, so judge the visual match:
+  if the weapon and the skin's colourway, finish and motifs clearly match one
+  catalogue entry and no other, that is 0.85 or above even with nothing written
+  anywhere in the image. Reserve values below 0.6 for a genuine toss-up — two
+  entries you cannot choose between, or an item you cannot make out.
 - "candidateItemIds": up to 3 other catalogue ids that could plausibly be this
   item, best first, when you are unsure. Empty when you are confident or when
   nothing in the catalogue is close.
