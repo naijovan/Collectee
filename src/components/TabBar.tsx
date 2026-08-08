@@ -23,7 +23,8 @@ import type { SFSymbol } from 'expo-symbols';
 import { SymbolView, type AndroidSymbol } from 'expo-symbols';
 import medium from 'expo-symbols/androidWeights/medium';
 import { usePathname, useRouter } from 'expo-router';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +33,8 @@ import { FEATURES } from '@/config/features';
 import * as haptics from '@/lib/haptics';
 import { useApp } from '@/state/AppContext';
 import { useTourAnchor } from '@/state/TourAnchors';
-import { accentGlow, colors, fonts, interaction, radius, spacing, tabBarGlass, tabBarWash, typography } from '@/theme/theme';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
+import { accentGlow, colors, fonts, interaction, motion, radius, spacing, tabBarGlass, tabBarWash, typography } from '@/theme/theme';
 
 import { AccentFill } from './primitives';
 
@@ -108,18 +110,138 @@ const TABS: readonly Tab[] = [
   },
 ];
 
-function TabIcon({ icon, active, colour }: { icon: TabIcon; active: boolean; colour: string }) {
+function TabIcon({
+  icon,
+  active,
+  colour,
+  lift,
+}: {
+  icon: TabIcon;
+  active: boolean;
+  colour: string;
+  /** Animated 0-1. Drives careerlingo's `.nav-item:hover svg { translateY(-2px) }`. */
+  lift: Animated.Value;
+}) {
   return (
     /* No pill behind the icon any more — the whole cell carries the selection,
        and a tinted box inside a tinted box read as two nested states. */
-    <View style={styles.iconIndicator}>
+    <Animated.View
+      style={[
+        styles.iconIndicator,
+        {
+          transform: [
+            { translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) },
+          ],
+        },
+      ]}
+    >
       <SymbolView
         name={active ? icon.active : icon.inactive}
         size={23}
         tintColor={colour}
         weight={{ ios: active ? 'semibold' : 'medium', android: medium }}
       />
-    </View>
+    </Animated.View>
+  );
+}
+
+/**
+ * One destination in the bar, owning its own hover.
+ *
+ * Split out of `TabBar` because the hover value has to be per tab — a single
+ * shared one would lift every icon whenever the pointer entered any cell.
+ *
+ * The motion is careerlingo's `.nav-item:hover`: a faint accent tint behind the
+ * cell and the icon rising a couple of pixels. Both are pointer-only; touch
+ * never fires them, which is correct — a finger gets the press state instead.
+ */
+function NavTab({
+  tab,
+  active,
+  locked,
+  onPress,
+}: {
+  tab: Tab;
+  active: boolean;
+  locked: boolean;
+  onPress: () => void;
+}) {
+  const reduceMotion = useReduceMotion();
+  const lift = useRef(new Animated.Value(0)).current;
+  const [hovered, setHovered] = useState(false);
+
+  const animate = useCallback(
+    (to: number) => {
+      if (reduceMotion) {
+        lift.setValue(0);
+        return;
+      }
+      Animated.timing(lift, {
+        toValue: to,
+        duration: motion.fast,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: Platform.OS !== 'web',
+      }).start();
+    },
+    [lift, reduceMotion],
+  );
+
+  return (
+    <Pressable
+      disabled={locked}
+      onPress={() => {
+        /* Re-tapping the current tab is a no-op; navigating to where you already
+           are would replay the transition for nothing. */
+        if (active) return;
+        onPress();
+      }}
+      onHoverIn={() => {
+        setHovered(true);
+        animate(1);
+      }}
+      onHoverOut={() => {
+        setHovered(false);
+        animate(0);
+      }}
+      accessibilityRole="tab"
+      accessibilityLabel={tab.label}
+      /* The gate was previously visual only — greyed pixels tell a sighted user
+         the tab is locked and tell a screen-reader user nothing. §13.4 says
+         non-interactive, and this is the half that was missing. */
+      accessibilityState={{ selected: active, disabled: locked }}
+      accessibilityHint={locked ? 'Import your inventory to unlock this tab' : undefined}
+      style={({ pressed }) => [
+        styles.tab,
+        /* Hover tint sits UNDER the selected tint, so hovering the active tab
+           does not double it. */
+        hovered && !active && !locked && styles.tabHovered,
+        active && styles.tabActive,
+        /* The reference's `.nav-item:active { transform: scale(0.97) }`. */
+        pressed && { transform: [{ scale: 0.97 }] },
+        pressed && !active && styles.pressed,
+      ]}
+    >
+      <TabIcon
+        icon={tab.icon}
+        active={active}
+        colour={locked ? colors.border : active ? colors.accent : colors.textSecondary}
+        lift={lift}
+      />
+      {/*
+        Every tab keeps its label.
+
+        Hiding all but the selected one was tried and reverted: it buys width
+        that is only ever scarce at ~390px, and the app is demoed in a desktop
+        browser where all five have room. A destination you cannot name until
+        you have already tapped it is a worse trade than a tight phone layout.
+      */}
+      <Text
+        style={[styles.label, active && styles.active, locked && styles.locked]}
+        numberOfLines={1}
+      >
+        {tab.label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -143,52 +265,17 @@ export function TabBar() {
     // flag for why. With it off nothing is ever locked, so the greyed styling
     // and the disabled state below simply never engage.
     const locked = FEATURES.onboardingGate && tab.gated === true && !hasImported;
-    const active = pathname === tab.href;
-
     return (
-      <Pressable
+      <NavTab
         key={tab.href}
-        disabled={locked}
+        tab={tab}
+        active={pathname === tab.href}
+        locked={locked}
         onPress={() => {
-          if (active) return;
           haptics.selection();
           router.navigate(tab.href);
         }}
-        accessibilityRole="tab"
-        accessibilityLabel={tab.label}
-        /* The gate was previously visual only — greyed pixels tell a sighted
-           user the tab is locked and tell a screen-reader user nothing. §13.4
-           says non-interactive, and this is the half that was missing. */
-        accessibilityState={{ selected: active, disabled: locked }}
-        accessibilityHint={locked ? 'Import your inventory to unlock this tab' : undefined}
-        style={({ pressed }) => [
-          styles.tab,
-          active && styles.tabActive,
-          /* The reference's `.nav-item:active { transform: scale(0.97) }`. */
-          pressed && { transform: [{ scale: 0.97 }] },
-          pressed && !active && styles.pressed,
-        ]}
-      >
-        <TabIcon
-          icon={tab.icon}
-          active={active}
-          colour={locked ? colors.border : active ? colors.accent : colors.textSecondary}
-        />
-        {/*
-          Every tab keeps its label.
-
-          Hiding all but the selected one was tried and reverted: it buys width
-          that is only ever scarce at ~390px, and the app is demoed in a desktop
-          browser where all five have room. A destination you cannot name until
-          you have already tapped it is a worse trade than a tight phone layout.
-        */}
-        <Text
-          style={[styles.label, active && styles.active, locked && styles.locked]}
-          numberOfLines={1}
-        >
-          {tab.label}
-        </Text>
-      </Pressable>
+      />
     );
   }
 
@@ -319,6 +406,8 @@ const styles = StyleSheet.create({
    * borrowing the hex would have put a raw colour outside theme.ts.
    */
   tabActive: { backgroundColor: colors.accentMuted },
+  /** careerlingo's `.nav-item:hover` — accent at roughly half the selected tint. */
+  tabHovered: { backgroundColor: 'rgba(47,107,255,0.08)' },
   iconIndicator: {
     width: 38,
     height: 28,

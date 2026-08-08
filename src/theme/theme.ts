@@ -568,7 +568,21 @@ export const fonts = {
 
 /** Type scale from §13.2: screen title, section header, card title, meta. */
 export const typography = {
-  screenTitle: { fontSize: 28, lineHeight: 34, fontFamily: fonts.display, letterSpacing: -0.5 },
+  /**
+   * Page titles, sized against careerlingo's `.brand-wordmark`.
+   *
+   * Theirs is `clamp(2.5rem, 4.4vw, 4rem)` — 40 to 64px — with `line-height:
+   * 1.22` and `letter-spacing: -0.01em`. Those are hero numbers: it is a
+   * wordmark sitting in a page header, not a sticky nav title, and 40px pinned
+   * to the top of a phone would eat a fifth of the viewport before any content
+   * appeared.
+   *
+   * 34 takes their proportions without their absolute size. Line height is
+   * their 1.22 exactly (34 x 1.22 = 41), and the tracking is their -0.01em
+   * converted at this size (-0.34, rounded to -0.4). It reads as the same
+   * typographic decision one step down the scale.
+   */
+  screenTitle: { fontSize: 34, lineHeight: 41, fontFamily: fonts.display, letterSpacing: -0.4 },
   sectionHeader: { fontSize: 18, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.2 },
   cardTitle: { fontSize: 15, lineHeight: 20, fontFamily: fonts.bodySemiBold },
   body: { fontSize: 14, lineHeight: 20, fontFamily: fonts.body },

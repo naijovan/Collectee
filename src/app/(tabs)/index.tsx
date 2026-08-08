@@ -280,7 +280,7 @@ export default function HomeScreen() {
                 name={viewer?.displayName ?? '?'}
                 avatarId={viewer?.avatar}
                 verified={viewer?.isAccountVerified}
-                size={38}
+                size={46}
               />
             </Hoverable>
           </View>
@@ -651,7 +651,9 @@ const styles = StyleSheet.create({
    * them. Display face and a tight tracking, because this is the first thing
    * on a gaming social app and a plain body face reads like a settings screen.
    */
-  greetingLine: { fontSize: 22, lineHeight: 28, fontFamily: fonts.display },
+  /* Matches `screenTitle`, so Home's greeting is the same size as Explore's
+     "Discover" and Collections' title rather than a smaller cousin. */
+  greetingLine: { ...typography.screenTitle, color: colors.textPrimary },
   /** Muted so the name wins without needing a second, larger size. */
   greetingWord: { color: colors.textSecondary },
   greetingName: { color: colors.textPrimary },
