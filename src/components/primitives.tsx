@@ -96,6 +96,7 @@ export function ItemArt({
   tier,
   renderUrl,
   fit,
+  useOriginalArt = false,
   style,
 }: {
   seed: string;
@@ -104,6 +105,21 @@ export function ItemArt({
   renderUrl?: string;
   /** Override the registry fit for decorative placements such as mosaics. */
   fit?: 'cover' | 'contain';
+  /**
+   * Draw the ORIGINAL artwork rather than the baked display rendition.
+   *
+   * `scripts/bake-display-art.ts` fills each rendition to a fixed frame by
+   * compositing the art over a blurred, darkened copy of itself. On a card that
+   * is the right trade — a gun keeps both ends and the bars read as a soft
+   * vignette. On a large decorative panel it does not: the blur is big enough
+   * to read as blur, and the subject sits in a letterboxed window inside a
+   * frame that was supposed to be full-bleed.
+   *
+   * Callers that own their own crop (the Home hero, which offsets each panel by
+   * hand) want the raw art and `fit="cover"` instead, so the panel fills with
+   * picture rather than with a blurred approximation of it.
+   */
+  useOriginalArt?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const { width: viewportWidth } = useWindowDimensions();
@@ -139,15 +155,16 @@ export function ItemArt({
       frame.height > 0 &&
       frame.width * density <= compactWidth &&
       frame.height * density <= 400;
-    const displaySource = useDisplaySource
-      ? frame.width === 0
+    const displaySource =
+      !useDisplaySource || useOriginalArt
+        ? null
+        : frame.width === 0
         ? viewportWidth < 600
           ? compactSource
           : fullSource
         : compactIsSharpEnough
         ? compactSource
-        : fullSource
-      : null;
+        : fullSource;
     // The image sits inside the same container the colour block uses, so the
     // caller's ViewStyle (size, radius) still applies and `overflow: hidden`
     // does the clipping. Styling the Image directly does not typecheck —

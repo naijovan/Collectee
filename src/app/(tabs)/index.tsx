@@ -150,6 +150,9 @@ const HERO_PANEL_OFFSETS: Record<string, `${number}%`> = {
   'mlbb-shadow-protocol': '-24%',
 };
 
+/** Showrooms on the Home grid before "See all" — matches the collectibles grid. */
+const HOME_ROOM_PREVIEW = 4;
+
 /** For any panel not listed above — the old shared value, i.e. centred. */
 const HERO_PANEL_OFFSET_DEFAULT: `${number}%` = '-14%';
 
@@ -179,7 +182,9 @@ export default function HomeScreen() {
   const [explore, setExplore] = useState<ExploreEntry[]>([]);
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
   const [rooms, setRooms] = useState<RoomEntry[]>([]);
+  const [showAllRooms, setShowAllRooms] = useState(false);
   const [busy, setBusy] = useState(true);
+  const visibleRooms = showAllRooms ? rooms : rooms.slice(0, HOME_ROOM_PREVIEW);
 
   const load = useCallback(async () => {
     const [news, collections, users, recommended, publishedRooms] = await Promise.all([
@@ -374,6 +379,13 @@ export default function HomeScreen() {
                 tier={
                   inventory.find((entry) => entry.item.id === itemId)?.item.rarityTier ?? 'mythic'
                 }
+                /* The raw artwork, cropped to fill. The baked display rendition
+                   letterboxes onto a blurred copy of itself, which is right on
+                   a card and wrong here — the hero is meant to be full-bleed
+                   art, and the bars showed up as visible blur down each panel.
+                   The per-panel offsets below choose which part survives. */
+                useOriginalArt
+                fit="cover"
                 style={[
                   styles.heroPanelArt,
                   { marginLeft: HERO_PANEL_OFFSETS[itemId] ?? HERO_PANEL_OFFSET_DEFAULT },
@@ -586,7 +598,23 @@ export default function HomeScreen() {
       {/* Rooms — the chip the Figma implies but never fills */}
       {show('Rooms') ? (
         <View>
-          <SectionHeader title="Trending Showrooms" prominent />
+          {/*
+            Capped at four, like the collectibles grid above it. The seeded
+            roster went from three public rooms to ten, and an uncapped grid
+            pushed everything below this section a screen and a half down.
+
+            The action expands in place rather than navigating: there is no
+            "all showrooms" screen to send anyone to, and a "See all" that
+            routes somewhere without them would be worse than one that opens
+            the rest here. It says "Show less" once expanded, so the control
+            never claims to do something it has already done.
+          */}
+          <SectionHeader
+            title="Trending Showrooms"
+            prominent
+            actionLabel={showAllRooms ? 'Show less' : 'See all'}
+            onSeeAll={rooms.length > HOME_ROOM_PREVIEW ? () => setShowAllRooms((on) => !on) : undefined}
+          />
           {busy ? (
             <LoadingState height={150} />
           ) : (
@@ -596,7 +624,7 @@ export default function HomeScreen() {
                A showroom is something you look at, so the backdrop leads and the
                title sits under it — the same shape as a collection card. */
             <View style={styles.grid}>
-              {rooms.map((entry, index) => (
+              {visibleRooms.map((entry, index) => (
                 <FadeInView
                   key={entry.room.id}
                   index={index}
@@ -664,7 +692,9 @@ export default function HomeScreen() {
                   </Hoverable>
                 </FadeInView>
               ))}
-              {viewportWidth >= 600 && rooms.length % 2 === 1 ? (
+              {/* Counts the rooms actually rendered, not the whole list — a
+                  spacer decided by the unsliced length is right only by luck. */}
+              {viewportWidth >= 600 && visibleRooms.length % 2 === 1 ? (
                 <View style={styles.gridCell} pointerEvents="none" />
               ) : null}
             </View>

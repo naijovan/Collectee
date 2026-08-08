@@ -66,8 +66,8 @@ export interface ArtEntry {
    * that change sat uncommitted in a working tree. It compiled and populated
    * nothing, so the bars came back. This is the real join.
    *
-   * ⚠️ 3D and depth bakes must keep using `source` — a cropped rendition has
-   * had its edges cut, and those need the whole subject.
+   * ⚠️ 3D and depth bakes must keep using `source` — card renditions are
+   * presentation frames, and those paths need the untouched source pixels.
    */
   displaySource?: DisplayArtSource;
 }
@@ -550,15 +550,15 @@ export function artFor(itemId: string): ArtEntry | null {
    * This is the join that removes the black bars. The originals are authored
    * at mixed aspects and rendered with `contain`, so a 16:9 card showing a
    * square render letterboxes it — correct, and ugly. `DISPLAY_ART` holds
-   * pre-cropped versions at the four aspects the app actually renders, which
+   * card-framed versions at the four aspects the app actually renders, which
    * `ItemArt` picks between by measured box, and those draw with `cover`.
    *
    * Merged here rather than baked into `ART` because `bake-display-art.ts`
    * regenerates `displayArtRegistry.ts` wholesale — keeping the two files
    * separate means a re-bake never touches hand-authored `alt` text or `fit`.
    *
-   * ⚠️ 3D surfaces must keep using `source`. A cropped rendition has had its
-   * edges cut, and the mesh and depth bakes need the whole subject.
+   * ⚠️ 3D surfaces must keep using `source`. Card renditions are presentation
+   * frames, and the mesh and depth bakes need the untouched source pixels.
    */
   const display = DISPLAY_ART[itemId];
   return display === undefined ? entry : { ...entry, displaySource: display };
