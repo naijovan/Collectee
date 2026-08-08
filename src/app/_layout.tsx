@@ -31,7 +31,7 @@ import {
   SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
 import { useFonts } from 'expo-font';
-import { Stack, usePathname, useRouter } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -43,7 +43,7 @@ import { TourAnchorsProvider } from '@/state/TourAnchors';
 import { ThemeModeProvider, useThemeMode } from '@/theme/ThemeMode';
 import { installWebChrome } from '@/theme/webChrome';
 import { AppBackground, AssistantButton, TourOverlay } from '@/components';
-import { colors, fonts } from '@/theme/theme';
+import { colors, DARK_PALETTE, fonts } from '@/theme/theme';
 
 /* Hold the native splash until the fonts resolve, so the first frame is already
    in Space Grotesk. Without this the app renders a system-font frame and then
@@ -52,6 +52,40 @@ import { colors, fonts } from '@/theme/theme';
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* Already hidden, or unsupported on web. Not a failure worth surfacing. */
 });
+
+/**
+ * The navigator's own theme.
+ *
+ * ── This is what was painting the page white ──────────────────────────────
+ * Expo Router falls back to its `DefaultTheme` when no `ThemeProvider` is
+ * supplied, and that theme's background is `rgb(242, 242, 242)`. The navigator
+ * container drew it BEHIND every screen, and because our screens set
+ * `contentStyle: transparent` — deliberately, so `AppBackground` shows through
+ * — that light grey was what showed through instead. `AppBackground` sits
+ * outside the navigator, so it was being covered rather than revealed.
+ *
+ * It had nothing to do with the system appearance or with our CSS variables:
+ * `<html data-theme="dark">` was correct the whole time, and this was painting
+ * over it. Which is also why it did not respond to the light-mode lock.
+ *
+ * Built from Expo Router's own `DarkTheme` rather than replacing it, so the
+ * fields we do not care about keep sane values. Its background is `rgb(1,1,1)`,
+ * which is not our near-black, hence the override — and the raw palette rather
+ * than `colors`, because on web `colors.background` is a `var(--c-…)` string
+ * and this value is consumed by the navigator, not by CSS.
+ */
+const NAV_THEME = {
+  ...DarkTheme,
+  dark: true,
+  colors: {
+    ...DarkTheme.colors,
+    background: DARK_PALETTE.background,
+    card: DARK_PALETTE.surface,
+    text: DARK_PALETTE.textPrimary,
+    border: DARK_PALETTE.border,
+    primary: DARK_PALETTE.accent,
+  },
+};
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
@@ -84,7 +118,10 @@ export default function RootLayout() {
       <AppProvider>
         <AssistantDockProvider>
           <TourAnchorsProvider>
-            <View style={styles.appShell}>
+            {/* Wraps the navigator so its container stops painting Expo
+                Router's light DefaultTheme behind every transparent screen. */}
+            <ThemeProvider value={NAV_THEME}>
+              <View style={styles.appShell}>
               <AppBackground />
               <ThemedChrome />
               <FirstRunGate />
@@ -161,6 +198,7 @@ export default function RootLayout() {
                   thing it is describing is worse than no card. */}
               <FirstRunTour />
             </View>
+            </ThemeProvider>
           </TourAnchorsProvider>
         </AssistantDockProvider>
       </AppProvider>
