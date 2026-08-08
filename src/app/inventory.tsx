@@ -23,6 +23,8 @@
  */
 
 import { useMemo, useState } from 'react';
+import { SymbolView } from 'expo-symbols';
+import medium from 'expo-symbols/androidWeights/medium';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -99,7 +101,7 @@ export default function InventoryScreen() {
           a row. A dot marks active filters so the state is legible closed. */}
       <View style={styles.titleRow}>
         <View style={styles.rowBody}>
-          <Text style={styles.title}>Your inventory</Text>
+          <Text style={styles.title}>Your Inventory</Text>
           <Text style={styles.muted}>
             {filtered.length} of {inventory.length} items · {verifiedCount} verified
           </Text>
@@ -115,7 +117,25 @@ export default function InventoryScreen() {
             pressed && { opacity: 0.7 },
           ]}
         >
-          <Text style={styles.filterGlyph}>⚙</Text>
+          {/*
+            A filter icon, not a gear. `⚙` is the settings glyph everywhere
+            else in this app — it is what Profile uses to open Settings — so
+            using it here said "preferences" on a control that narrows a list.
+
+            `SymbolView` rather than another unicode character: the native
+            symbol sets have a real filter mark on every platform, and TabBar
+            already pulls from them, so this adds no dependency (§13.1).
+          */}
+          <SymbolView
+            name={{
+              ios: 'line.3.horizontal.decrease',
+              android: 'filter_alt',
+              web: 'filter_alt',
+            }}
+            size={18}
+            tintColor={open || activeCount > 0 ? colors.accent : colors.textSecondary}
+            weight={{ ios: 'semibold', android: medium }}
+          />
           {activeCount > 0 ? <View style={styles.filterDot} /> : null}
         </Pressable>
       </View>
@@ -280,7 +300,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   filterIconActive: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
-  filterGlyph: { color: colors.textPrimary, fontSize: 17, lineHeight: 20 },
   /** Marks active filters while the panel is closed. */
   filterDot: {
     position: 'absolute',
