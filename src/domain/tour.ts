@@ -89,6 +89,8 @@ export interface TourStop {
     bubbleAlign?: 'top' | 'centre';
     /** Hard ceiling for everything in the guided layer, as a fraction. */
     maxBottomFraction?: number;
+    /** Sit in the band directly above the target — see `GuideOptions.hugAbove`. */
+    hugAbove?: boolean;
   };
 }
 
@@ -101,7 +103,9 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'Everything lives down here',
       body:
         'Home, Discover, Import, Collections and Profile. Collections and Profile stay greyed out until you import your first items — that is deliberate, not a bug.',
-      guide: { pose: 'pointing', line: 'Everything lives down here — Home, Discover, Import, Collections and Profile. Collections and Profile stay greyed until your first import. That is on purpose!' },
+      /* Hovering just over the bar rather than up at the top of the screen,
+         with the bubble beside her so nothing sits on the bar. */
+      guide: { pose: 'pointing', hugAbove: true, bubbleSide: 'left', line: 'Everything lives down here — Home, Discover, Import, Collections and Profile. Collections and Profile stay greyed until your first import. That is on purpose!' },
     },
     {
       id: 'import',
@@ -110,8 +114,12 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'Start with a screenshot',
       body:
         'Import scans a screenshot of your in-game inventory and matches what it finds against the catalogue. Anything it is unsure about goes to a review step rather than straight into your account.',
-      /* Right of her: on her left the bubble sat over the Gaming Updates row. */
-      guide: { pose: 'pointing', bubbleSide: 'right', maxBottomFraction: 0.6, line: 'Start here! Snap your in-game inventory and I will match it against the catalogue. Anything I am unsure about goes to a review step, never straight in.' },
+      /* Right of her, and hugging the tab bar rather than sitting up top.
+         The old maxBottomFraction 0.6 ceiling is gone with it — the whole
+         point of this arrangement is that she stands LOW, next to the tab she
+         is introducing, so a ceiling at 60% would fight it. The no-overlap
+         guarantee does not depend on that ceiling; `blocked` does that. */
+      guide: { pose: 'pointing', hugAbove: true, bubbleSide: 'right', line: 'Start here! Snap your in-game inventory and I will match it against the catalogue. Anything I am unsure about goes to a review step, never straight in.' },
     },
     {
       id: 'discover',

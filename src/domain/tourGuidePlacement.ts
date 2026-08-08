@@ -164,6 +164,20 @@ export interface GuideOptions {
    * solver happened to classify the target as bottom-anchored.
    */
   maxBottomFraction?: number;
+  /**
+   * Sit in the band DIRECTLY above the target, hugging it.
+   *
+   * The bottom-anchored rule keeps her off a low target by capping everything
+   * at the midline — safe, but it parks her at the top of the screen, a long
+   * way from what she is introducing. `hugAbove` keeps the same guarantee (she
+   * is above the target, never on it) while dropping the cap, so the band runs
+   * right down to the target's edge and she stands on top of it.
+   *
+   * The bubble's bounds follow the same band, so it cannot slip below her onto
+   * the bar. Pair this with `bubbleSide` — beside her is the only arrangement
+   * that fits when she is already flush against the target.
+   */
+  hugAbove?: boolean;
 }
 
 export function placeGuide(
@@ -287,10 +301,26 @@ export function placeGuide(
     h: Math.max(0, Math.min(box.h, midline - box.y)),
   });
 
+  /* `hugAbove` wins over the midline cap: same band, uncapped, so its bottom
+     edge is the target rather than the middle of the screen. `blocked` still
+     defines where that band ends, so the no-overlap guarantee is untouched. */
+  /**
+   * In hug mode the band stops a further GAP short of the target.
+   *
+   * `blocked` is already the target plus its lit padding, but on the Import
+   * stop the target sits INSIDE the tab bar, so hugging `blocked` alone left
+   * her 7pt above the bar's own top edge — legal, and too tight to read as
+   * deliberate. One more gap makes it a margin rather than a near miss.
+   */
+  const hugInset = (box: Box): Box => ({ ...box, h: Math.max(0, box.h - GAP) });
+
+  const aboveOnly = regions.filter((r) => r.name === 'above');
   const eligible = (
-    bottomAnchored
-      ? regions.filter((r) => r.name === 'above').map((r) => ({ ...r, box: cappedAbove(r.box) }))
-      : regions
+    options.hugAbove
+      ? aboveOnly.map((r) => ({ ...r, box: hugInset(r.box) }))
+      : bottomAnchored
+        ? aboveOnly.map((r) => ({ ...r, box: cappedAbove(r.box) }))
+        : regions
   ).map((r) => ({ ...r, box: applyCeiling(r.box) }));
 
   /**
@@ -306,7 +336,16 @@ export function placeGuide(
    * ~96pt of the bottom), so capping there clears the bar's band as well
    * without this module needing to know the bar exists.
    */
-  let bubbleBounds: Box = applyCeiling(bottomAnchored ? cappedAbove(safe) : safe);
+  let bubbleBounds: Box = applyCeiling(
+    options.hugAbove
+      ? /* The same band she is in: from the top of the safe area down to the
+           target's edge, less the hug margin. Keeps the bubble off the bar
+           without pinning it to the midline. */
+        hugInset({ ...safe, h: Math.max(0, blocked.y - safe.y) })
+      : bottomAnchored
+        ? cappedAbove(safe)
+        : safe,
+  );
 
   const rank = (list: typeof regions) =>
     list

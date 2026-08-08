@@ -416,6 +416,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
     bubbleSide: stop?.guide?.bubbleSide,
     bubbleAlign: stop?.guide?.bubbleAlign,
     maxBottomFraction: stop?.guide?.maxBottomFraction,
+    hugAbove: stop?.guide?.hugAbove,
   });
 
   /* Companion to the rect log above — what the solver DID with that rect. */
