@@ -546,8 +546,8 @@ export function PrimaryButton({
                   ? [accentGradient.to, accentGradient.from]
                   : [accentGradient.from, accentGradient.to]
               }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
+              start={accentGradient.start}
+              end={accentGradient.end}
               style={styles.buttonFill}
               pointerEvents="none"
             />

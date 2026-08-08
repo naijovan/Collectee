@@ -143,24 +143,34 @@ export const rarityColors = {
  * state the user deliberately chose.
  */
 /**
- * The primary button's fill, as a two-stop gradient.
+ * The primary button's fill — blue into violet, across the diagonal.
  *
- * A flat `accent` rectangle repeated on thirty screens is the flattest surface
- * in the app, and the one the eye is meant to go to. A short ramp gives it a
- * light source without changing what colour it is — `accent` is still the
- * midpoint, so the button reads as the same blue, just lit.
+ * The first attempt was one shade either side of `accent`, which was too subtle
+ * to read as a gradient at all: at button size a 10% luminance shift over 44px
+ * just looks like a flat blue that failed to render. If a gradient is going to
+ * be there, it has to be visible enough to be a decision.
  *
- * Deliberately NARROW. A wide two-hue gradient (blue to purple, say) is the
- * thing that dates a UI fastest, and it would put a second colour into a
- * palette §13.2 defines as "a single blue accent". These two stops are one
- * shade either side of the token.
+ * Blue → violet rather than blue → any other hue, because violet is already in
+ * the palette as `rarityColors.epic`. This borrows a colour the app owns rather
+ * than importing a new one, so the button still belongs to the same system.
+ *
+ * ⚠️ This does widen §13.2's "a single blue accent". The trade is deliberate
+ * and Jovan's call: the primary button is the most repeated surface in the app
+ * and the one the eye is meant to go to. `from` stays close to `accent`, so the
+ * button still READS blue and only resolves into violet at its trailing corner.
+ *
+ * Diagonal, not vertical. A vertical ramp on a pill reads as a lighting bug —
+ * a bevel that lost its highlight. Corner to corner reads as intentional.
  *
  * `pressed` inverts the direction rather than darkening a flat fill, which
  * reads as the surface tilting under the finger.
  */
 export const accentGradient = {
-  from: '#4E85FF',
-  to: '#2454CC',
+  from: '#3B82F6',
+  to: '#9333EA',
+  /** Corner to corner. See above for why not vertical. */
+  start: { x: 0, y: 0 },
+  end: { x: 1, y: 1 },
 } as const;
 
 export const visibilityColors = {
