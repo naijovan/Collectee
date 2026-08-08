@@ -63,16 +63,18 @@ best; a mid-blue character will disappear into the ring.
   Specifically **do not draw a Mobile Legends hero** — see the naming note below.
 - Solid or simple background. No transparency needed; the circle crop handles the shape.
 
-## ⚠️ Naming, before you draw
+## Naming — settled
 
-The mascot is currently called **"Miya"** (`ASSISTANT_NAME` in
-`src/components/assistantDock.ts`). That is a shipped Mobile Legends hero name, and this app
-already uses it for a Moonton character — `avatar-mlbb-miya` in the avatar roster,
-`mlbb-miya-modena-butterfly` in the catalogue.
+The assistant persona is called **Colly** (`ASSISTANT_NAME` in
+`src/components/assistantDock.ts`). It was "Miya" until 8 Aug, which was a shipped Mobile
+Legends hero name that this app already uses for a Moonton character.
 
-**Do not draw the MLBB Miya.** Whatever the name settles on, the art must be an original
-character that does not resemble any publisher's. If the name changes to something original,
-nothing about this brief changes.
+**The art must be an original character that does not resemble any publisher's** (§15). That
+was true under the old name and is still true.
+
+The pose files are still named `miya-tour-*.png`. That is deliberate — they are internal
+wired paths in `tourGuideArt.ts` and `validate-fixtures.ts`, and renaming a bundled asset
+buys nothing but a chance to break a `require()`. The filename is not a label anyone sees.
 
 
 ---
@@ -84,7 +86,7 @@ first-run walkthrough: she stands large on screen, the world dims behind her, an
 gestures at whatever is being highlighted.
 
 Wiring is built and waiting in `src/config/tourGuideArt.ts`. When all three land, replace
-the nulls with requires and flip `FEATURES.tourGuideMiya` to `true`:
+the nulls with requires and flip `FEATURES.tourGuideColly` to `true`:
 
 ```ts
 export const GUIDE_POSES: Record<GuidePose, ImageSourcePropType | null> = {

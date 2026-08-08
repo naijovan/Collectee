@@ -1,5 +1,5 @@
 /**
- * Miya, the walkthrough's guide — the figure, her speech bubble, and the
+ * Colly, the walkthrough's guide — the figure, her speech bubble, and the
  * controls that live with it.
  *
  * ── This wraps the tour, it does not replace it ───────────────────────────

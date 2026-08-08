@@ -1,5 +1,5 @@
 /**
- * Miya's tour poses — the guide who walks the first run.
+ * Colly's tour poses — the guide who walks the first run.
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
  * │  THIS IS THE SEAM FOR TOUR GUIDE ART. Adding a pose is adding a     │
@@ -24,7 +24,7 @@
  * at a file that is not on disk is a build error, not a missing image.
  *
  * ── The flag is what actually gates this ──────────────────────────────────
- * `FEATURES.tourGuideMiya` stays OFF until all three land. With it off the
+ * `FEATURES.tourGuideColly` gates this. With it off the
  * walkthrough renders exactly as it does today — the guide is additive, not a
  * rewrite of the tour. `guidePosesReady()` exists so the flag cannot be flipped
  * on against a half-delivered pack: the overlay checks it and falls back.
@@ -42,15 +42,15 @@ export type GuidePose = 'talking' | 'pointing' | 'happy';
 /**
  * Pose → bundled art, or null while it has not landed.
  *
- * When the art arrives, replace each null with, respectively:
- *   require('../../assets/collectee/assistant/miya-tour-talking.png')
- *   require('../../assets/collectee/assistant/miya-tour-pointing.png')
- *   require('../../assets/collectee/assistant/miya-tour-happy.png')
+ * All three landed 8 Aug at 768x1024 RGBA. The filenames keep the `miya-`
+ * prefix even though the persona is now called Colly — they are internal wired
+ * paths, and renaming a bundled asset buys nothing but a chance to break the
+ * require.
  */
 export const GUIDE_POSES: Record<GuidePose, ImageSourcePropType | null> = {
-  talking: null,
-  pointing: null,
-  happy: null,
+  talking: require('../../assets/collectee/assistant/miya-tour-talking.png'),
+  pointing: require('../../assets/collectee/assistant/miya-tour-pointing.png'),
+  happy: require('../../assets/collectee/assistant/miya-tour-happy.png'),
 };
 
 /** The art for a pose, or null when it has not landed. */

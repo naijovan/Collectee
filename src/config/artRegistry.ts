@@ -49,6 +49,27 @@ export interface ArtEntry {
   fit: 'cover' | 'contain';
   /** Art description. Screen readers get this, not the filename. */
   alt: string;
+  /**
+   * Optional pre-cropped renditions, for callers that know their aspect.
+   *
+   * ⚠️ ADDED BY MARCUS 8 AUG TO UNBREAK MAIN — Jovan, this is yours, please
+   * confirm. `cards.tsx` on `a6731ca` reads `art.displaySource.wide` and
+   * `.squareCompact`, but the field was never added here, so `npm run
+   * typecheck` failed on origin/main with four errors. The registry-side half
+   * of that change appears not to have been pushed.
+   *
+   * Declared OPTIONAL and nothing populates it, which is deliberate: every
+   * call site already guards with `art.displaySource ? … : art.source`, so
+   * `undefined` means every render behaves exactly as it does today. This
+   * unbreaks the build without inventing a rendition pipeline. Populate it
+   * when the real one lands.
+   */
+  displaySource?: {
+    /** Wide crop, for hero-sized surfaces. */
+    wide: ImageSourcePropType;
+    /** Square crop that stays sharp at 56-88px. */
+    squareCompact: ImageSourcePropType;
+  };
 }
 
 const portrait = (source: ImageSourcePropType, alt: string): ArtEntry => ({
