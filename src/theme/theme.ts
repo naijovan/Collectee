@@ -486,36 +486,45 @@ export const brand = {
 } as const;
 
 /**
- * App background — a restrained "display shelf" field that sits behind screen
- * content. It is intentionally quieter than the cards and item art: soft bands,
- * edge light and a little material depth, never a hero image.
+ * App background — a restrained collectible-card texture behind screen content.
+ * It gives the flat canvas a little object memory without turning into art the
+ * user has to read around.
  *
  * These are rgba values because the component builds the background out of
- * layered washes. They live here under the same rule as `scrim`: translucency is
- * still a colour decision, so it belongs in the token file and nowhere else.
+ * layered washes and translucent card silhouettes. They live here under the
+ * same rule as `scrim`: translucency is still a colour decision, so it belongs
+ * in the token file and nowhere else.
  */
 export const appBackground = {
   dark: {
     base: DARK_PALETTE.background,
     clear: 'rgba(47,107,255,0)',
-    topGlow: 'rgba(47,107,255,0.09)',
-    sideGlow: 'rgba(18,228,240,0.045)',
-    lowerGlow: 'rgba(245,165,36,0.025)',
-    shelfLine: 'rgba(255,255,255,0.035)',
-    shelfShadow: 'rgba(0,0,0,0.22)',
-    shelfGlow: 'rgba(47,107,255,0.045)',
-    shelfWarm: 'rgba(245,165,36,0.025)',
+    topGlow: 'rgba(47,107,255,0.065)',
+    sideGlow: 'rgba(18,228,240,0.035)',
+    lowerGlow: 'rgba(245,165,36,0.018)',
+    cardFill: 'rgba(255,255,255,0.026)',
+    cardFillCool: 'rgba(47,107,255,0.032)',
+    cardFillWarm: 'rgba(245,165,36,0.022)',
+    cardBorder: 'rgba(255,255,255,0.055)',
+    cardLine: 'rgba(255,255,255,0.05)',
+    cardLineAccent: 'rgba(56,189,248,0.07)',
+    cardSheen: 'rgba(255,255,255,0.055)',
+    cardShade: 'rgba(0,0,0,0.22)',
   },
   light: {
     base: LIGHT_PALETTE.background,
     clear: 'rgba(29,79,216,0)',
-    topGlow: 'rgba(29,79,216,0.04)',
-    sideGlow: 'rgba(15,157,99,0.025)',
-    lowerGlow: 'rgba(178,106,2,0.025)',
-    shelfLine: 'rgba(11,13,16,0.045)',
-    shelfShadow: 'rgba(11,13,16,0.025)',
-    shelfGlow: 'rgba(29,79,216,0.022)',
-    shelfWarm: 'rgba(178,106,2,0.018)',
+    topGlow: 'rgba(29,79,216,0.034)',
+    sideGlow: 'rgba(15,157,99,0.018)',
+    lowerGlow: 'rgba(178,106,2,0.018)',
+    cardFill: 'rgba(255,255,255,0.5)',
+    cardFillCool: 'rgba(29,79,216,0.035)',
+    cardFillWarm: 'rgba(178,106,2,0.026)',
+    cardBorder: 'rgba(11,13,16,0.075)',
+    cardLine: 'rgba(11,13,16,0.045)',
+    cardLineAccent: 'rgba(29,79,216,0.055)',
+    cardSheen: 'rgba(255,255,255,0.72)',
+    cardShade: 'rgba(11,13,16,0.035)',
   },
 } as const;
 
@@ -559,7 +568,21 @@ export const fonts = {
 
 /** Type scale from §13.2: screen title, section header, card title, meta. */
 export const typography = {
-  screenTitle: { fontSize: 28, lineHeight: 34, fontFamily: fonts.display, letterSpacing: -0.5 },
+  /**
+   * Page titles, sized against careerlingo's `.brand-wordmark`.
+   *
+   * Theirs is `clamp(2.5rem, 4.4vw, 4rem)` — 40 to 64px — with `line-height:
+   * 1.22` and `letter-spacing: -0.01em`. Those are hero numbers: it is a
+   * wordmark sitting in a page header, not a sticky nav title, and 40px pinned
+   * to the top of a phone would eat a fifth of the viewport before any content
+   * appeared.
+   *
+   * 34 takes their proportions without their absolute size. Line height is
+   * their 1.22 exactly (34 x 1.22 = 41), and the tracking is their -0.01em
+   * converted at this size (-0.34, rounded to -0.4). It reads as the same
+   * typographic decision one step down the scale.
+   */
+  screenTitle: { fontSize: 34, lineHeight: 41, fontFamily: fonts.display, letterSpacing: -0.4 },
   sectionHeader: { fontSize: 18, lineHeight: 24, fontFamily: fonts.display, letterSpacing: -0.2 },
   cardTitle: { fontSize: 15, lineHeight: 20, fontFamily: fonts.bodySemiBold },
   body: { fontSize: 14, lineHeight: 20, fontFamily: fonts.body },

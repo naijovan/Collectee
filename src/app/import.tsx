@@ -66,8 +66,6 @@ import { FEATURES } from '@/config/features';
 import type { CollectionSuggestion } from '@/domain/collections';
 import { groupByRarity, rarityLabelFor } from '@/domain/rarity';
 import {
-  CONFIDENCE_AUTO_ACCEPT,
-  CONFIDENCE_REVIEW_FLOOR,
   foreignTitleMatches,
   isMatchIncluded,
 } from '@/domain/scan';
@@ -336,6 +334,28 @@ export default function ImportScreen() {
       .filter((d) => d.outcome === 'discarded' && d.itemId !== null && items.has(d.itemId))
       .map((d) => ({ detection: d, item: items.get(d.itemId!)! }));
   }, [detections, items, counts]);
+
+  /**
+   * Below-floor reads that matched NOTHING in the catalogue.
+   *
+   * Distinct from `rescuable`, and the distinction is the whole point. A
+   * rescuable read has a candidate the user can confirm; these have none —
+   * the scanner saw an item and could not find it among the ~60 seeded per
+   * title (§16 Q1), which is a normal outcome for a real skin we simply do not
+   * carry.
+   *
+   * They existed before and were silently counted as "couldn't read", which is
+   * the wrong explanation: nothing failed to read, the catalogue just does not
+   * have it. Surfacing them separately is what lets the screen say so.
+   */
+  const unrecognised = useMemo(() => {
+    const somethingElseSurvived =
+      counts.matched > 0 || counts.needsReview > 0 || counts.unmatched > 0;
+    if (somethingElseSurvived) return [];
+    return detections.filter(
+      (d) => d.outcome === 'discarded' && d.itemId === null && d.reading !== undefined,
+    );
+  }, [detections, counts]);
 
   const wrongGame = useMemo(() => {
     if (fullCatalogue.length === 0) return null;
@@ -812,8 +832,16 @@ export default function ImportScreen() {
 
             {counts.discarded > 0 ? (
               <Text style={styles.warn}>
-                {counts.discarded} {counts.discarded === 1 ? 'item' : 'items'} we couldn&apos;t read
-                — below the {CONFIDENCE_REVIEW_FLOOR} floor, so not in the total
+                {/*
+                  No threshold, no decimal. "below the 0.6 floor" is an
+                  implementation detail — it tells the user what our routing
+                  constant is and nothing about their upload. The two outcomes
+                  they can act on are "we weren't sure" and "it isn't in our
+                  catalogue", and those are stated below rather than summed
+                  into a number here.
+                */}
+                {counts.discarded} {counts.discarded === 1 ? 'item was' : 'items were'} too
+                uncertain to add on their own — see below
               </Text>
             ) : null}
             {/*
@@ -886,11 +914,11 @@ export default function ImportScreen() {
             <View style={styles.rescue}>
               <Text style={styles.rescueTitle}>
                 We think we saw {rescuable.length === 1 ? 'this' : 'these'} — not sure enough to
-                import {rescuable.length === 1 ? 'it' : 'them'} for you
+                add {rescuable.length === 1 ? 'it' : 'them'} for you
               </Text>
               <Text style={styles.body}>
-                A single photo gives less to go on than a full inventory screenshot, so this read
-                scored below the {CONFIDENCE_REVIEW_FLOOR} floor. Confirm it if it&apos;s right.
+                A photo of one item gives us less to go on than a full inventory screenshot. Have a
+                look and confirm it if we got it right.
               </Text>
               {rescuable.map(({ detection, item }) => {
                 const confirmed = resolutions.some(
@@ -919,12 +947,17 @@ export default function ImportScreen() {
                         {item.name}
                       </Text>
                       <RarityBadge tier={item.rarityTier} title={item.title} />
-                      {/* The number, not a word for it. "Low confidence" hides
-                          the difference between 0.58 and 0.12, and the user is
-                          being asked to make exactly that judgement. */}
-                      <Text style={styles.muted}>
-                        {Math.round(detection.confidence * 100)}% confident ·{' '}
-                        {detection.reading?.name ?? 'read from your image'}
+                      {/*
+                        What we saw, in words. The percentage used to be here —
+                        it is a number out of a routing function, and a user
+                        cannot act on "45%" any better than on "we're not sure".
+                        What they CAN act on is what we read off their image,
+                        so that is what the line carries.
+                      */}
+                      <Text style={styles.muted} numberOfLines={2}>
+                        {detection.reading?.name
+                          ? `We read: ${detection.reading.name}`
+                          : 'Matched from the picture rather than a label'}
                       </Text>
                     </View>
                     <Text style={confirmed ? styles.create : styles.chevron}>
@@ -933,6 +966,36 @@ export default function ImportScreen() {
                   </Pressable>
                 );
               })}
+            </View>
+          ) : null}
+
+          {/*
+            ── Read, but not in our catalogue ──────────────────────────────
+            The case that produced "0 items detected" with no explanation: the
+            scanner saw the item and found nothing to match it to, so it was
+            counted as unreadable. Nothing failed to read — we simply do not
+            carry that skin.
+
+            Only shown when the scan produced nothing else, same as the rescue
+            block above it, because on a normal multi-item scan this is a
+            footnote rather than the story.
+          */}
+          {unrecognised.length > 0 ? (
+            <View style={styles.unrecognised}>
+              <Text style={styles.rescueTitle}>
+                {unrecognised.length === 1 ? 'This one is' : 'These are'} not in our{' '}
+                {GAME_LABELS[title]} catalogue
+              </Text>
+              {unrecognised.map((detection) => (
+                <Text key={detection.id} style={styles.body} numberOfLines={2}>
+                  We read: {detection.reading?.name ?? 'an item we could not name'}
+                </Text>
+              ))}
+              <Text style={styles.footnote}>
+                Collectee carries a seeded set of {GAME_LABELS[title]} items for this build, not
+                every skin in the game — so a real skin can be read correctly and still have
+                nothing to match. It cannot be added until the catalogue covers it.
+              </Text>
             </View>
           ) : null}
 
@@ -1107,9 +1170,18 @@ export default function ImportScreen() {
               the count above updates as you go.
             </Text>
           ) : null}
+          {/*
+            The routing rule in words, not thresholds.
+
+            "≥ 0.9 auto-accepted · 0.6–0.9 needs review · below 0.6 discarded"
+            described our constants rather than the user's items. The three
+            outcomes are real and worth stating — it is why some items landed
+            straight in and others are waiting — but they are stated as
+            outcomes.
+          */}
           <Text style={styles.footnote}>
-            ≥ {CONFIDENCE_AUTO_ACCEPT} auto-accepted · {CONFIDENCE_REVIEW_FLOOR}–
-            {CONFIDENCE_AUTO_ACCEPT} needs review · below {CONFIDENCE_REVIEW_FLOOR} discarded
+            Clear matches are added for you. Anything we are less sure of waits here for you to
+            confirm, and anything we cannot place is left out.
           </Text>
         </View>
       ) : null}
@@ -2090,6 +2162,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   rescueTitle: { ...typography.cardTitle, color: colors.textPrimary },
+  /* Neutral, not warning: nothing went wrong here. The scan worked and the
+     catalogue is simply smaller than the game. */
+  unrecognised: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   rescueRowOn: { borderColor: colors.accent },
 
   /* ── Complete: suggestion previews ──────────────────────────────────────

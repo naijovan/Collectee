@@ -58,7 +58,9 @@
     "bake:mesh": "tsx scripts/bake-mesh.ts",
     "prepare:weapons": "tsx scripts/prepare-verified-weapons.ts",
     "bake:weapons": "tsx scripts/bake-procedural-weapons.ts",
-    "bake:palette": "tsx scripts/bake-palette.ts"
+    "bake:palette": "tsx scripts/bake-palette.ts",
+    "bake:display-art": "tsx scripts/bake-display-art.ts",
+    "build:demo": "tsx scripts/build-demo-uploads.ts"
   },
   "private": true,
   "allowScripts": {

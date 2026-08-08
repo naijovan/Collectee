@@ -280,7 +280,7 @@ export default function HomeScreen() {
                 name={viewer?.displayName ?? '?'}
                 avatarId={viewer?.avatar}
                 verified={viewer?.isAccountVerified}
-                size={38}
+                size={46}
               />
             </Hoverable>
           </View>
@@ -651,7 +651,9 @@ const styles = StyleSheet.create({
    * them. Display face and a tight tracking, because this is the first thing
    * on a gaming social app and a plain body face reads like a settings screen.
    */
-  greetingLine: { fontSize: 22, lineHeight: 28, fontFamily: fonts.display },
+  /* Matches `screenTitle`, so Home's greeting is the same size as Explore's
+     "Discover" and Collections' title rather than a smaller cousin. */
+  greetingLine: { ...typography.screenTitle, color: colors.textPrimary },
   /** Muted so the name wins without needing a second, larger size. */
   greetingWord: { color: colors.textSecondary },
   greetingName: { color: colors.textPrimary },
@@ -715,8 +717,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    justifyContent: 'center',
+    /* Bottom-anchored, not centred.
+       Centred, the block floated in the middle of the art with roughly equal
+       air above and below, which read as unplaced — nothing tied it to the
+       banner. Sitting on the lower edge gives it a baseline to stand on, and it
+       is also where the fade is heaviest, so the type has its darkest ground. */
+    justifyContent: 'flex-end',
     padding: spacing.lg,
+    paddingBottom: spacing.xl,
     gap: spacing.xs,
   },
   /* Explore and the supported titles share the bottom line, the way the

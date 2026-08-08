@@ -88,3 +88,8 @@ scratchpad/
 # requires it at build time. The inputs are not needed to run or ship the app,
 # and re-baking is a local step.
 assets/collectee/display-sources/
+
+# Demo upload set — copies of catalogue renders, named for a file picker.
+# 51MB that already exists one directory over in assets/collectee/, so it is
+# generated rather than committed. Rebuild with `npm run build:demo`.
+demo/
