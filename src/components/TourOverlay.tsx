@@ -397,7 +397,9 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
 
   /* Computed once. Two calls would be two chances for the wrapper's anchor and
      the figure's placement to disagree about where she is standing. */
-  const guidePlacement = placeGuide({ width: screenW, height: screenH }, insets, hole);
+  const guidePlacement = placeGuide({ width: screenW, height: screenH }, insets, hole, {
+    standBeside: stop?.guide?.standBeside,
+  });
 
   /* Companion to the rect log above — what the solver DID with that rect. */
   useEffect(() => {

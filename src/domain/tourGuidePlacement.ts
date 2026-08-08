@@ -106,10 +106,26 @@ const overlaps = (a: Box, b: Box) =>
  * rather than three subtly different ones — and so the placement frames can be
  * rendered from Node before anyone opens the app.
  */
+export interface GuideOptions {
+  /**
+   * Stand beside this target even though it is bottom-anchored.
+   *
+   * The midline rule exists because a target pinned to the bottom is usually
+   * WIDE — the tab bar spans the screen, so anywhere beside it is also on top
+   * of it. The assistant launcher is the exception: it is 56pt in a corner,
+   * with the whole rest of the row free, so she can stand next to it and
+   * gesture across without covering anything. Forcing her to the upper half
+   * there loses the finale's whole point, which is her standing where the
+   * launcher lives.
+   */
+  standBeside?: boolean;
+}
+
 export function placeGuide(
   screen: { width: number; height: number },
   insets: { top: number; bottom: number },
   hole: LayoutRectangle | null,
+  options: GuideOptions = {},
 ): GuidePlacement {
   const M = spacing.lg;
   const safe: Box = {
@@ -161,7 +177,8 @@ export function placeGuide(
    * but it can no longer park her on the thing she is presenting.
    */
   const midline = safe.y + safe.h / 2;
-  const bottomAnchored = hole.y + hole.height > safe.y + safe.h * 0.72;
+  const bottomAnchored =
+    !options.standBeside && hole.y + hole.height > safe.y + safe.h * 0.72;
 
   type Name = 'left' | 'right' | 'above' | 'below';
   const regions: { name: Name; box: Box }[] = [
@@ -203,14 +220,29 @@ export function placeGuide(
 
   /* Bottom-anchored: only the band above the target is eligible, and it is
      further capped at the midline so her feet never cross it. */
+  const cappedAbove = (box: Box): Box => ({
+    ...box,
+    h: Math.max(0, Math.min(box.h, midline - box.y)),
+  });
+
   const eligible = bottomAnchored
-    ? regions
-        .filter((r) => r.name === 'above')
-        .map((r) => ({
-          ...r,
-          box: { ...r.box, h: Math.max(0, Math.min(r.box.h, midline - r.box.y)) },
-        }))
+    ? regions.filter((r) => r.name === 'above').map((r) => ({ ...r, box: cappedAbove(r.box) }))
     : regions;
+
+  /**
+   * Where the BUBBLE is allowed to live.
+   *
+   * On a bottom-anchored stop it is held to the same capped band as the
+   * figure. The constraint used to cover her only, so she moved up top and the
+   * bubble stayed behind — squarely over the tab bar and the Import button it
+   * was describing. Nothing in the guided layer may cover a target, and the
+   * bubble carries the controls, so it is the worst thing to lose behind one.
+   *
+   * The midline is always above the floating tab bar (the bar sits within
+   * ~96pt of the bottom), so capping there clears the bar's band as well
+   * without this module needing to know the bar exists.
+   */
+  const bubbleBounds: Box = bottomAnchored ? cappedAbove(safe) : safe;
 
   const scored = eligible
     .map((r) => ({ ...r, ...solve(r.box) }))
@@ -286,15 +318,25 @@ export function placeGuide(
   /* Sized to whatever the chosen side actually has, down to the minimum,
      rather than a fixed width that then fails to fit and forces the bubble
      back across her. */
-  const outerRoom = fx + w / 2 > holeCx ? safe.x + safe.w - (fx + w) : fx - safe.x;
+  const outerRoom =
+    fx + w / 2 > holeCx ? bubbleBounds.x + bubbleBounds.w - (fx + w) : fx - bubbleBounds.x;
   const bw = clamp(BUBBLE_W, BUBBLE_MIN_W, Math.max(BUBBLE_MIN_W, outerRoom - GAP));
 
-  const inSafe = (bx0: number, by0: number) =>
-    bx0 >= safe.x && by0 >= safe.y &&
-    bx0 + bw <= safe.x + safe.w && by0 + BUBBLE_H <= safe.y + safe.h;
+  const inBounds = (bx0: number, by0: number) =>
+    bx0 >= bubbleBounds.x && by0 >= bubbleBounds.y &&
+    bx0 + bw <= bubbleBounds.x + bubbleBounds.w &&
+    by0 + BUBBLE_H <= bubbleBounds.y + bubbleBounds.h;
 
-  const centredX = clamp(fx + w / 2 - bw / 2, safe.x, safe.x + safe.w - bw);
-  const midY = clamp(fy + h / 2 - BUBBLE_H / 2, safe.y, safe.y + safe.h - BUBBLE_H);
+  const centredX = clamp(
+    fx + w / 2 - bw / 2,
+    bubbleBounds.x,
+    bubbleBounds.x + bubbleBounds.w - bw,
+  );
+  const midY = clamp(
+    fy + h / 2 - BUBBLE_H / 2,
+    bubbleBounds.y,
+    bubbleBounds.y + Math.max(0, bubbleBounds.h - BUBBLE_H),
+  );
 
   /* Away-side first: she points toward the target, so the bubble belongs on
      her other flank. `pointsLeft` mirrors the flip computed below. */
@@ -307,10 +349,16 @@ export function placeGuide(
       ? [away, [centredX, fy + h + GAP], [centredX, fy - GAP - BUBBLE_H], toward]
       : [[centredX, fy + h + GAP], [centredX, fy - GAP - BUBBLE_H], away, toward];
 
+  /* Fallback is inside the bounds too — clamping to the safe area is what let
+     it drift back down over the bar. */
   let bx = centredX;
-  let by = clamp(fy + h + GAP, safe.y, safe.y + safe.h - BUBBLE_H);
+  let by = clamp(
+    fy + h + GAP,
+    bubbleBounds.y,
+    bubbleBounds.y + Math.max(0, bubbleBounds.h - BUBBLE_H),
+  );
   for (const [cx, cy] of candidates) {
-    if (inSafe(cx, cy) && !overlaps({ x: cx, y: cy, w: bw, h: BUBBLE_H }, blocked)) {
+    if (inBounds(cx, cy) && !overlaps({ x: cx, y: cy, w: bw, h: BUBBLE_H }, blocked)) {
       bx = cx;
       by = cy;
       break;

@@ -74,6 +74,15 @@ export interface TourStop {
   guide?: {
     pose: GuidePose;
     line: string;
+    /**
+     * Let her stand beside this target even though it is pinned to the bottom.
+     *
+     * The midline rule assumes a bottom target is wide — the tab bar spans the
+     * screen, so "beside" is also "on top of". The launcher is 56pt in a
+     * corner with the whole row free, so the assumption does not hold and the
+     * rule would cost the finale its composition.
+     */
+    standBeside?: boolean;
   };
 }
 
@@ -130,6 +139,9 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
         'Try "Who is my top match, and why?" — it answers from your actual inventory and tells you which items you have in common.',
       guide: {
         pose: 'happy',
+        /* Small, cornered target — she stands next to it rather than being
+           pushed to the upper half. See `standBeside`. */
+        standBeside: true,
         line:
           'And that\u2019s me! Anytime you need me, I\u2019m right here at the bottom right — ' +
           'ask me anything about your collection.',
