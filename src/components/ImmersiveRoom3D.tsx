@@ -10,6 +10,7 @@ import { colors, DARK_PALETTE, radius, rarityColors, spacing } from '@/theme/the
 import type { Item, Room, RoomTheme, Slot } from '@/types';
 
 import { backdropFor } from '@/config/artRegistry';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 import {
   modelFor,
   modelIsCharacter,
@@ -651,8 +652,21 @@ function GalleryCollectible({
   const fallbackLift =
     (kind === 'hero' ? 1.75 : kind === 'blade' ? 1 : 1.15) * fallbackScale;
 
+  const reduceMotion = useReduceMotion();
+
   useFrame(({ clock }) => {
     if (!holder.current) return;
+    /* Reduce Motion stops every shelf item turning and bobbing. This is the
+       heaviest motion in the app — one continuous rotation per placed item, all
+       running at once — so it is the one that most needs to stop. Parked at
+       `index` rather than 0 keeps each item at the distinct angle it would
+       otherwise have had, so a still room still shows the items three-quarter
+       on rather than all square to the camera. */
+    if (reduceMotion) {
+      holder.current.rotation.y = mesh ? index : 0;
+      holder.current.position.y = 0;
+      return;
+    }
     // Real geometry turns all the way round because it has a back. A relief is
     // a plane, so it only ever sways — past about 0.1rad you see its edge.
     holder.current.rotation.y = mesh

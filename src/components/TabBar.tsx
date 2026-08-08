@@ -269,7 +269,10 @@ export function TabBar() {
       }
       Animated.spring(importLift, {
         toValue: to,
-        friction: motion.spring.friction,
+        /* Damped to match `useHoverPop` — this is the same gesture on the most
+           prominent control in the app, and it should not bounce harder than
+           everything else does. */
+        friction: 14,
         tension: motion.spring.tension,
         useNativeDriver: Platform.OS !== 'web',
       }).start();
@@ -349,9 +352,14 @@ export function TabBar() {
                 styles.importButton,
                 pressed && styles.importButtonPressed,
                 {
+                  /* 1.045, was 1.08 — the largest scale response in the app,
+                     on a control that already has a gradient and a glow doing
+                     the same job. It still grows more than the tabs rise, so
+                     the hierarchy the note above describes survives; it just no
+                     longer lunges at the pointer. */
                   transform: [
-                    { translateY: importLift.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) },
-                    { scale: importLift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) },
+                    { translateY: importLift.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) },
+                    { scale: importLift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.045] }) },
                   ],
                 },
               ]}

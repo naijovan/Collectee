@@ -22,6 +22,7 @@ import {
 } from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { Item } from '@/types';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 
 import {
   modelFor,
@@ -66,14 +67,25 @@ export function Collectible3DViewer({
   item: Item | null;
   onClose: () => void;
 }) {
-  const controls = useRef<ViewerControls>({ ...INITIAL_CONTROLS });
+  /**
+   * Reduce Motion switches the turntable OFF by default rather than removing it.
+   *
+   * A continuous 360° rotation is the single most likely thing in this app to
+   * bother someone who has asked their OS for less motion, and this one runs the
+   * moment the viewer opens. But the turntable is also the point of the screen,
+   * and there is already a pause/resume control for it — so the honest
+   * behaviour is to start paused and let the user start it, not to take the
+   * control away. Drag-to-rotate is unaffected either way.
+   */
+  const reduceMotion = useReduceMotion();
+  const controls = useRef<ViewerControls>({ ...INITIAL_CONTROLS, autoRotate: !reduceMotion });
   const gestureStart = useRef({ yaw: 0, pitch: 0, zoom: 1, pinchDistance: 0 });
-  const [autoRotate, setAutoRotate] = useState(true);
+  const [autoRotate, setAutoRotate] = useState(!reduceMotion);
 
   useEffect(() => {
-    controls.current = { ...INITIAL_CONTROLS };
-    setAutoRotate(true);
-  }, [item?.id]);
+    controls.current = { ...INITIAL_CONTROLS, autoRotate: !reduceMotion };
+    setAutoRotate(!reduceMotion);
+  }, [item?.id, reduceMotion]);
 
   const pan = useMemo(
     () =>

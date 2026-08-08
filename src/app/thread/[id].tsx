@@ -23,18 +23,12 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
-import {
-  Avatar,
-  EmptyState,
-  KeyboardSafe,
-  LoadingState,
-  PrimaryButton,
-  SectionHeader,
-  timeAgo,
-} from '@/components';
+import { ASSISTANT_CLEARANCE, Avatar, EmptyState, KeyboardSafe, LoadingState, PrimaryButton, SectionHeader, timeAgo } from '@/components';
 import { FLAG_REASON_DESCRIPTIONS, FLAG_REASON_LABELS } from '@/domain/trust';
+import * as haptics from '@/lib/haptics';
 import { socialService, threadService } from '@/services';
 import type { ThreadView } from '@/services';
+import type { VoteDirection } from '@/domain/threads';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Community, User } from '@/types';
@@ -58,6 +52,17 @@ export default function ThreadScreen() {
   const [reportedIds, setReportedIds] = useState<ReadonlySet<string>>(new Set());
   const [posting, setPosting] = useState(false);
   const [busy, setBusy] = useState(true);
+  /**
+   * Buried replies the reader has chosen to open.
+   *
+   * Screen state, not service state, and deliberately so: revealing something
+   * is a disclosure this reader made on this visit. Putting it in the service
+   * would make it look like a property of the reply.
+   *
+   * Kept across a reload of the view — voting refetches, and a reply
+   * re-collapsing under the finger that just opened it would be maddening.
+   */
+  const [revealed, setRevealed] = useState<ReadonlySet<string>>(new Set());
 
   const load = useCallback(async () => {
     const next = await threadService.getThreadView(id, viewerId);
@@ -80,6 +85,22 @@ export default function ThreadScreen() {
       void load();
     }, [load]),
   );
+
+  /**
+   * Cast the pressed direction and re-read the thread.
+   *
+   * Reloading rather than patching one row in place: a vote changes the ranking
+   * as well as the score, and the ranking is the domain's to decide. Patching
+   * locally would show a new number in an order the domain would not have
+   * produced, and the two would disagree until the next navigation.
+   *
+   * `LATENCY_INSTANT` on the write and the read makes this imperceptible.
+   */
+  async function castVote(commentId: string, pressed: 'up' | 'down') {
+    haptics.selection();
+    await threadService.voteOnReply(viewerId, commentId, pressed);
+    await load();
+  }
 
   async function submitReply() {
     if (!view || draft.trim().length === 0) return;
@@ -131,7 +152,9 @@ export default function ThreadScreen() {
   }
 
   const author = authors.get(view.thread.userId);
-  const replyTotal = view.nodes.reduce((total, node) => total + 1 + node.children.length, 0);
+  /* Counts buried replies too — they are still replies, and a count that
+     moved when something folded away would read as a bug. */
+  const replyTotal = view.ranked.reduce((total, node) => total + 1 + node.children.length, 0);
 
   return (
     /* The reply composer sits at the bottom of this scroll view — without this
@@ -193,15 +216,28 @@ export default function ThreadScreen() {
         </Text>
       ) : null}
 
-      {view.nodes.length === 0 ? (
+      {view.ranked.length === 0 ? (
         <EmptyState
           title="No replies yet"
           body={view.canReply ? 'Be the first to say something.' : 'Nobody has replied to this thread.'}
         />
       ) : null}
 
-      {view.nodes.map((node) => {
+      {view.ranked.map((node) => {
         const nodeAuthor = authors.get(node.reply.userId);
+        /* Buried until the reader asks. `revealed` is per-reply and lives in
+           the screen, not the service: it is a UI disclosure, not a vote, and
+           it must not survive into anyone else's view of the thread. */
+        if (node.buried && !revealed.has(node.reply.id)) {
+          return (
+            <View key={node.reply.id} style={styles.replyBlock}>
+              <BuriedReply
+                score={node.score}
+                onShow={() => setRevealed((current) => new Set(current).add(node.reply.id))}
+              />
+            </View>
+          );
+        }
         return (
           <View key={node.reply.id} style={styles.replyBlock}>
             <ReplyRow
@@ -212,6 +248,9 @@ export default function ThreadScreen() {
               createdAt={node.reply.createdAt}
               likeCount={node.reply.likeCount}
               reported={reportedIds.has(node.reply.id)}
+              score={node.score}
+              vote={node.vote}
+              onVote={(pressed) => castVote(node.reply.id, pressed)}
               onReport={() =>
                 setReportTarget({
                   kind: 'comment',
@@ -222,8 +261,12 @@ export default function ThreadScreen() {
               onReply={view.canReply ? () => setReplyingTo(node.reply.id) : undefined}
             />
 
-            {node.children.map((child) => {
+            {node.children.map((childNode) => {
+              const child = childNode.reply;
               const childAuthor = authors.get(child.userId);
+              /* Children are votable and scored, but never buried: a nested
+                 reply is already subordinate to its parent, and folding one
+                 away leaves the reply above it answering nobody. */
               return (
                 <View key={child.id} style={styles.nested}>
                   <ReplyRow
@@ -234,6 +277,9 @@ export default function ThreadScreen() {
                     createdAt={child.createdAt}
                     likeCount={child.likeCount}
                     reported={reportedIds.has(child.id)}
+                    score={childNode.score}
+                    vote={childNode.vote}
+                    onVote={(pressed) => castVote(child.id, pressed)}
                     onReport={() =>
                       setReportTarget({
                         kind: 'comment',
@@ -277,7 +323,7 @@ export default function ThreadScreen() {
             <View style={styles.replyingTo}>
               <Text style={styles.muted}>
                 Replying to {authors.get(
-                  view.nodes.find((n) => n.reply.id === replyingTo)?.reply.userId ?? '',
+                  view.ranked.find((n) => n.reply.id === replyingTo)?.reply.userId ?? '',
                 )?.displayName ?? 'a reply'}
               </Text>
               <Pressable onPress={() => setReplyingTo(null)} hitSlop={8}>
@@ -303,7 +349,11 @@ export default function ThreadScreen() {
         <Text style={styles.footnote}>{view.postingBlockedReason}</Text>
       )}
 
-      <View style={{ height: spacing.xxl }} />
+      {/* The floating assistant sits over this corner. Reserve its real height
+          so the last row — including any rule above a footnote — is never
+          resting underneath it. `spacing.xxl` was not enough: it is 32 against
+          the launcher's 184. */}
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
     </KeyboardSafe>
   );
@@ -317,6 +367,9 @@ function ReplyRow({
   createdAt,
   likeCount,
   reported,
+  score,
+  vote,
+  onVote,
   onReport,
   onReply,
 }: {
@@ -327,6 +380,9 @@ function ReplyRow({
   createdAt: string;
   likeCount: number;
   reported: boolean;
+  score: number;
+  vote: VoteDirection;
+  onVote: (pressed: 'up' | 'down') => void;
   onReport: () => void;
   onReply?: () => void;
 }) {
@@ -342,6 +398,51 @@ function ReplyRow({
         </Text>
         <Text style={styles.body}>{body}</Text>
         <View style={styles.replyActions}>
+          {/*
+            Votes, and they sit APART from Report deliberately — different
+            mechanisms, and putting a downvote next to a report invites the
+            reader to treat one as a softer version of the other. The arrows
+            are the leftmost thing in the row and Report stays where it was.
+
+            Each arrow is its own Pressable, siblings of the score between
+            them, so nothing here nests a button in a button.
+          */}
+          <View style={styles.voteGroup}>
+            <Pressable
+              onPress={() => onVote('up')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: vote === 'up' }}
+              accessibilityLabel={vote === 'up' ? 'Remove your upvote' : 'Upvote this reply'}
+              style={styles.voteButton}
+            >
+              <Text style={[styles.voteGlyph, vote === 'up' && styles.voteUpOn]}>▲</Text>
+            </Pressable>
+            {/* One number, and it is the net score — not "12 up, 3 down".
+                Two numbers invite arithmetic; the thing a reader wants is
+                whether the room agreed. */}
+            <Text
+              style={[
+                styles.voteScore,
+                vote === 'up' && styles.voteUpOn,
+                vote === 'down' && styles.voteDownOn,
+              ]}
+              accessibilityLabel={`Score ${score}`}
+            >
+              {score}
+            </Text>
+            <Pressable
+              onPress={() => onVote('down')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: vote === 'down' }}
+              accessibilityLabel={vote === 'down' ? 'Remove your downvote' : 'Downvote this reply'}
+              style={styles.voteButton}
+            >
+              <Text style={[styles.voteGlyph, vote === 'down' && styles.voteDownOn]}>▼</Text>
+            </Pressable>
+          </View>
+
           {likeCount > 0 ? <Text style={styles.footnote}>♥ {likeCount}</Text> : null}
           {onReply ? (
             <Pressable onPress={onReply} hitSlop={8}>
@@ -354,6 +455,31 @@ function ReplyRow({
         </View>
       </View>
     </View>
+  );
+}
+
+/**
+ * A reply the room voted down, folded away.
+ *
+ * Collapsed rather than dimmed, and collapsed rather than removed. §9.2's rule
+ * that flags never auto-remove is about reports, but the same principle is the
+ * right one here for a softer reason: a downvote is an opinion, and an opinion
+ * should be able to push something out of the way without deciding nobody may
+ * read it. One tap opens it, and it opens into the ordinary row — including its
+ * own Report control, because burying is not reporting.
+ */
+function BuriedReply({ score, onShow }: { score: number; onShow: () => void }) {
+  return (
+    <Pressable
+      onPress={onShow}
+      accessibilityRole="button"
+      accessibilityLabel={`Show a reply with a score of ${score}`}
+      style={({ pressed }) => [styles.buried, pressed && { opacity: 0.7 }]}
+    >
+      <Text style={styles.buriedText}>
+        Reply hidden by downvotes · {score} — <Text style={styles.buriedShow}>show</Text>
+      </Text>
+    </Pressable>
   );
 }
 
@@ -393,6 +519,38 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   replyBody: { flex: 1, gap: 4 },
+  /* Arrows + score as one tight cluster, so it reads as a single control and
+     stays visually distinct from the text links beside it. */
+  voteGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  voteButton: { paddingHorizontal: 2, paddingVertical: 2 },
+  voteGlyph: { ...typography.meta, fontSize: 11, color: colors.textTertiary },
+  /* Tabular figures: the score sits between two arrows and changes width as it
+     crosses 9 or goes negative, which would shuffle the arrows under the
+     finger that just tapped one. */
+  voteScore: {
+    ...typography.meta,
+    ...typography.numeric,
+    color: colors.textSecondary,
+    minWidth: 22,
+    textAlign: 'center',
+  },
+  voteUpOn: { color: colors.accent },
+  /* Not `danger`. A downvote is disagreement, not a warning, and the report
+     path is the one that should own an alarming colour. */
+  voteDownOn: { color: colors.textSecondary },
+
+  buried: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSunken,
+  },
+  buriedText: { ...typography.meta, color: colors.textTertiary },
+  buriedShow: { color: colors.accent },
+
   replyActions: { flexDirection: 'row', gap: spacing.lg, alignItems: 'center', marginTop: 2 },
   /** One level of indentation, and no deeper — the domain caps depth at 1. */
   nested: { paddingLeft: spacing.xl },

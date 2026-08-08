@@ -24,6 +24,10 @@
 import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
 import type { Collection, Item, OwnedItem, RoomTheme, User } from '@/types';
 import { RARITY_RANK } from './rarity';
+/* The §9.4 threshold, imported rather than restated. It is the number the
+   answer turns on, and a second literal 3 in this file would be a second rule
+   to keep in sync. */
+import { MIN_ROOM_ITEMS } from './trust';
 
 /** Hard cap on a question. Longer inputs are prompt-stuffing, not questions. */
 export const MAX_QUESTION_LENGTH = 400;
@@ -69,7 +73,24 @@ export interface AssistantContext {
   topItems: string[];
 
   // ── Collections and rooms ──────────────────────────────────────────────
-  collections: { name: string; itemCount: number; visibility: string; hasRoom: boolean }[];
+  /**
+   * `verifiedCount` and `roomEligible` are per collection, not per account.
+   *
+   * Without them the model knows HOW MANY collections could become a Showroom
+   * but not WHICH, so the best it can do is "pick one of your eligible
+   * collections" — and, having no way to tell an eligible collection from a
+   * short one, it appends the advice for the short case ("verify at least 3
+   * items") to collections that are already over the line. Naming them is what
+   * stops that.
+   */
+  collections: {
+    name: string;
+    itemCount: number;
+    visibility: string;
+    hasRoom: boolean;
+    verifiedCount: number;
+    roomEligible: boolean;
+  }[];
   showroomCount: number;
   /** Collections holding enough verified items to build a Showroom (§9.4). */
   roomEligibleCollections: number;
@@ -134,7 +155,9 @@ export interface AssistantContextInput {
   collections: readonly Collection[];
   /** Collection ids that already have a room, so the snapshot can say which. */
   collectionIdsWithRooms: readonly string[];
-  roomEligibleCollections: number;
+  /* No `roomEligibleCollections` here on purpose — it is derived from
+     `collections` and `owned` inside the builder, so the caller cannot pass a
+     count that disagrees with the collections it passed alongside it. */
   showroomCount: number;
   followerCount: number;
   followingCount: number;
@@ -181,6 +204,26 @@ export function buildContext(input: AssistantContextInput): AssistantContext {
   const linked = new Set(input.linkedTitles);
   const withRooms = new Set(input.collectionIdsWithRooms);
 
+  /* §9.4 counts VERIFIED ITEMS INSIDE ONE COLLECTION, so this is keyed on the
+     item ids the collection holds — not on the owner's verified total, which
+     can clear the threshold several times over while no single collection
+     does. `roomEligibility` in domain/trust is the same rule stated over an
+     OwnedItem list; this is the collection-shaped read of it. */
+  const verifiedItemIds = new Set(
+    input.owned.filter((entry) => entry.trustLevel === 'verified').map((entry) => entry.itemId),
+  );
+  const collections = input.collections.map((collection) => {
+    const verifiedInCollection = collection.itemIds.filter((id) => verifiedItemIds.has(id)).length;
+    return {
+      name: collection.name,
+      itemCount: collection.itemIds.length,
+      visibility: collection.visibility,
+      hasRoom: withRooms.has(collection.id),
+      verifiedCount: verifiedInCollection,
+      roomEligible: verifiedInCollection >= MIN_ROOM_ITEMS,
+    };
+  });
+
   return {
     handle: input.viewer?.handle ?? 'you',
     displayName: input.viewer?.displayName ?? 'Collector',
@@ -206,14 +249,13 @@ export function buildContext(input: AssistantContextInput): AssistantContext {
       .slice(0, MAX_TOP_ITEMS)
       .map((item) => item.name),
 
-    collections: input.collections.map((collection) => ({
-      name: collection.name,
-      itemCount: collection.itemIds.length,
-      visibility: collection.visibility,
-      hasRoom: withRooms.has(collection.id),
-    })),
+    collections,
     showroomCount: input.showroomCount,
-    roomEligibleCollections: input.roomEligibleCollections,
+    /* Counted from the list above rather than passed in beside it. The caller
+       used to compute this separately, which meant MIN_ROOM_ITEMS was applied
+       in two places and a snapshot could report "2 eligible" while naming
+       three eligible collections. One derivation, one answer. */
+    roomEligibleCollections: collections.filter((collection) => collection.roomEligible).length,
     themes: input.themes.map((theme) => theme.name),
 
     followerCount: input.followerCount,

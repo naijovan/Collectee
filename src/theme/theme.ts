@@ -757,6 +757,29 @@ export const motion = {
   slow: 380,
   /** Per-item delay for staggered list entrances. Above ~40ms it reads as lag. */
   stagger: 30,
+  /**
+   * HALF a cycle of any ambient, repeating animation — a glow breathing, a
+   * skeleton shimmering. Use it for both legs of the loop, so one full breath
+   * is 2×.
+   *
+   * There is one number for this because the app read as flashy while every
+   * individual loop was defensible on its own: the tour glow ran a 1.8s cycle
+   * and the loading skeleton a 1.5s one, so on a screen with both, the two beat
+   * against each other and the faster one took the eye. A shared rate is what
+   * makes several simultaneous loops read as one calm surface rather than as
+   * competing for attention.
+   *
+   * 1300 sits between those two and the room scene's 5.2s wash, which was the
+   * one loop nobody complained about. The wash keeps its own slower rate — it is
+   * scene lighting behind content, not a highlight on top of it — so this is the
+   * rate for loops in the FOREGROUND. Anything under about a second reads as a
+   * blink rather than a breath, which is what both offenders were doing.
+   *
+   * This is for AMBIENT loops only. Progress that must feel like work (the
+   * scanner's sweep, room generation) is deliberately faster and does not use
+   * this — see the note in `app/import.tsx`.
+   */
+  breath: 1300,
   /** One spring, used everywhere, so nothing bounces differently to anything else. */
   spring: { friction: 9, tension: 90 },
 } as const;

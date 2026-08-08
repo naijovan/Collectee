@@ -20,7 +20,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import { EmptyState, LoadingState, SecondaryButton, SectionHeader } from '@/components';
+import { ASSISTANT_CLEARANCE, EmptyState, LoadingState, SecondaryButton, SectionHeader } from '@/components';
 import { newsService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
@@ -120,14 +120,37 @@ export default function FollowingScreen() {
           body="Follow a franchise or a character and its news moves up your feed."
         />
       ) : (
-        <View style={styles.list}>
+        /* A grid of square-ish tiles rather than the full-width rows this used
+           to draw. Two reasons it changed. A 1248pt-wide card holding one
+           franchise name is mostly empty, and the screen read as a settings
+           list when what it is showing is a collection of things you follow —
+           the same content shape as the community grid on Explore and the rails
+           on Home, so it now uses their pattern.
+
+           `aspectRatio` rather than a fixed height: the tiles are flex-sized so
+           two fit per row at any width, and a fixed height would go square at
+           one width and wrong at every other. */
+        <View style={styles.grid}>
           {followedTopics.map((topic) => (
-            <View key={`${topic.kind}:${topic.value}`} style={styles.row}>
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle}>{topic.value}</Text>
-                <Text style={styles.muted}>{KIND_LABELS[topic.kind]}</Text>
+            <View key={`${topic.kind}:${topic.value}`} style={styles.tile}>
+              <View style={styles.tileTop}>
+                <Text style={styles.tileKind}>{KIND_LABELS[topic.kind]}</Text>
               </View>
-              <Pressable onPress={() => void toggleTopic(topic.kind, topic.value)} hitSlop={8}>
+              {/* The name gets the room. Two lines because "Shadow Skyline" and
+                  the like do not fit one at half width, and truncating the thing
+                  the tile is FOR is the one thing this layout must not do. */}
+              <Text style={styles.tileName} numberOfLines={2}>
+                {topic.value}
+              </Text>
+              {/* Sibling of the text, never a wrapper around it: the tile is not
+                  itself pressable, so there is no button inside a button here. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Unfollow ${topic.value}`}
+                onPress={() => void toggleTopic(topic.kind, topic.value)}
+                hitSlop={8}
+                style={({ pressed }) => [styles.unfollowButton, pressed && { opacity: 0.6 }]}
+              >
                 <Text style={styles.unfollow}>Unfollow</Text>
               </Pressable>
             </View>
@@ -165,7 +188,11 @@ export default function FollowingScreen() {
         session only in this build (§12.1).
       </Text>
 
-      <View style={{ height: spacing.xxl }} />
+      {/* The floating assistant sits over this corner. Reserve its real height
+          so the last row — including any rule above a footnote — is never
+          resting underneath it. `spacing.xxl` was not enough: it is 32 against
+          the launcher's 184. */}
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
   );
 }
@@ -175,9 +202,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md },
 
   body: { ...typography.body, color: colors.textSecondary },
-  muted: { ...typography.meta, color: colors.textSecondary },
   footnote: { ...typography.meta, color: colors.textTertiary },
-  rowTitle: { ...typography.cardTitle, color: colors.textPrimary },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
@@ -192,18 +217,42 @@ const styles = StyleSheet.create({
   chipText: { ...typography.meta, color: colors.textSecondary },
   chipTextActive: { color: colors.textOnAccent },
 
-  list: { gap: spacing.sm },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
+  /* Same two-up wrap as Explore's community grid, and the same gap, so the two
+     screens' grids line up rather than each inventing a rhythm. */
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  tile: {
+    /* `flexBasis: 45%` with wrap gives exactly two per row and lets them share
+       the leftover evenly — no measured width, so it holds at any screen size
+       and under the 720 cap on wide screens. */
+    flexGrow: 1,
+    flexBasis: '45%',
+    /* Square-ish rather than square: 1 exactly left the Unfollow control
+       floating in dead space under a one-word name. 1.15 is a tile, not a row. */
+    aspectRatio: 1.15,
+    justifyContent: 'space-between',
     backgroundColor: colors.surface,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing.md,
   },
-  rowBody: { flex: 1, gap: 2 },
+  /* Its own row so the kind chip sits top-left and does not stretch. */
+  tileTop: { flexDirection: 'row' },
+  tileKind: {
+    ...typography.meta,
+    fontSize: 11,
+    color: colors.textSecondary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSunken,
+    overflow: 'hidden',
+  },
+  /* Bigger than the old row title: on a tile the name is the content, not a
+     label beside a value. */
+  tileName: { ...typography.sectionHeader, fontSize: 17, color: colors.textPrimary },
+  /* Pinned to the bottom of the tile by the parent's space-between. */
+  unfollowButton: { alignSelf: 'flex-start', paddingVertical: 2 },
   unfollow: { ...typography.meta, color: colors.textTertiary },
 
   composer: { gap: spacing.sm, marginTop: spacing.sm },

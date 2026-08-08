@@ -109,7 +109,10 @@ export default function QuizScreen() {
         newsService.getDiscover(100),
       ]);
       if (cancelled) return;
-      setChips(deriveTasteChips(sets, items, articles));
+      /* Labels and the title list are passed in rather than imported by the
+         domain, same as the articles: `src/domain` stays free of anything it
+         would otherwise have to reach for. */
+      setChips(deriveTasteChips(sets, items, articles, GAME_LABELS, GAME_TITLES));
     }
 
     void load();
@@ -134,19 +137,44 @@ export default function QuizScreen() {
       avatarId: string | null;
       details: AccountDetails;
     }) => {
+      const picked = keep.picked
+        .map((value) => chips.find((c) => c.value === value))
+        .filter((chip): chip is TasteChip => chip !== undefined);
+
+      /*
+        Game chips are UNIONED into the games answer, not written as topics.
+        This is the one wiring detail the interest picker had to get right.
+
+        Games live in a different overlay from topics — `followedGamesFor` reads
+        `User.followedGames` plus `followedGameAdds`, and never looks at the
+        topic list — so calling `followTopic(userId, 'game', …)` would store a
+        row that `rankFyp` never reads. The chip would toggle, look selected,
+        and change nothing: exactly the dead control the tag rule on this step
+        exists to prevent, reintroduced by the fix for it.
+
+        Unioned rather than assigned because the games STEP is an assignment and
+        runs from the same answer object. A game picked here means "this one
+        too", so it has to be added to that set before it is written, not
+        written after it and overwritten.
+      */
+      const gamesFromChips = picked
+        .filter((chip) => chip.kind === 'game')
+        .map((chip) => chip.title);
+      const games = [...new Set([...keep.games, ...gamesFromChips])];
+
       /* An empty games answer is "no preference", not "unfollow everything".
          Someone who skips step 1 keeps the seeded three; writing an empty set
          would silently empty their feed and read as a bug. */
-      if (keep.games.length > 0) {
-        await newsService.setFollowedGames(viewerId, keep.games);
+      if (games.length > 0) {
+        await newsService.setFollowedGames(viewerId, games);
       }
 
       /* `followTopic`, not `toggleFollowedTopic`. The viewer is seeded already
          following Elderflame and Gusion, both of which are derived chips — a
          toggle would unfollow the very thing the user just picked. */
-      for (const value of keep.picked) {
-        const chip = chips.find((c) => c.value === value);
-        if (chip) await newsService.followTopic(viewerId, chip.kind, chip.value);
+      for (const chip of picked) {
+        if (chip.kind === 'game') continue;
+        await newsService.followTopic(viewerId, chip.kind, chip.value);
       }
 
       /* Null means the step was skipped, which must leave the seeded face
@@ -236,12 +264,43 @@ export default function QuizScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={{ height: insets.top }} />
-      <StepperHeader
-        steps={steps}
-        current={step}
-        onBack={step > 0 ? () => setStep((c) => c - 1) : undefined}
-      />
+      {/*
+        The header block, in the SAME column as the content below it.
+
+        Two separate faults produced Ray's report, and both were here rather
+        than in `StepperHeader`:
+
+        1. No horizontal padding at all. The header was a direct child of a
+           `flex: 1` screen, so "‹ Back" started at x=0 and "Step N of M"
+           right-aligned to the very edge — on web, under the scrollbar gutter,
+           which is why the counter looked cut off rather than merely tight.
+
+        2. Nothing kept it in the content column. The steps below are
+           `maxWidth: 460` inside a centred `alignItems: 'center'` container, so
+           on any screen wider than ~508 the content was centred while the
+           header ran the full width. That is the "layout left-hugs while
+           content sits centred" mismatch: the two were genuinely on different
+           grids.
+
+        `headerPad` carries the same `spacing.xl` the content uses and
+        `headerColumn` the same 460, so the Back link now begins exactly above
+        the first character of the step body at every width.
+
+        The top inset is folded in here too. It was a spacer `View` of height
+        `insets.top`, which is 0 on web — so on a browser the brand mark sat
+        flush against the viewport top with nothing above it. `spacing.lg` is
+        added unconditionally so there is breathing room on every platform.
+      */}
+      <View style={[styles.headerPad, { paddingTop: insets.top + spacing.lg }]}>
+        <View style={styles.headerColumn}>
+          <StepperHeader
+            steps={steps}
+            current={step}
+            onBack={step > 0 ? () => setStep((c) => c - 1) : undefined}
+            large
+          />
+        </View>
+      </View>
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -412,6 +471,12 @@ function DetailsStep({
         No real loss: the picker is horizontal and all fifteen scroll past, so
         the ordering only ever changed which four you saw first.
       */}
+      {/* Ray asked for "Pick a face" to become "Pick your avatar". That string
+          was a STEP NAME, removed when the face and the name became one answer,
+          so there was nothing to rename — and the picker had been left with no
+          label at all, which is the thing the note was really about. Ray's
+          wording, on the heading the picker was missing. */}
+      <Text style={styles.fieldHeading}>Pick your avatar</Text>
       <AvatarPicker value={avatarId} onChange={onAvatar} horizontal size={72} />
 
       <View style={styles.fields}>
@@ -556,9 +621,11 @@ function TasteStep({
 }) {
   return (
     <View style={styles.step}>
-      <Text style={styles.question}>Anything you collect in particular?</Text>
+      <Text style={styles.question}>Anything you&apos;re into right now?</Text>
       <Text style={styles.hint}>
-        Skins and heroes our news actually covers — following one moves it up your feed.{' '}
+        Choose skins, heroes and games that you like, and we&apos;ll tailor your feed around them.{' '}
+        {/* (Optional) stays. It is not decoration — this step does not gate
+            Continue, and a picker with no visible way past it reads as a wall. */}
         <Text style={styles.optional}>(Optional)</Text>
       </Text>
 
@@ -581,7 +648,11 @@ function TasteStep({
                 }}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: active }}
-                accessibilityLabel={`${chip.value}, ${chip.kind} in ${GAME_LABELS[chip.title]}`}
+                accessibilityLabel={
+                  chip.kind === 'game'
+                    ? `${chip.value}, game`
+                    : `${chip.value}, ${chip.kind} in ${GAME_LABELS[chip.title]}`
+                }
                 style={({ pressed }) => [
                   styles.chip,
                   active && styles.chipActive,
@@ -591,9 +662,13 @@ function TasteStep({
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
                   {chip.value}
                 </Text>
-                <Text style={[styles.chipMeta, active && styles.chipTextActive]}>
-                  {GAME_SHORT_LABELS[chip.title]}
-                </Text>
+                {/* Suppressed for a game chip: the value already IS the game, so
+                    the suffix rendered "Valorant · VAL". */}
+                {chip.kind === 'game' ? null : (
+                  <Text style={[styles.chipMeta, active && styles.chipTextActive]}>
+                    {GAME_SHORT_LABELS[chip.title]}
+                  </Text>
+                )}
               </Pressable>
             );
           })}
@@ -654,6 +729,12 @@ function IntensityStep({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: 'transparent' },
+
+  /* Matches `content`'s horizontal padding and `step`'s width, so the header
+     and the step body share one column. Centred for the same reason `content`
+     is. See the note at the call site. */
+  headerPad: { paddingHorizontal: spacing.xl, alignItems: 'center' },
+  headerColumn: { width: '100%', maxWidth: 460 },
   content: {
     padding: spacing.xl,
     paddingBottom: spacing.xxl,
@@ -697,7 +778,23 @@ const styles = StyleSheet.create({
   tickActive: { borderColor: colors.accent, backgroundColor: colors.accent },
   tickMark: { ...typography.meta, color: colors.textOnAccent },
 
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+  /**
+   * Centred rather than left-aligned, which is what turns a wrapped row into an
+   * interest picker.
+   *
+   * With nine chips left-aligned the last row was a short ragged stub against
+   * the left edge and the whole block read as a list that had run out. Centring
+   * distributes every row's slack evenly, so twenty-eight chips read as a field
+   * of options — the social-picker look Ray asked for. It also matches the step
+   * body, which is already centred.
+   */
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -742,6 +839,9 @@ const styles = StyleSheet.create({
   fields: { gap: spacing.md, alignSelf: 'stretch' },
   field: { gap: spacing.xs },
   fieldLabel: { ...typography.meta, color: colors.textSecondary },
+  /* Slightly stronger than `fieldLabel`: it introduces the picker rather than
+     sitting above a single input, and it is the first thing under the hint. */
+  fieldHeading: { ...typography.cardTitle, color: colors.textPrimary, alignSelf: 'flex-start' },
   fieldBox: {
     flexDirection: 'row',
     alignItems: 'center',

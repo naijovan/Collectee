@@ -22,7 +22,8 @@ import { assertScanConsistent, countScan } from '../src/domain/scan';
 import { RARITY_LABELS } from '../src/domain/rarity';
 import { CONTENT_REPORT_THRESHOLD } from '../src/domain/trust';
 import { THREADS, THREAD_REPLIES } from '../src/fixtures/threads';
-import type { Flag, Placement, Slot } from '../src/types';
+import { BURY_AT } from '../src/domain/threads';
+import type { Article, Flag, Placement, Slot } from '../src/types';
 import { GAME_TITLES } from '../src/types';
 import { GAME_DIGESTS } from '../src/fixtures/digests';
 import { ALL_ITEMS, ALL_SETS, ITEMS_BY_ID } from '../src/fixtures/catalogue';
@@ -335,6 +336,32 @@ for (const thread of THREADS) {
   check(thread.title.trim().length > 0, `Thread ${thread.id}: empty title`);
 }
 
+/*
+ * Inline article figures.
+ *
+ * `ArticleBlock` image blocks reference the catalogue by id, and the screen
+ * renders nothing when the lookup misses — so a typo here is a paragraph that
+ * silently loses its picture rather than an error anyone would notice. Captions
+ * are required to be non-empty for the same reason: a figure with no caption
+ * reads as a decorative image, and these are illustrating a claim.
+ */
+/* Widened to `Article`: ARTICLES is `as const`, so entries without a `body`
+   have no such property and the union cannot be read through. */
+for (const article of ARTICLES as readonly Article[]) {
+  if (!article.body) continue;
+  for (const block of article.body) {
+    if (block.kind !== 'image') continue;
+    check(
+      itemIds.has(block.itemId),
+      `Article ${article.id}: inline figure references unknown item "${block.itemId}"`,
+    );
+    check(
+      block.caption.trim().length > 0,
+      `Article ${article.id}: inline figure for "${block.itemId}" has no caption`,
+    );
+  }
+}
+
 const replyIds = new Set<string>(THREAD_REPLIES.map((r) => r.id));
 for (const reply of THREAD_REPLIES) {
   check(reply.targetType === 'thread', `Reply ${reply.id}: targetType must be 'thread'`);
@@ -350,6 +377,53 @@ for (const reply of THREAD_REPLIES) {
       `Reply ${reply.id}: nests two levels deep under "${reply.parentId}" — one level only (§11 F5)`,
     );
   }
+
+  /*
+   * Seeded vote tallies.
+   *
+   * `upvotes`/`downvotes` are optional on `Comment` because collection and room
+   * comments are not voted on, so the rule here is all-or-nothing rather than
+   * required: a reply with one half of the pair has almost certainly lost the
+   * other in an edit, and it would render a score that silently ignores it.
+   *
+   * Non-negative integers because they are counts, and because `wilsonLowerBound`
+   * divides by `up + down` — a negative tally could produce a total of zero from
+   * two non-zero numbers and take the ranking with it.
+   */
+  const hasUp = reply.upvotes !== undefined;
+  const hasDown = reply.downvotes !== undefined;
+  check(
+    hasUp === hasDown,
+    `Reply ${reply.id}: has ${hasUp ? 'upvotes' : 'downvotes'} but not the other — seed both or neither`,
+  );
+  for (const [field, value] of [
+    ['upvotes', reply.upvotes],
+    ['downvotes', reply.downvotes],
+  ] as const) {
+    if (value === undefined) continue;
+    check(
+      Number.isInteger(value) && value >= 0,
+      `Reply ${reply.id}: ${field} must be a non-negative integer, got ${value}`,
+    );
+  }
+}
+
+/*
+ * Voting and moderation must stay separable, and the SEED is where that is
+ * demonstrated. `cmt-thr-lod-3` is withheld by reports; its vote tally exists so
+ * the two mechanisms are visibly independent rather than coincidentally aligned.
+ * If it ever stops being heavily downvoted, the bury path loses its only seeded
+ * example — and if it stops being reported, §8.2's case goes with it (checked
+ * separately below).
+ */
+{
+  const buried = THREAD_REPLIES.filter(
+    (r) => (r.upvotes ?? 0) - (r.downvotes ?? 0) <= BURY_AT,
+  );
+  check(
+    buried.length > 0,
+    `No seeded reply is at or below the bury threshold (${BURY_AT}) — the collapsed state ships undemonstrated`,
+  );
 }
 
 // §8.2 — the seeded moderation case must actually be over its threshold, or the

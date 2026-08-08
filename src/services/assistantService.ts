@@ -181,13 +181,11 @@ async function snapshot(viewerId: string): Promise<AssistantContext> {
     .filter((collection) => roomStatus.get(collection.id) !== undefined)
     .map((collection) => collection.id);
 
-  // §9.4 is a rule about ITEMS, so eligibility is counted per collection: three
-  // verified items in one collection, not three anywhere in the account.
-  const verifiedItemIds = new Set(inventoryService.getVerifiedItemIdsByUser().get(viewerId) ?? []);
-  const roomEligibleCollections = collections.filter(
-    (collection) =>
-      collection.itemIds.filter((id) => verifiedItemIds.has(id)).length >= MIN_ROOM_ITEMS,
-  ).length;
+  /* Room eligibility used to be counted here. It now lives in
+     `buildAssistantContext`, which has both the collections and the owned items
+     and so can mark each collection eligible AND total them from the same pass.
+     Counting it here as well meant §9.4's threshold was applied in two places
+     against two different reads of "verified". */
 
   // Threads from the communities the viewer is actually in — the ones they
   // might ask about. Titles only; bodies stay on the device.
@@ -221,7 +219,6 @@ async function snapshot(viewerId: string): Promise<AssistantContext> {
     catalogue,
     collections,
     collectionIdsWithRooms,
-    roomEligibleCollections,
     showroomCount: collectionIdsWithRooms.length,
     followerCount: followers.length,
     followingCount: following.length,

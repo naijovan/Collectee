@@ -22,7 +22,8 @@ import { SymbolView } from 'expo-symbols';
 import medium from 'expo-symbols/androidWeights/medium';
 import {
   ActivityIndicator,
-  Image,
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -37,10 +38,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SUGGESTED_QUESTIONS } from '@/domain/assistant';
 import type { AssistantContext } from '@/domain/assistant';
 import { assistantService } from '@/services';
-import { assistantMascot } from '@/config/assistantArt';
+import { guidePose } from '@/config/tourGuideArt';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useAssistantDock } from '@/state/AssistantDock';
 import { useApp } from '@/state/AppContext';
-import { colors, interaction, radius, scrim, spacing, typography } from '@/theme/theme';
+import { colors, interaction, motion, radius, scrim, spacing, typography } from '@/theme/theme';
 
 import { ASSISTANT_NAME, PANEL_CLEARANCE } from './assistantDock';
 
@@ -53,9 +55,34 @@ import { ASSISTANT_NAME, PANEL_CLEARANCE } from './assistantDock';
  */
 const RATE_WARN_AT = 3;
 
+/**
+ * Colly's box in the header.
+ *
+ * 84×112 is the 3:4 of the pose art (768×1024), so she is never squashed. The
+ * height is the number that matters: at the old 56pt circle she was a face crop
+ * that read as an avatar, and the panel is meant to read as a conversation with
+ * someone. A full figure is the only thing that does that, and a full figure
+ * needs vertical room.
+ *
+ * ── This must not grow the panel ──────────────────────────────────────────
+ * `panel.maxHeight` is unchanged at 420, so every pixel here comes out of the
+ * transcript: 124pt of header (112 + 12 of top padding) leaves ~234 for the
+ * thread against the old ~270. That is the trade, and it is the right way
+ * round — the empty state is one greeting bubble and a row of chips, so the
+ * space is only contested once a conversation is several turns long, and by
+ * then the user is scrolling anyway.
+ */
+const COLLY_W = 84;
+const COLLY_H = 112;
+
 export function AssistantPanel() {
   const insets = useSafeAreaInsets();
-  const mascot = assistantMascot();
+  const reduceMotion = useReduceMotion();
+  /* The full-figure pose, not the square launcher crop. `happy` is the one of
+     the three that reads as greeting rather than explaining. Null until the art
+     lands, exactly like the launcher — the header then has no figure and the
+     text block takes the row on its own. */
+  const colly = guidePose('happy');
   const { viewerId } = useApp();
   const { closePanel, turns, addTurn, clearTurns } = useAssistantDock();
   const scroller = useRef<ScrollView>(null);
@@ -63,6 +90,48 @@ export function AssistantPanel() {
   const [context, setContext] = useState<AssistantContext | null>(null);
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
+
+  /**
+   * One wave when the panel opens.
+   *
+   * A one-shot, not a loop: a mascot that waves forever is the flashiness the
+   * rest of this round removed, and a greeting repeated indefinitely stops
+   * reading as a greeting. Rotation only, about her feet, so nothing reflows —
+   * the header's height comes from the box, not from the transform.
+   *
+   * ±5° is small on purpose. She is 112pt tall, so the arc at her head is
+   * already ~10pt of travel.
+   */
+  const wave = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduceMotion || colly === null) {
+      wave.setValue(0);
+      return;
+    }
+    const anim = Animated.sequence([
+      Animated.timing(wave, {
+        toValue: 1,
+        duration: motion.base,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(wave, {
+        toValue: -1,
+        duration: motion.slow,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.spring(wave, {
+        toValue: 0,
+        friction: 14,
+        tension: motion.spring.tension,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [wave, reduceMotion, colly]);
 
   const mode = assistantService.mode();
 
@@ -111,14 +180,33 @@ export function AssistantPanel() {
       >
         <View style={styles.panel}>
           <View style={styles.header}>
-            {/* The same face as the launcher, so opening the panel feels like
-                the bubble expanded rather than a different thing appearing.
-                Null until the art lands — the row simply has no avatar then. */}
-            {mascot ? (
-              <Image
-                source={mascot}
-                style={styles.headerMascot}
-                resizeMode="cover"
+            {/* Colly, full figure, standing on the header's bottom border.
+                `contain` because the art is 3:4 with transparency and a `cover`
+                crop of a standing figure cuts her feet off — which is the whole
+                thing this arrangement is for.
+
+                Not a Pressable and not wrapped in one: the header already has
+                two buttons in it, and a third tappable region behind them is
+                how the community card ended up with a button inside a button. */}
+            {colly ? (
+              <Animated.Image
+                source={colly}
+                style={[
+                  styles.colly,
+                  {
+                    transform: [
+                      {
+                        rotate: wave.interpolate({
+                          inputRange: [-1, 1],
+                          outputRange: ['-5deg', '5deg'],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+                resizeMode="contain"
+                accessible
+                accessibilityLabel={`${ASSISTANT_NAME}, waving`}
                 accessibilityIgnoresInvertColors
               />
             ) : null}
@@ -300,43 +388,42 @@ const styles = StyleSheet.create({
   },
 
   /**
-   * 44, not 28.
+   * A figure, not a portrait.
    *
-   * At 28 she was a dot — the point of putting her here is that the panel
-   * reads as the same character the launcher bubble opened, and an
-   * unidentifiable circle does not do that. 44 sits just above the two-line
-   * title block (~38pt: a 20pt title over a 16pt mode line), so she anchors
-   * the row without towering over it.
-   *
-   * No `marginRight` — the header row already has `gap`, and carrying both
-   * double-spaced her away from the title.
-   *
-   * The ring matches the launcher bubble's, so the face in the header and the
-   * face in the corner read as one thing rather than two portraits.
+   * No border, no radius and no background — the previous 56pt version was a
+   * circular crop with an accent ring, which is an avatar treatment, and an
+   * avatar is exactly what this stopped being. The art is transparent, so she
+   * stands directly on the header's own surface.
    */
-  headerMascot: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.accentPressed,
-    backgroundColor: colors.surfaceSunken,
+  colly: {
+    width: COLLY_W,
+    height: COLLY_H,
+    /* Pivot at her feet, not her middle. Rotating a standing figure about its
+       centre see-saws it — the head goes one way and the feet the other, so she
+       appears to slide off the divider she is standing on. From the feet the
+       same ±5° reads as a lean into the wave. */
+    transformOrigin: 'bottom center',
   },
   header: {
     flexDirection: 'row',
-    /* flex-start keeps the close button pinned top-right, unchanged. The text
-       block centres itself against the face separately. */
+    /* flex-start keeps the two buttons pinned top-right and puts her head, not
+       her middle, at the top of the row. */
     alignItems: 'flex-start',
-    gap: spacing.sm,
-    /* lg, not md: at 44 the face filled the old 12pt padding and the row read
-       as cramped. */
-    padding: spacing.lg,
+    gap: spacing.md,
+    /* Asymmetric, and the zero is the point: with no bottom padding her feet
+       land exactly on the divider, so she reads as standing on it rather than
+       floating in a band above it. The header's height is therefore COLLY_H +
+       this top padding = 124, which is what the panel budget was set against. */
+    paddingTop: spacing.md,
+    paddingBottom: 0,
+    paddingHorizontal: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  /* Centred against the 44pt face rather than top-aligned to it, so the
-     two-line block sits balanced beside her instead of riding high. */
-  headerText: { flex: 1, gap: 2, alignSelf: 'center' },
+  /* Top-aligned, not centred: it now sits beside a 112pt figure, and centring
+     a 38pt block against that leaves the name floating at her waist with
+     nothing above it. Aligned to the top it shares a line with the ✎ and ✕. */
+  headerText: { flex: 1, gap: 2 },
   /* Her name, not a sentence. The panel is a conversation with someone, and
      the first thing you read should be who. */
   title: { ...typography.sectionHeader, fontSize: 18, color: colors.textPrimary },

@@ -443,11 +443,39 @@ export const FLAGS = [
   },
 ] as const satisfies readonly Flag[];
 
+/**
+ * ── EVERY VALUE HERE MUST MATCH AN ARTICLE `tags` ENTRY ────────────────────
+ * `rankFyp` matches a followed topic against `tags` and nothing else — not the
+ * title, not the summary. A topic that matches no tag is a row on the Following
+ * screen that provably does nothing, which is worse than an empty screen
+ * because it looks like it works. See the header of `fixtures/articles.ts`,
+ * where this went silently untrue once already.
+ *
+ * The screen used to seed two: Elderflame and Gusion, so Valorant and MLBB had
+ * one each and CODM had none — and the Following screen showed two rows in a
+ * layout built for a list. It is three franchise/character topics per game now,
+ * balanced deliberately, and every one of them is tagged on at least one
+ * article. Four of those tags were added alongside these, each for a name the
+ * article already carried in its own title, summary or relatedItemIds.
+ */
 export const FOLLOWED_TOPICS = [
   { userId: 'user-jovan', kind: 'game', value: 'CODM' },
   { userId: 'user-jovan', kind: 'game', value: 'Valorant' },
+
+  // CODM
+  { userId: 'user-jovan', kind: 'franchise', value: 'Lightbringer' },
+  { userId: 'user-jovan', kind: 'franchise', value: 'Shadow Skyline' },
+  { userId: 'user-jovan', kind: 'character', value: 'Nightfall' },
+
+  // Valorant
   { userId: 'user-jovan', kind: 'franchise', value: 'Elderflame' },
+  { userId: 'user-jovan', kind: 'franchise', value: 'Prime' },
+  { userId: 'user-jovan', kind: 'character', value: 'Phoenix' },
+
+  // MLBB
   { userId: 'user-jovan', kind: 'character', value: 'Gusion' },
+  { userId: 'user-jovan', kind: 'character', value: 'Akai' },
+  { userId: 'user-jovan', kind: 'franchise', value: 'Collector' },
 ] as const satisfies readonly FollowedTopic[];
 
 export const SAVED_ARTICLES = [

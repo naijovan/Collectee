@@ -24,7 +24,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ASSISTANT_CLEARANCE, ArticleCard, EmptyState, FilterChips, LoadingState, NewsBanner } from '@/components';
@@ -140,7 +140,7 @@ export default function NewsScreen() {
      registered as its fallback. See `TourStop.fallbackTargetIds`. */
   const digestAnchor = useTourAnchor('news-digest');
   const tabsAnchor = useTourAnchor('news-tabs');
-  const { viewerId, unreadNotifications } = useApp();
+  const { viewerId } = useApp();
 
   const [tab, setTab] = useState<string>(TABS[0]);
   /** Switching tab replaces the whole page, so it reads as a new one. */
@@ -233,24 +233,19 @@ export default function NewsScreen() {
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       {/*
-        §11 F6 groups notifications and following management with the feeds, and
-        this is the only route to either.
+        The two text links that used to sit here are gone — Jovan's TODO, done.
+        Notifications is the bell in Home's header, where §13.4 puts it and
+        where the unread dot was already being drawn; followed topics is a row on
+        Profile.
 
-        TODO(Jovan): §13.4 puts the bell on Home and it currently opens /news.
-        One-line href change in src/app/(tabs)/index.tsx — the unread dot it
-        already renders is counting notifications nobody could open until now.
+        Both moves were required rather than tidying. This screen was the ONLY
+        route to either, so the links could not simply be deleted: /following
+        had no other caller anywhere in the app, and removing this one would
+        have left §11 F6's feed management in the build and unreachable.
+
+        The page now opens on its tabs, which is the first thing a reader needs
+        rather than two utility links above the content.
       */}
-      <View style={styles.utilityRow}>
-        <Pressable onPress={() => router.push('/notifications')} hitSlop={8}>
-          <Text style={styles.utilityLink}>
-            Notifications{unreadNotifications > 0 ? ` (${unreadNotifications})` : ''}
-          </Text>
-        </Pressable>
-        <Pressable onPress={() => router.push('/following')} hitSlop={8}>
-          <Text style={styles.utilityLink}>Following</Text>
-        </Pressable>
-      </View>
-
       <View ref={tabsAnchor} collapsable={false}>
         <FilterChips
           options={TABS}
@@ -264,27 +259,29 @@ export default function NewsScreen() {
         Game identity, above the digest. Saved has no game and gets no banner.
 
         ── This banner is load-bearing for the first-run walkthrough ─────────
-        The tour spotlights the digest BELOW this. Adding the banner moves that
-        target down by exactly 128px (BANNER_HEIGHT 112 + spacing.lg), putting
-        the digest at ~222px from the top of the scroll content and its bottom
-        edge at ~394px.
+        The tour spotlights the digest BELOW this, so the banner's height sets
+        where that target lands.
 
-        Two consequences, both checked before this landed:
+        The banner is no longer a fixed 112. It is `BANNER_ASPECT` (3:1) on the
+        column's own width, which is the source art's aspect and therefore
+        crops nothing. Being width-driven is what makes it safe: the old note
+        here warned that the banner "cannot grow past ~112px" or the digest
+        crowds the fold on a 667-tall phone, and that is still true of a FIXED
+        height — but on a phone the column is narrow, so the ratio produces
+        almost the same number it always did.
 
-        1. The digest still clears the fold on the shortest viewport we care
-           about (iPhone SE, 667) with ~229px to spare, so the spotlight never
-           lands on something scrolled out of view.
+          375pt screen -> column 343 -> banner 114 (was 112)
+                          digest top ~202, bottom ~374, inside a 667 fold
+         1280pt screen -> column 688 -> banner 229 (was 112)
+                          digest top ~317, bottom ~489
 
-        2. At 667 the tour CARD flips from below the hole to above it —
-           `TourOverlay` puts it on whichever side has more room, and below
-           drops to 229px against 266px above. That is the overlay working as
-           designed, not a regression, but it is why the banner cannot grow:
-           past ~112px the card is forced above the hole on more devices, and
-           past ~160px the digest itself starts crowding the fold.
+        So the phone geometry the original arithmetic protected is intact to
+        within two points, and the growth all lands on the wide column, which
+        is where the banner looked undersized next to the 3:2 cards.
 
-        If this height ever changes, re-do that arithmetic. `BANNER_HEIGHT` is
-        a fixed constant rather than an intrinsic image height precisely so the
-        number stays knowable.
+        Stop 4 was re-measured through the shipped `placeGuide` after this
+        change — see the commit. If the column cap or this ratio changes, redo
+        both the table above and that measurement.
       */}
       {title !== null ? <NewsBanner title={title} /> : null}
 
@@ -322,7 +319,7 @@ export default function NewsScreen() {
               key={entry.article.id}
               article={entry.article}
               reason={entry.reason}
-              thumb="media"
+              thumb="feature"
               thumbItemId={feedThumbs[index]}
               onPress={() => open(entry.article.id)}
             />
@@ -344,7 +341,7 @@ export default function NewsScreen() {
               <ArticleCard
                 key={article.id}
                 article={article}
-                thumb="media"
+                thumb="feature"
                 thumbItemId={savedThumbs[index]}
                 onPress={() => open(article.id)}
               />
@@ -368,11 +365,37 @@ export default function NewsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: 'transparent' },
-  content: { padding: spacing.lg, gap: spacing.lg },
+  /**
+   * A capped, centred column — the one place in the app that has one.
+   *
+   * The article cards are now full-width 3:2 images, which is right on a phone
+   * (a 390pt screen gives a 358pt card and a 239pt image, so two cards fill the
+   * screen). With no max-width shell anywhere in the app, the same rule on a
+   * 1280pt browser gives a 1248pt card and an 832pt image — one card taller than
+   * the viewport, with its own title below the fold.
+   *
+   * 720 is capped rather than the cards alone because the digest box and the
+   * cards must stay the same width: they are the two things this page is made
+   * of, and matching their edges is what makes it read as one column instead of
+   * a box followed by a list. Capping the container narrows both together and
+   * keeps that true at every width. At 1280 that is a 688pt card and a 459pt
+   * image — a card and a bit per screen.
+   *
+   * 720 is already a house value; `room/new` uses it for the same reason.
+   *
+   * ⚠️ This shifts what the tour's stop 4 measures — `news-digest` is now
+   * narrower and centred on wide screens. Re-measured after the change; see the
+   * commit.
+   */
+  content: {
+    padding: spacing.lg,
+    gap: spacing.lg,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
   list: { gap: spacing.md },
   footnote: { ...typography.meta, color: colors.textTertiary },
-  utilityRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.lg },
-  utilityLink: { ...typography.meta, color: colors.accent },
 
   digest: {
     /* Same height as the shimmer that stands in for it, so a cold load does not
