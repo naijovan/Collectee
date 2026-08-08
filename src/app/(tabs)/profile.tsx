@@ -591,6 +591,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.md,
+    justifyContent: 'center',
   },
   collectionCell: { flexGrow: 0, flexBasis: '48%', minWidth: 260 },
   collectionCellPhone: { flexBasis: '100%', minWidth: 0 },

@@ -319,14 +319,9 @@ export default function HomeScreen() {
       {/*
         3 — Hero banner
 
-        Copy left, artwork filling the right and running under it. The art is no
-        longer a strip above a text block: stacked, the banner spent its height
-        twice and the pictures had to shrink to keep the whole thing above the
-        fold. Side by side, the images get the banner's full height.
-
-        The panels are sheared rather than square. Vertical dividers made four
-        separate pictures; a shear reads as one continuous piece of art that the
-        copy is sitting on.
+        Copy left, artwork filling the right and running under it. The art stays
+        as separate panels so each skin can contain-fit inside its own boundary
+        instead of being cropped into a decorative strip.
 
         ⚠️ No publisher logos. The reference for this layout carries a row of
         real game marks, and those are exactly the third-party assets §11 F4 and
@@ -339,9 +334,7 @@ export default function HomeScreen() {
               key={itemId}
               style={[
                 styles.heroPanel,
-                /* Each panel leans the same way; the overlap hides the seam the
-                   shear opens at top and bottom. */
-                { transform: [{ skewX: '-9deg' }], marginLeft: index === 0 ? 0 : -10 },
+                index === 0 ? null : styles.heroPanelDivider,
               ]}
             >
               <ItemArt
@@ -349,10 +342,7 @@ export default function HomeScreen() {
                 tier={
                   inventory.find((entry) => entry.item.id === itemId)?.item.rarityTier ?? 'mythic'
                 }
-                fit="cover"
-                /* Counter-skewed so the artwork itself stays upright inside a
-                   slanted window — skewing the image too would lean every face. */
-                style={[styles.heroPanelArt, { transform: [{ skewX: '9deg' }] }]}
+                style={styles.heroPanelArt}
               />
             </View>
           ))}
@@ -720,8 +710,7 @@ const styles = StyleSheet.create({
   heroPhone: { height: 300 },
 
   /* Edge to edge. The art fills the entire banner and the gradient above
-     dissolves it under the copy — previously it started at 28%, which left a
-     hard seam where the black panel ended and the pictures began. */
+     dissolves it under the copy — each panel contain-fits the whole PNG. */
   heroArtLayer: {
     position: 'absolute',
     top: 0,
@@ -729,12 +718,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    /* Overflow the top and bottom so the shear never exposes a corner. */
-    marginTop: -12,
-    marginBottom: -12,
   },
   heroPanel: { flex: 1, overflow: 'hidden' },
-  heroPanelArt: { width: '118%', height: '100%', marginLeft: '-9%' },
+  heroPanelDivider: { marginLeft: 1 },
+  heroPanelArt: { width: '100%', height: '100%', borderRadius: 0 },
 
   heroFade: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
   heroFadeFoot: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '42%' },
@@ -810,7 +797,14 @@ const styles = StyleSheet.create({
    * Used by BOTH "Explore Collectibles" and "Trending Showrooms", so this
    * closes both.
    */
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    /* Centred, so the leftover after two fixed-width cards splits evenly
+       instead of piling up as one wide margin on the right. */
+    justifyContent: 'center',
+  },
   /**
    * `flexGrow: 0` is load-bearing.
    *

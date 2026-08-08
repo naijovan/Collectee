@@ -635,6 +635,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     columnGap: spacing.md,
     rowGap: spacing.sm,
+    justifyContent: 'center',
   },
   gridItem: { flexGrow: 0, flexBasis: '48%', minWidth: 260, gap: 2 },
   gridItemPhone: { flexBasis: '100%', minWidth: 0 },

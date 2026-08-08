@@ -305,7 +305,12 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   /* Gap alone, no `space-between` — the two together doubled the channel down
      the middle, the same stack the Home, Collections and Profile grids had. */
-  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  cardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    justifyContent: 'center',
+  },
   collectionCell: { width: '48%', gap: spacing.xs },
   collectionCellPhone: { width: '100%' },
   underReview: { ...typography.meta, color: colors.warning, paddingLeft: spacing.xs },
