@@ -29,6 +29,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -66,7 +67,7 @@ import {
 import type { CollectorRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useAssistantDock } from '@/state/AssistantDock';
-import { colors, fonts, interaction, radius, spacing, typography } from '@/theme/theme';
+import { colors, fonts, interaction, radius, scrim, spacing, typography } from '@/theme/theme';
 import type { Article, Collection, Item, Room, User } from '@/types';
 
 const FILTERS = ['All', 'Collections', 'Collectors', 'Rooms'] as const;
@@ -121,6 +122,7 @@ function Hoverable({
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { width: viewportWidth } = useWindowDimensions();
   const { viewer, viewerId, inventory, unreadNotifications, loading } = useApp();
   const { openPanel } = useAssistantDock();
 
@@ -276,37 +278,64 @@ export default function HomeScreen() {
       {/* 2 — Filter chips */}
       <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
 
-      {/* 3 — Hero banner */}
-      <View style={styles.hero}>
-        <View style={styles.heroArt}>
-          {/*
-            The tiles used to be seeded 'hero-a/b/c', which matched no item, so
-            the first thing on Home was three colour blocks. They now point at
-            the four ids the art pack assigns to this banner.
-          */}
-          {/*
-            Four equal panels, not an overlapping fan. Overlapping shifted each
-            tile under the one before it, so the part left showing was the right
-            edge of the crop — sky and motion blur — while the face sat hidden
-            underneath. Equal panels are also close to the art's 3:2, so the
-            cover-crop barely trims.
-          */}
-          {ART_PLACEMENTS['home.heroMosaic'].map((itemId) => (
-            <ItemArt
+      {/*
+        3 — Hero banner
+
+        Copy left, artwork filling the right and running under it. The art is no
+        longer a strip above a text block: stacked, the banner spent its height
+        twice and the pictures had to shrink to keep the whole thing above the
+        fold. Side by side, the images get the banner's full height.
+
+        The panels are sheared rather than square. Vertical dividers made four
+        separate pictures; a shear reads as one continuous piece of art that the
+        copy is sitting on.
+
+        ⚠️ No publisher logos. The reference for this layout carries a row of
+        real game marks, and those are exactly the third-party assets §11 F4 and
+        the art rules forbid — everything rendered here is our own baked art.
+      */}
+      <View style={[styles.hero, viewportWidth < 600 && styles.heroPhone]}>
+        <View style={styles.heroArtLayer} pointerEvents="none">
+          {ART_PLACEMENTS['home.heroMosaic'].map((itemId, index) => (
+            <View
               key={itemId}
-              seed={itemId}
-              tier={inventory.find((entry) => entry.item.id === itemId)?.item.rarityTier ?? 'mythic'}
-              fit="cover"
-              style={styles.heroTile}
-            />
+              style={[
+                styles.heroPanel,
+                /* Each panel leans the same way; the overlap hides the seam the
+                   shear opens at top and bottom. */
+                { transform: [{ skewX: '-9deg' }], marginLeft: index === 0 ? 0 : -10 },
+              ]}
+            >
+              <ItemArt
+                seed={itemId}
+                tier={
+                  inventory.find((entry) => entry.item.id === itemId)?.item.rarityTier ?? 'mythic'
+                }
+                fit="cover"
+                /* Counter-skewed so the artwork itself stays upright inside a
+                   slanted window — skewing the image too would lean every face. */
+                style={[styles.heroPanelArt, { transform: [{ skewX: '9deg' }] }]}
+              />
+            </View>
           ))}
         </View>
-        <Text style={styles.eyebrow}>✦ Collections made for you</Text>
-        <Text style={styles.heroHeadline}>
-          Your skins are worth more than a menu no one ever sees.
-        </Text>
-        <View style={styles.heroCta}>
-          <PrimaryButton label="Explore" onPress={() => router.navigate('/explore')} />
+
+        {/*
+          Three bands, darkest at the left, so the copy has solid ground and the
+          art is still fully visible on the right. Layered blocks rather than a
+          gradient package (§13.1 — no new dependencies); at this width the step
+          between them is not perceptible.
+        */}
+        <View style={styles.heroScrimFull} pointerEvents="none" />
+        <View style={styles.heroScrimMid} pointerEvents="none" />
+        <View style={styles.heroScrimNear} pointerEvents="none" />
+
+        <View style={styles.heroCopy}>
+          <Text style={styles.eyebrow}>✦ Collections made for you</Text>
+          <Text style={styles.heroHeadline}>Epic skins.{'\n'}Endless legends.</Text>
+          <View style={styles.heroCta}>
+            <PrimaryButton label="Explore" onPress={() => router.navigate('/explore')} />
+          </View>
         </View>
       </View>
 
@@ -366,7 +395,11 @@ export default function HomeScreen() {
                 /* The stagger is what turns "the data arrived" into "the grid
                    dealt itself". Width lives on the wrapper, not the card,
                    because the wrapper is what the flex row now measures. */
-                <FadeInView key={entry.collection.id} index={index} style={styles.gridCell}>
+                <FadeInView
+                  key={entry.collection.id}
+                  index={index}
+                  style={[styles.gridCell, viewportWidth < 600 && styles.gridCellPhone]}
+                >
                   <CollectionCard
                     collection={entry.collection}
                     owner={entry.owner}
@@ -416,44 +449,55 @@ export default function HomeScreen() {
       {/* Rooms — the chip the Figma implies but never fills */}
       {show('Rooms') ? (
         <View>
-          <SectionHeader title="Check out showrooms from other collectors" prominent />
+          <SectionHeader title="Trending Showrooms" prominent />
           {busy ? (
             <LoadingState height={150} />
           ) : (
-            <View style={styles.roomList}>
-              {rooms.map((entry) => (
-                <Hoverable
+            /* Cards, not rows. These sit directly under "Explore collectibles",
+               which is a grid of large covers, and a stack of thin rows beneath
+               it read as a settings list rather than as more of the same thing.
+               A showroom is something you look at, so the backdrop leads and the
+               title sits under it — the same shape as a collection card. */
+            <View style={styles.grid}>
+              {rooms.map((entry, index) => (
+                <FadeInView
                   key={entry.room.id}
-                  onPress={() =>
-                    router.push({ pathname: '/room/[id]', params: { id: entry.room.id } })
-                  }
-                  style={styles.roomRow}
+                  index={index}
+                  style={[styles.gridCell, viewportWidth < 600 && styles.gridCellPhone]}
                 >
-                  {/* A theme id is not an item id, so `ItemArt` only ever gave
-                      these rows a colour block. Rooms have their own backdrop. */}
-                  <RoomThumb themeId={entry.room.themeId} />
-                  <View style={styles.roomMeta}>
-                    <Text style={styles.roomName}>{entry.room.title}</Text>
-                    {/* Attribution first among the meta: whose room it is, is the
-                        reason to open someone else's. The theme and item count
-                        are detail. */}
-                    <View style={styles.roomOwner}>
-                      {entry.owner ? (
-                        <Avatar
-                          name={entry.owner.displayName}
-                          avatarId={entry.owner.avatar}
-                          verified={entry.owner.isAccountVerified}
-                          size={18}
-                        />
-                      ) : null}
-                      <Text style={styles.muted} numberOfLines={1}>
-                        {entry.owner?.displayName ?? 'A collector'} · {entry.themeName} ·{' '}
-                        {entry.room.placements.length} items
+                  <Hoverable
+                    onPress={() =>
+                      router.push({ pathname: '/room/[id]', params: { id: entry.room.id } })
+                    }
+                    style={styles.roomCard}
+                  >
+                    {/* A theme id is not an item id, so `ItemArt` only ever gave
+                        these a colour block. Rooms have their own backdrop. */}
+                    <RoomThumb themeId={entry.room.themeId} style={styles.roomCardArt} />
+                    <View style={styles.roomCardBody}>
+                      <Text style={styles.roomName} numberOfLines={1}>
+                        {entry.room.title}
                       </Text>
+                      {/* Attribution first among the meta: whose room it is, is
+                          the reason to open someone else's. Theme and item count
+                          are detail. */}
+                      <View style={styles.roomOwner}>
+                        {entry.owner ? (
+                          <Avatar
+                            name={entry.owner.displayName}
+                            avatarId={entry.owner.avatar}
+                            verified={entry.owner.isAccountVerified}
+                            size={18}
+                          />
+                        ) : null}
+                        <Text style={styles.muted} numberOfLines={1}>
+                          {entry.owner?.displayName ?? 'A collector'} · {entry.themeName} ·{' '}
+                          {entry.room.placements.length} items
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                  <Text style={styles.chevron}>›</Text>
-                </Hoverable>
+                  </Hoverable>
+                </FadeInView>
               ))}
             </View>
           )}
@@ -475,11 +519,13 @@ export default function HomeScreen() {
  * fell through to the colour block. Backdrops live in the same registry keyed by
  * theme id, and the palette wash stays as the fallback for a theme without art.
  */
-function RoomThumb({ themeId }: { themeId: string }) {
+function RoomThumb({ themeId, style }: { themeId: string; style?: StyleProp<ViewStyle> }) {
   const backdrop = backdropFor(themeId);
-  if (!backdrop) return <ItemArt seed={themeId} tier="mythic" style={styles.roomThumb} />;
+  /* `style` overrides the default square thumb so the same component can be a
+     row avatar or a card-width cover. */
+  if (!backdrop) return <ItemArt seed={themeId} tier="mythic" style={[styles.roomThumb, style]} />;
   return (
-    <View style={[styles.roomThumb, styles.roomThumbClip]}>
+    <View style={[styles.roomThumb, styles.roomThumbClip, style]}>
       <Image
         source={backdrop}
         style={styles.roomThumbImage}
@@ -532,17 +578,61 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.sm,
+    /* No padding: the art runs to the banner's edges and the copy is inset by
+       `heroCopy` instead. `overflow: hidden` is load-bearing — it clips the
+       sheared panels to the rounded corners. */
+    overflow: 'hidden',
+    height: 340,
   },
-  heroArt: { flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.sm },
-  // 168, not 112. The collage is character art cropped to `cover`, and at 112
-  // in a narrow tile the crop took the heads off — the one part of a character
-  // render worth showing.
-  heroTile: { flex: 1, height: 168 },
+  /* A fixed height, because the art is absolutely positioned behind the copy
+     and can no longer size the banner itself. Tall enough for a portrait crop
+     to read as a portrait. */
+  heroPhone: { height: 300 },
+
+  /* The art sits on the right and bleeds off the edge. Starting at 28% keeps
+     the first panel behind the headline, which is what makes the scrim ramp
+     look intentional rather than like a box. */
+  heroArtLayer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '28%',
+    right: 0,
+    flexDirection: 'row',
+    /* Overflow the top and bottom so the shear never exposes a corner. */
+    marginTop: -12,
+    marginBottom: -12,
+  },
+  heroPanel: { flex: 1, overflow: 'hidden' },
+  heroPanelArt: { width: '118%', height: '100%', marginLeft: '-9%' },
+
+  /* Left-to-right ramp in three steps. Each covers less width and is lighter,
+     so the copy end is solid and the right end is clean art. */
+  heroScrimFull: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: scrim.light },
+  heroScrimMid: { position: 'absolute', top: 0, bottom: 0, left: 0, width: '55%', backgroundColor: scrim.medium },
+  heroScrimNear: { position: 'absolute', top: 0, bottom: 0, left: 0, width: '34%', backgroundColor: scrim.heavy },
+
+  heroCopy: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: '38%',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    gap: spacing.xs,
+  },
   eyebrow: { ...typography.meta, color: colors.accent, letterSpacing: 0.5 },
-  heroHeadline: { ...typography.sectionHeader, color: colors.textPrimary, fontSize: 20 },
-  heroCta: { alignSelf: 'flex-start', marginTop: spacing.sm },
+  /* Bigger than the old 20, and sitting on artwork now, so it has to hold its
+     own against it. The line break is authored rather than left to wrapping —
+     the two halves are a pair and should break in the same place at any width. */
+  heroHeadline: {
+    ...typography.sectionHeader,
+    color: colors.textOnAccent,
+    fontSize: 30,
+    lineHeight: 36,
+  },
+  heroCta: { alignSelf: 'flex-start', marginTop: spacing.md },
 
   /* Horizontal FlatLists clip on their cross-axis. The shared hover rises 3px,
      so this inset keeps the highlighted top border inside the list viewport. */
@@ -554,25 +644,26 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
   /** Was the card's own `width="48%"`; moved out when FadeInView wrapped it. */
   gridCell: { width: '48%' },
+  gridCellPhone: { width: '100%' },
 
   roomOwner: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
 
-  roomList: { gap: spacing.sm },
-  roomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
+  /* The card form, matching CollectionCard: cover on top, meta beneath. */
+  roomCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.md,
+    overflow: 'hidden',
   },
+  /* Full card width, 16:9 — a room backdrop is a landscape, and the square
+     thumb this component defaults to cropped most of it away. */
+  roomCardArt: { width: '100%', height: undefined, aspectRatio: 16 / 9, borderRadius: 0 },
+  roomCardBody: { padding: spacing.md, gap: spacing.xs },
+
   roomThumb: { width: 64, height: 46 },
   roomThumbClip: { overflow: 'hidden', borderRadius: radius.sm, backgroundColor: colors.surfaceSunken },
   roomThumbImage: { width: '100%', height: '100%' },
-  roomMeta: { flex: 1, gap: 2 },
   roomName: { ...typography.cardTitle, color: colors.textPrimary },
   muted: { ...typography.meta, color: colors.textSecondary },
-  chevron: { fontSize: 22, color: colors.textTertiary },
 });

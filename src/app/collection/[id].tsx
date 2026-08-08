@@ -253,49 +253,63 @@ export default function CollectionScreen() {
         page that treats it as a footnote buries the feature the pitch leads on.
       */}
       <View style={styles.actionGrid}>
-        <View style={styles.actionCell}>
-          <SecondaryButton
-            label="✎ Edit collection"
-            disabled={!isOwner}
-            onPress={() =>
-              router.push({
-                pathname: '/collection/new',
-                params: { collectionId: collection.id, mode: 'edit' },
-              })
-            }
-          />
-        </View>
-        <View style={styles.actionCell}>
-          <PrimaryButton
-            label={roomStatus?.published ? 'View room' : 'Create Showroom'}
-            disabled={roomBlocked}
-            onPress={() =>
-              roomStatus?.published
-                ? router.push({ pathname: '/room/[id]', params: { id: roomStatus.room.id } })
-                : router.push({ pathname: '/room/intro', params: { collectionId: collection.id } })
-            }
-          />
-        </View>
+        {/*
+          Editing actions are OMITTED for a visitor, not disabled.
+          A greyed-out "Edit collection" on someone else's page offers something
+          that was never available and reads as a permission you have lost
+          rather than one you never had — and it needed a footnote underneath to
+          explain itself. A visitor's page is simply the two things a visitor
+          can do: look at the room, and share it.
+        */}
+        {isOwner ? (
+          <View style={styles.actionCell}>
+            <SecondaryButton
+              label="✎ Edit collection"
+              onPress={() =>
+                router.push({
+                  pathname: '/collection/new',
+                  params: { collectionId: collection.id, mode: 'edit' },
+                })
+              }
+            />
+          </View>
+        ) : null}
+
+        {/* Visitors get "View room" when one exists, and nothing when it does
+            not — "Create Showroom" on a collection you do not own is an offer
+            the app cannot honour. */}
+        {isOwner || roomStatus?.published ? (
+          <View style={styles.actionCell}>
+            <PrimaryButton
+              label={roomStatus?.published ? 'View room' : 'Create Showroom'}
+              disabled={roomBlocked}
+              onPress={() =>
+                roomStatus?.published
+                  ? router.push({ pathname: '/room/[id]', params: { id: roomStatus.room.id } })
+                  : router.push({ pathname: '/room/intro', params: { collectionId: collection.id } })
+              }
+            />
+          </View>
+        ) : null}
+
         <View style={styles.actionCell}>
           <SecondaryButton label="⇪ Share" onPress={() => void shareCollection()} />
         </View>
-        <View style={styles.actionCell}>
-          <SecondaryButton
-            label="+ Add items"
-            disabled={!isOwner}
-            onPress={() =>
-              router.push({
-                pathname: '/collection/new',
-                params: { collectionId: collection.id, mode: 'add' },
-              })
-            }
-          />
-        </View>
-      </View>
 
-      {!isOwner ? (
-        <Text style={styles.footnote}>Only the collection owner can change its items.</Text>
-      ) : null}
+        {isOwner ? (
+          <View style={styles.actionCell}>
+            <SecondaryButton
+              label="+ Add items"
+              onPress={() =>
+                router.push({
+                  pathname: '/collection/new',
+                  params: { collectionId: collection.id, mode: 'add' },
+                })
+              }
+            />
+          </View>
+        ) : null}
+      </View>
 
       {/*
         §9.4 — a disabled button with no explanation is the failure CLAUDE.md
@@ -433,7 +447,7 @@ export default function CollectionScreen() {
           collections made this session — the seeded ones are a frozen fixture
           the demo depends on, and a delete button that silently fails is worse
           than no button. */}
-      {collectionService.isDeletable(collection.id) ? (
+      {isOwner && collectionService.isDeletable(collection.id) ? (
         <View style={styles.dangerZone}>
           {confirmDelete ? (
             <>

@@ -9,7 +9,15 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,8 +39,18 @@ import { useApp } from '@/state/AppContext';
 import { colors, fonts, radius, spacing, typography } from '@/theme/theme';
 import type { Collection, Item, RarityTier, Room, User } from '@/types';
 
+/**
+ * How many items the Profile rail previews before deferring to /inventory.
+ *
+ * Named rather than inline because the footer's "+N" is derived from it — two
+ * hand-written numbers here is exactly how a rail ends up promising more than
+ * it shows.
+ */
+const PREVIEW_ITEMS = 20;
+
 export default function ProfileScreen() {
   const router = useRouter();
+  const { width: viewportWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { viewer, viewerId, inventory, intensity, chooseAvatar, resetOnboardingGate } = useApp();
 
@@ -228,7 +246,10 @@ export default function ProfileScreen() {
         ) : (
           <View style={styles.collectionGrid}>
             {collections.map((collection) => (
-              <View key={collection.id} style={styles.collectionCell}>
+              <View
+                key={collection.id}
+                style={[styles.collectionCell, viewportWidth < 600 && styles.collectionCellPhone]}
+              >
                 <CollectionCard
                   collection={collection}
                   width="100%"
@@ -257,15 +278,23 @@ export default function ProfileScreen() {
           {inventory.length} items · {verifiedCount} verified · {inventory.length - verifiedCount}{' '}
           unverified
         </Text>
-        {/* A scrollable eight rather than a fixed four. A wrapping grid has to
-            pick a row count and then either truncate hard or grow the page; a
-            rail shows more in the same height and the overflow is obvious
-            because the last card is half-cut. The full grid, with filters,
-            stays behind "View full inventory". */}
+        {/* A rail rather than a wrapping grid: a grid has to pick a row count
+            and then either truncate hard or grow the page, while a rail shows
+            more in the same height and its overflow is obvious because the last
+            card is half-cut. The full grid, with filters, stays behind "View
+            full inventory".
+
+            The cap is PREVIEW_ITEMS, not the whole inventory. A rail you can
+            scroll for forty cards is the list screen this preview exists to
+            avoid, and it competes with the button that leads to the real one —
+            but eight ran out almost immediately on a wide window, which made
+            the rail look like the whole inventory rather than a slice of it.
+            Twenty is long enough to keep scrolling on any width and still
+            short enough to end. */}
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={inventory.slice(0, 8)}
+          data={inventory.slice(0, PREVIEW_ITEMS)}
           keyExtractor={(entry) => entry.owned.id}
           contentContainerStyle={styles.previewRail}
           renderItem={({ item: entry }: { item: (typeof inventory)[number] }) => (
@@ -276,6 +305,16 @@ export default function ProfileScreen() {
               onPress={() => router.push('/inventory')}
             />
           )}
+          /* The tail card, so the rail ends by pointing at the full grid rather
+             than just stopping. Only when there is genuinely more to see. */
+          ListFooterComponent={
+            inventory.length > PREVIEW_ITEMS ? (
+              <Pressable style={styles.railMore} onPress={() => router.push('/inventory')}>
+                <Text style={styles.railMoreCount}>+{inventory.length - PREVIEW_ITEMS}</Text>
+                <Text style={styles.railMoreLabel}>See all</Text>
+              </Pressable>
+            ) : null
+          }
         />
       </View>
 
@@ -444,6 +483,20 @@ const styles = StyleSheet.create({
 
   previewRail: { gap: spacing.md, paddingRight: spacing.lg, paddingTop: spacing.sm },
 
+  /** The rail's tail card. Same width as an ItemCard so the rhythm holds. */
+  railMore: {
+    width: 132,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  railMoreCount: { ...typography.cardTitle, color: colors.accent },
+  railMoreLabel: { ...typography.meta, color: colors.textSecondary },
+
   collectionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -451,6 +504,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   collectionCell: { width: '48%' },
+  collectionCellPhone: { width: '100%' },
 
   roomEmpty: {
     gap: 2,

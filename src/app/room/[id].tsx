@@ -8,13 +8,21 @@
  *
  * §11 F4 acceptance criteria answered here:
  *   - smooth look-at focus transitions (the camera spring lives in RoomScene)
- *   - one-tap export of a room still for sharing off-platform
  *
- * ⚠️ Export is still mocked. §14 puts *share* on the never-cut chain, so this
- * needs `react-native-view-shot` + `expo-sharing` to actually produce a file —
- * a dependency call that §13.1 says goes through chat first. Until then the
- * button says plainly that nothing was written. Do not soften that copy into
- * implying a file exists.
+ * ⚠️ EXPORT WAS REMOVED, and §11 F4's "one-tap export of a room still" is
+ * therefore unmet. It never produced a file — it set a boolean and printed a
+ * footnote admitting nothing was written — and on a demo that costs more than
+ * the capability it gestures at. Reinstating it means
+ * `react-native-view-shot` + `expo-sharing`, a dependency call §13.1 says goes
+ * through chat first.
+ *
+ * §14 puts *share* on the never-cut chain and this was the room's share
+ * affordance, so the chain now runs through the collection page's Share button
+ * instead — a room is always reached from its collection. If that button ever
+ * goes, the chain is broken and this decision has to be revisited.
+ *
+ * The route back to the source collection was removed for the same reason:
+ * it pointed the way the user had just come and competed with "Enter the room".
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -27,7 +35,6 @@ import {
   Collectible3DViewer,
   ItemCard,
   LoadingState,
-  PrimaryButton,
   RoomScene,
   SecondaryButton,
   SectionHeader,
@@ -65,7 +72,6 @@ export default function RoomScreen() {
   const [authors, setAuthors] = useState<ReadonlyMap<string, User>>(new Map());
   const [draft, setDraft] = useState('');
   const [liked, setLiked] = useState(false);
-  const [shared, setShared] = useState(false);
   const [inspecting3D, setInspecting3D] = useState<Item | null>(null);
   const [busy, setBusy] = useState(true);
 
@@ -215,16 +221,10 @@ export default function RoomScreen() {
         />
       ) : null}
 
-      {collection ? (
-        <Pressable
-          style={styles.sourceCta}
-          onPress={() =>
-            router.push({ pathname: '/collection/[id]', params: { id: collection.id } })
-          }
-        >
-          <Text style={styles.sourceCtaText}>✦ View {collection.name} collection →</Text>
-        </Pressable>
-      ) : null}
+      {/* The "view the source collection" CTA is deliberately absent. A room is
+          entered from its collection, so the link pointed back the way the user
+          just came — and next to "Enter the room" it competed with the one
+          action this page exists for. */}
 
       {room.description ? <Text style={styles.body}>{room.description}</Text> : null}
 
@@ -288,16 +288,18 @@ export default function RoomScreen() {
         </View>
       </View>
 
-      <PrimaryButton
-        label={shared ? 'Still ready to share' : 'Export room still'}
-        onPress={() => setShared(true)}
-      />
-      {shared ? (
-        <Text style={styles.footnote}>
-          Export is mocked like every other AI-adjacent call in this build (§12.1) — no file was
-          written. Say so if asked.
-        </Text>
-      ) : null}
+      {/*
+        Export is gone, for every viewer including the owner.
+        It never wrote a file — it set a boolean and printed a footnote saying
+        so — and a button whose only honest outcome is "nothing happened" costs
+        more on a demo than the capability it gestures at.
+
+        ⚠️ §14's never-cut chain ends in *share*, and this was the room's share
+        affordance. The chain still terminates: the collection page keeps its
+        Share button, and a room is always reached through its collection. If
+        that button ever goes, the chain is broken and this decision has to be
+        revisited.
+      */}
 
       {room.allowComments ? (
         <View style={styles.block}>
@@ -389,18 +391,6 @@ const styles = StyleSheet.create({
   creditRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
   credit: { flex: 1, gap: 2 },
 
-  sourceCta: {
-    alignSelf: 'center',
-    backgroundColor: colors.accent,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    // No negative margin. It used to pull this pill up over the scene's bottom
-    // edge, which worked while the pill sat directly under the room — but once
-    // "Enter the room" was added between them it overlapped that button
-    // instead, and a CTA sitting on another CTA is unclickable in the overlap.
-  },
-  sourceCtaText: { ...typography.meta, color: colors.textOnAccent },
 
   focusCard: {
     backgroundColor: colors.surface,
