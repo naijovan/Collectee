@@ -130,11 +130,6 @@ export default function RootLayout() {
               `AppBackgroundFrame` in this Stack's `screenLayout` below, which
               is the later design. Mounting it both ways would stack two
               translucent gradients and double their wash.
-
-              ⚠️ CODEX: `(tabs)/_layout.tsx` sets `screenLayout` as well, so a
-              tab screen is wrapped by this Stack's frame AND the Tabs one —
-              two gradients on the five screens that matter most. Worth a look;
-              left alone here because the background is your call, not mine.
             */}
             <ThemeProvider value={NAV_THEME}>
               <View style={styles.appShell}>

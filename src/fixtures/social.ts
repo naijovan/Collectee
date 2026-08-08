@@ -32,6 +32,36 @@ export const FOLLOWS = [
   { followerId: 'user-syafiq', followeeId: 'user-jovan', createdAt: '2026-07-05T19:30:00.000Z' },
   { followerId: 'user-nadia', followeeId: 'user-mei', createdAt: '2026-07-12T09:45:00.000Z' },
   { followerId: 'user-kai', followeeId: 'user-syafiq', createdAt: '2026-07-14T11:05:00.000Z' },
+
+  /* ── The six added collectors, wired into the graph ──────────────────────
+     Three followers and three following was a symmetry nobody chose — it was
+     just what the original eight users produced, and it made the Profile's two
+     stats look like one number printed twice.
+
+     Deliberately lopsided now: 8 followers, 5 following. Followers outnumbering
+     following is the normal shape for an account worth looking at, and the two
+     tiles finally say different things.
+
+     Everyone here is a real seeded user, so tapping either stat opens a list of
+     faces rather than a count that leads nowhere. */
+
+  // Following — the collectors Jovan chose, weighted to his high matches.
+  { followerId: 'user-jovan', followeeId: 'user-zennx', createdAt: '2026-07-16T09:10:00.000Z' },
+  { followerId: 'user-jovan', followeeId: 'user-nova', createdAt: '2026-07-18T13:35:00.000Z' },
+
+  // Followers — a spread across the match range, not only the near-twins. An
+  // account is followed by people it does not match, and a list that was only
+  // 80%+ collectors would read as a filtered view rather than a follower list.
+  { followerId: 'user-zennx', followeeId: 'user-jovan', createdAt: '2026-07-16T09:12:00.000Z' },
+  { followerId: 'user-nova', followeeId: 'user-jovan', createdAt: '2026-07-18T13:40:00.000Z' },
+  { followerId: 'user-tarek', followeeId: 'user-jovan', createdAt: '2026-07-21T17:22:00.000Z' },
+  { followerId: 'user-priya', followeeId: 'user-jovan', createdAt: '2026-07-26T08:04:00.000Z' },
+  { followerId: 'user-iman', followeeId: 'user-jovan', createdAt: '2026-07-29T21:48:00.000Z' },
+
+  // Between the new collectors, so the graph is not a star with Jovan at the
+  // centre — Discover reads as a community rather than one account and its fans.
+  { followerId: 'user-bo', followeeId: 'user-nova', createdAt: '2026-07-22T12:00:00.000Z' },
+  { followerId: 'user-priya', followeeId: 'user-danish', createdAt: '2026-07-27T10:30:00.000Z' },
 ] as const satisfies readonly Follow[];
 
 /**

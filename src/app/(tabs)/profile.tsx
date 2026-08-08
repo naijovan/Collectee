@@ -60,7 +60,21 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { width: viewportWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { viewer, viewerId, inventory, intensity, chooseAvatar, resetOnboardingGate } = useApp();
+  const { viewer, viewerId, inventory, intensity, chooseAvatar, refreshInventory, resetFirstRun } =
+    useApp();
+
+  /** What the last reset removed, so the row reports rather than silently acting. */
+  const [clearedNote, setClearedNote] = useState<string | null>(null);
+
+  async function resetImports() {
+    const removed = await inventoryService.clearImported(viewerId);
+    await refreshInventory();
+    setClearedNote(
+      removed === 0
+        ? 'Nothing to remove — the inventory is already the seeded 40'
+        : `Removed ${removed} imported ${removed === 1 ? 'item' : 'items'} · back to the seeded 40`,
+    );
+  }
 
   const scrollRef = useTopOnFocus();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -369,23 +383,28 @@ export default function ProfileScreen() {
 
       <View>
         <SectionHeader title="Developer" prominent />
-        <Pressable style={styles.devRow} onPress={() => router.push('/diagnostics')}>
-          <Text style={styles.devLabel}>Foundation checks</Text>
-          <Text style={styles.muted}>Every service, called the way a screen calls it ›</Text>
-        </Pressable>
-        <Pressable style={styles.devRow} onPress={resetOnboardingGate}>
-          <Text style={styles.devLabel}>Reset onboarding gate</Text>
+        {/*
+          Two rows, both rehearsal affordances.
+
+          "Foundation checks", "Reset onboarding gate" and "Reset the whole
+          first run" were three routes to internal state that nobody demoing
+          this needs — and two of them only signposted /diagnostics, which is
+          still there and still reachable by URL.
+
+          What a rehearsal actually needs is: put the inventory back, and see
+          the first run again.
+        */}
+        <Pressable style={styles.devRow} onPress={() => void resetImports()}>
+          <Text style={styles.devLabel}>Reset imported items</Text>
           <Text style={styles.muted}>
-            Greys out Collections and Profile again so the §13.4 gate can be demoed
+            {clearedNote ??
+              'Removes everything imported this session and leaves the 40 seeded items'}
           </Text>
         </Pressable>
-        {/* The full reset lives on /diagnostics, not here — it signs the viewer
-            out, and this screen is one of the two the gate greys, so the button
-            would be taking away its own surface. This row is the signpost. */}
-        <Pressable style={styles.devRow} onPress={() => router.push('/diagnostics')}>
-          <Text style={styles.devLabel}>Reset the whole first run</Text>
+        <Pressable style={styles.devRow} onPress={resetFirstRun}>
+          <Text style={styles.devLabel}>Show the login page</Text>
           <Text style={styles.muted}>
-            Signed out, quiz unanswered, tour unseen — on Foundation checks ›
+            Signs you out and replays sign-in, the quiz and the tour from the start
           </Text>
         </Pressable>
       </View>

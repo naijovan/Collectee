@@ -261,10 +261,28 @@ async function scanLive(
   try {
     const [image, catalogue] = await Promise.all([
       mediaService.prepareForScan(input.uri),
-      catalogueService.getItemsByTitle(input.title),
+      /**
+       * EVERY title's catalogue, not just the selected one.
+       *
+       * The scanner used to see only the chosen game, which made a cross-game
+       * upload unmatchable BY CONSTRUCTION — a CODM rifle scanned as Valorant
+       * had nothing it could possibly return, so it came back as a description
+       * with `itemId: null` and the screen said "not in the catalogue".
+       *
+       * Trying to recover that on the client by matching the reading text
+       * against the other games' names does not work: a single render has no
+       * printed label, so the model describes it ("Assault rifle, red and black
+       * molten lava finish") and a description never matches a name.
+       *
+       * Giving it all 94 rows lets it answer the question that was actually
+       * asked — which item is this — and the client compares the returned
+       * item's game against the selected one. 94 is well inside the proxy's
+       * 200-row cap.
+       */
+      catalogueService.getAllItems(),
     ]);
     if (image === null) return fail('the upload could not be prepared for sending');
-    if (catalogue.length === 0) return fail(`no catalogue for ${input.title}`);
+    if (catalogue.length === 0) return fail('the catalogue is empty');
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -287,6 +305,9 @@ async function scanLive(
             id: item.id,
             name: item.name,
             rarity: item.rarityLabel,
+            /* So the model can prefer the chosen title and still name the right
+               item when the upload is from another one. */
+            game: GAME_LABELS[item.title],
           })),
         }),
       });

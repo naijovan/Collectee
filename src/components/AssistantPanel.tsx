@@ -18,6 +18,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { SymbolView } from 'expo-symbols';
+import medium from 'expo-symbols/androidWeights/medium';
 import {
   ActivityIndicator,
   Image,
@@ -55,7 +57,7 @@ export function AssistantPanel() {
   const insets = useSafeAreaInsets();
   const mascot = assistantMascot();
   const { viewerId } = useApp();
-  const { closePanel, turns, addTurn } = useAssistantDock();
+  const { closePanel, turns, addTurn, clearTurns } = useAssistantDock();
   const scroller = useRef<ScrollView>(null);
 
   const [context, setContext] = useState<AssistantContext | null>(null);
@@ -122,8 +124,41 @@ export function AssistantPanel() {
             ) : null}
             <View style={styles.headerText}>
               <Text style={styles.title}>{ASSISTANT_NAME}</Text>
-              <Text style={styles.tagline}>Your collection sidekick</Text>
+              <Text style={styles.tagline}>Your Collectee SideKick</Text>
             </View>
+            {/*
+              Start over. Disabled on an empty thread rather than hidden — a
+              control that appears and disappears as you talk is harder to find
+              than one that is always in the same place and simply inert.
+
+              It clears the turns and leaves the panel open: the point is a
+              fresh thread, not a closed one, and the empty state's suggestion
+              chips come back with it.
+            */}
+            <Pressable
+              onPress={clearTurns}
+              disabled={turns.length === 0}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Start a new chat"
+              accessibilityState={{ disabled: turns.length === 0 }}
+              style={({ pressed }) => [
+                styles.headerAction,
+                turns.length === 0 && styles.headerActionOff,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <SymbolView
+                name={{
+                  ios: 'square.and.pencil',
+                  android: 'edit_square',
+                  web: 'edit_square',
+                }}
+                size={18}
+                tintColor={turns.length === 0 ? colors.textTertiary : colors.accent}
+                weight={{ ios: 'semibold', android: medium }}
+              />
+            </Pressable>
             <Pressable onPress={closePanel} hitSlop={10} accessibilityLabel="Close">
               <Text style={styles.close}>✕</Text>
             </Pressable>
@@ -312,6 +347,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.xs,
   },
+  headerAction: { padding: 4, borderRadius: radius.sm },
+  headerActionOff: { opacity: 0.5 },
   close: { ...typography.cardTitle, color: colors.textSecondary },
 
   thread: { flexGrow: 0 },

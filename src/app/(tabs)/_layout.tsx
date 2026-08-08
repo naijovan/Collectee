@@ -12,15 +12,11 @@
 
 import { Tabs } from 'expo-router';
 
-import { AppBackgroundFrame, TabBar } from '@/components';
+import { TabBar } from '@/components';
 
 export default function TabsLayout() {
   return (
-    <Tabs
-      screenLayout={({ children }) => <AppBackgroundFrame>{children}</AppBackgroundFrame>}
-      screenOptions={{ headerShown: false }}
-      tabBar={() => <TabBar />}
-    >
+    <Tabs screenOptions={{ headerShown: false }} tabBar={() => <TabBar />}>
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
       <Tabs.Screen name="collections" options={{ title: 'Collections' }} />

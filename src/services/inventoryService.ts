@@ -153,6 +153,30 @@ export const inventoryService = {
     return delay(added, LATENCY_FETCH);
   },
 
+  /**
+   * Drop everything imported this session, back to the seeded inventory.
+   *
+   * A rehearsal affordance, and the one the demo actually needs: running the
+   * import flow a few times leaves the account holding items the seeded
+   * fixtures never had, which changes collection suggestions, match scores and
+   * the room picker. Without a way back, the only reset is a full page reload
+   * — and that also signs the viewer out and replays the first run.
+   *
+   * Only touches `imported`. Seeded ownership is a frozen fixture and account
+   * links live in their own map, so a re-scan after this behaves exactly like
+   * the first one.
+   *
+   * Returns how many were removed so the caller can say so rather than
+   * flashing a toast that might have done nothing.
+   */
+  async clearImported(userId: string): Promise<number> {
+    const before = imported.length;
+    const kept = imported.filter((owned) => owned.userId !== userId);
+    imported.length = 0;
+    imported.push(...kept);
+    return delay(before - imported.length, LATENCY_INSTANT);
+  },
+
   // ── Account linking — the only path to verified (§9.2, §9.3) ─────────
 
   /**

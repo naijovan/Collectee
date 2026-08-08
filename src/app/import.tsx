@@ -244,16 +244,59 @@ export default function ImportScreen() {
    * asks for the Review screen to group by rarity, and that helper already
    * exists for exactly this.
    */
+  const wrongGame = useMemo(() => {
+    /**
+     * Detections the scanner matched to an item from a DIFFERENT game.
+     *
+     * Exact, because it compares the resolved item's `title` — no text
+     * matching. The previous approach ran the reading through
+     * `foreignTitleMatches` against the other catalogues' names, and that
+     * cannot work: a single render has no printed label, so the model returns
+     * a description ("Assault rifle, red and black molten lava finish") and a
+     * description never matches a name. The scanner now sees all three
+     * catalogues and names the real item, which turns this into a field
+     * comparison.
+     */
+    const foreign = detections
+      .filter((d) => d.itemId !== null && d.outcome !== 'duplicate')
+      .map((d) => ({ detection: d, item: items.get(d.itemId!) }))
+      .filter(
+        (entry): entry is { detection: ScanDetection; item: Item } =>
+          entry.item !== undefined && entry.item.title !== title,
+      );
+    if (foreign.length === 0) return null;
+
+    return {
+      /* One game per block. Uploading a mixed screenshot from two other titles
+         at once is not a case worth a second panel for. */
+      title: foreign[0]!.item.title,
+      matches: foreign
+        .filter((entry) => entry.item.title === foreign[0]!.item.title)
+        .map((entry) => ({
+          detectionId: entry.detection.id,
+          reading: entry.detection.reading?.name ?? entry.item.name,
+          itemId: entry.item.id,
+          itemName: entry.item.name,
+        })),
+    };
+  }, [detections, items, title]);
+
+  /** Ids the wrong-game block owns, so the normal lists do not show them too. */
+  const foreignDetectionIds = useMemo(
+    () => new Set(wrongGame?.matches.map((m) => m.detectionId) ?? []),
+    [wrongGame],
+  );
+
   const matchedEntries = useMemo(
     () =>
       detections
-        .filter((d) => d.outcome === 'matched' && d.itemId !== null)
+        .filter((d) => d.outcome === 'matched' && d.itemId !== null && !foreignDetectionIds.has(d.id))
         .map((d) => {
           const item = items.get(d.itemId!);
           return item ? { detection: d, item, rarityTier: item.rarityTier } : null;
         })
         .filter((entry): entry is NonNullable<typeof entry> => entry !== null),
-    [detections, items],
+    [detections, items, foreignDetectionIds],
   );
 
   const matchedGroups = useMemo(() => groupByRarity(matchedEntries), [matchedEntries]);
@@ -380,11 +423,6 @@ export default function ImportScreen() {
     );
   }, [detections, counts]);
 
-  const wrongGame = useMemo(() => {
-    if (fullCatalogue.length === 0) return null;
-    const readings = unmatchedEntries.map((d) => ({ detectionId: d.id, name: d.reading!.name }));
-    return foreignTitleMatches(readings, fullCatalogue, title)[0] ?? null;
-  }, [unmatchedEntries, fullCatalogue, title]);
 
   /** Pick the screenshot to scan. The file is real even though the read is not. */
   async function chooseUpload() {
@@ -606,14 +644,15 @@ export default function ImportScreen() {
                   which title you are importing FROM, so it has to read as the
                   game rather than as something in your inventory.
 
-                  `cover`, not `contain`. The art fills the whole card now
-                  rather than sitting in a 64px thumbnail, and letterboxing a
-                  square cover into a 16:10 card would put bars back exactly
-                  where the display-art work took them out. */}
+                  `contain` with an explicit 100% box. React Native Web can
+                  otherwise paint an absolute image at its intrinsic pixels and
+                  let the card clip the top-left corner, which hides the focal
+                  art on these wide covers. The cards share the images' 16:10
+                  ratio, so containing still fills the frame without bars. */}
               <Image
                 source={GAME_COVERS[option]}
                 style={styles.gameArtImage}
-                resizeMode="cover"
+                resizeMode="contain"
                 accessibilityIgnoresInvertColors
               />
 
@@ -2407,13 +2446,16 @@ const styles = StyleSheet.create({
     /* One row, three cards. Stacked, the picker was three full-width bands
        that pushed the CTA below the fold; side by side the whole choice is
        visible at once, which is what a three-option picker should be. */
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 280,
     /* With `flexWrap`, `flex: 1` alone lets all three squeeze onto one line at
        any width. A floor forces the wrap instead of producing three slivers. */
-    minWidth: 150,
-    /* 220, not 168. The covers are portrait-ish and were being cropped to a
-       letterbox strip — the armour and the shrine both lost their top half. */
-    height: 220,
+    minWidth: 240,
+    /* Match the generated card art. A fixed height made wide desktop cards crop
+       like banners and narrow phone cards crop like portraits; the artwork is
+       authored for this ratio, so the box should be too. */
+    aspectRatio: 16 / 10,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
@@ -2424,7 +2466,7 @@ const styles = StyleSheet.create({
      and this is a selection the whole flow depends on. */
   gameCardActive: { borderColor: colors.accent, borderWidth: 2 },
   /** Three across, wrapping on a narrow window rather than squeezing to slivers. */
-  gameRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  gameRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'stretch' },
   gameCardScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
   /** On the art's lower band, where the scrim is heaviest. */
   gameCardMeta: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.md, gap: 2 },
@@ -2435,9 +2477,18 @@ const styles = StyleSheet.create({
    * As a normal child with `height: '100%'` it consumed the column and pushed
    * the meta into its own band below — which is what put a black strip under
    * each cover instead of laying the title over it. Absolute takes it out of
-   * the flow so the meta can sit on top.
+   * the flow so the meta can sit on top. Width/height are explicit for web:
+   * pinned edges alone can leave Image painting at intrinsic size and clipping.
    */
-  gameArtImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  gameArtImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
   selectedGame: {
     flexDirection: 'row',
     alignItems: 'center',

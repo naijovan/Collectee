@@ -293,8 +293,19 @@ report:
 - "itemId": the id of the matching entry in the <catalogue> below, or null.
   You may ONLY use an id that appears verbatim in that list. Never invent an id,
   never adapt one, and never return an id because the name merely sounds like a
-  real item from this game. If nothing in the catalogue is the same item, this
-  is null — that is a normal and expected answer.
+  real item. If nothing in the catalogue is the same item, this is null — that
+  is a normal and expected answer.
+
+  The catalogue spans SEVERAL GAMES and its last column says which. The user
+  told us which game they are importing from — see <selected-game> — and that
+  is where the item almost always is, so prefer a match from it.
+
+  But if the image is plainly from a DIFFERENT game in the catalogue, return
+  that item anyway. Do not force a same-game match on a resemblance, and do not
+  return null just because the item is filed under another game: the caller
+  handles the mismatch and asks the user to confirm. A wrong same-game id is far
+  worse than a right cross-game one — the first quietly adds the wrong skin,
+  the second asks a question.
 - "confidence": 0 to 1, your confidence in the "itemId" DECISION specifically —
   how sure you are that this is that catalogue item. It is not a score for how
   much text you could read, and a missing label is not by itself a reason to be
@@ -377,6 +388,8 @@ interface CatalogueRow {
   id?: unknown;
   name?: unknown;
   rarity?: unknown;
+  /** Which game the item belongs to. Present since the catalogue went cross-game. */
+  game?: unknown;
 }
 
 interface ProxyRequest {
@@ -563,17 +576,19 @@ function chatHistory(raw: unknown): Anthropic.MessageParam[] {
  */
 function scanContent(
   game: string,
-  catalogue: readonly { id: string; name: string; rarity: string }[],
+  catalogue: readonly { id: string; name: string; rarity: string; game: string }[],
   image: { data: string; mediaType: 'image/png' | 'image/jpeg' },
 ): Anthropic.ContentBlockParam[] {
-  const rows = catalogue.map((row) => `${row.id}\t${row.name}\t${row.rarity}`).join('\n');
+  const rows = catalogue
+    .map((row) => `${row.id}\t${row.name}\t${row.rarity}\t${row.game}`)
+    .join('\n');
   return [
     {
       type: 'text',
       text:
-        `<game>${game}</game>\n` +
+        `<selected-game>${game}</selected-game>\n` +
         '<catalogue>\n' +
-        'Tab-separated: id, name, rarity. Only these ids exist.\n' +
+        'Tab-separated: id, name, rarity, game. Only these ids exist.\n' +
         `${rows}\n` +
         '</catalogue>',
     },
@@ -629,6 +644,7 @@ function buildCall(payload: ProxyRequest): Call | { error: string } {
           id: typeof row.id === 'string' ? row.id.trim() : '',
           name: typeof row.name === 'string' ? row.name.trim() : '',
           rarity: typeof row.rarity === 'string' ? row.rarity.trim() : '',
+          game: typeof row.game === 'string' ? row.game.trim() : '',
         };
       })
       .filter((row) => row.id.length > 0 && row.name.length > 0);
