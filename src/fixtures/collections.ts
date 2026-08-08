@@ -300,7 +300,11 @@ export const ROOMS: readonly Room[] = [
     id: 'room-rei-mythic',
     collectionId: 'col-rei-mythic-only',
     themeId: 'theme-weapon-vault',
-    title: 'Mythic Only',
+    /* Not "Mythic Only" — that is the COLLECTION's name, and the two sit next
+       to each other on the Collections tab. A room is a different object with
+       a different job, and giving it a distinct title is what stops the pair
+       reading as one entry rendered twice. */
+    title: 'Nothing But Mythic',
     description: 'If it is not Mythic it does not get a pedestal.',
     coverUrl: '',
     backdropUrl: 'room-backdrops/weapon-vault.png',
@@ -356,7 +360,10 @@ export const ROOMS: readonly Room[] = [
     id: 'room-jovan-triptych',
     collectionId: 'col-jovan-triptych',
     themeId: 'theme-cyber-shrine',
-    title: 'Dragon, Blade, Sovereign',
+    /* Distinct from its collection, "Dragon, Blade, Sovereign", for the same
+       reason as above — and it names the room's setting rather than its
+       contents, which is what a room title is for. */
+    title: 'Shrine of the Sovereign',
     description:
       'A dragon-forged rifle, a karambit worth more than the account, and the sovereign who guards them.',
     coverUrl: '',
