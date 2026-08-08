@@ -40,6 +40,7 @@ import { AppProvider, useApp } from '@/state/AppContext';
 import { AssistantDockProvider } from '@/state/AssistantDock';
 import { TourAnchorsProvider } from '@/state/TourAnchors';
 import { ThemeModeProvider, useThemeMode } from '@/theme/ThemeMode';
+import { installWebChrome } from '@/theme/webChrome';
 import { AssistantButton, TourOverlay } from '@/components';
 import { colors, fonts } from '@/theme/theme';
 
@@ -67,6 +68,13 @@ export default function RootLayout() {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontError]);
+
+  /* Overlay scrollbars that fade in only while the pointer is over a scroller.
+     Web-only and a no-op elsewhere; see theme/webChrome.ts for why this cannot
+     be done from `showsVerticalScrollIndicator`. */
+  useEffect(() => {
+    installWebChrome();
+  }, []);
 
   if (!fontsLoaded && !fontError) return null;
 

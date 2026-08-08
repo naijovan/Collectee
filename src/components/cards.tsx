@@ -229,8 +229,22 @@ export function CollectionCard({
             <GameBadge title={headline.title} />
           </View>
         ) : null}
-        {/* Attribution moved to the bottom overlay, beside the title it belongs
-            with. Top-right left the avatar floating alone in the artwork. */}
+        {/* Attribution top-right, diagonally opposite the game badge. The two
+            corner marks frame the art between them, and it keeps the bottom
+            band for the collection's own name and counts. */}
+        {owner ? (
+          <View style={styles.ownerOverlay}>
+            <Avatar
+              name={owner.displayName}
+              avatarId={owner.avatar}
+              verified={owner.isAccountVerified}
+              size={18}
+            />
+            <Text style={styles.ownerOverlayName} numberOfLines={1}>
+              {owner.displayName}
+            </Text>
+          </View>
+        ) : null}
         {/*
           ── Everything below sits ON the cover ─────────────────────────────
           The meta used to be a body panel underneath, which meant the card
@@ -251,32 +265,16 @@ export function CollectionCard({
         />
 
         <View style={styles.metaOverlay} pointerEvents="none">
-          {/* Attribution above the title: it is the smaller line, and putting it
-              first keeps the collection's own name closest to the counts it
-              belongs with. */}
-          {owner ? (
-            <View style={styles.metaOwner}>
-              <Avatar
-                name={owner.displayName}
-                avatarId={owner.avatar}
-                verified={owner.isAccountVerified}
-                size={22}
-              />
-              <Text style={styles.metaOwnerName} numberOfLines={1}>
-                {owner.displayName}
-              </Text>
-            </View>
-          ) : null}
-          <View style={styles.metaTitleRow}>
-            <Text style={styles.metaName} numberOfLines={1}>
-              {collection.name}
-            </Text>
-            {/* Likes sit opposite the title on the same line, as in the
-                reference — a count is a number you glance at, not something to
-                read in sequence with the name. */}
+          {/* Name left, counts right. The name is what you read; the numbers are
+              what you glance at, and stacking them right-aligned keeps both out
+              of each other's way on a narrow card. */}
+          <Text style={styles.metaName} numberOfLines={1}>
+            {collection.name}
+          </Text>
+          <View style={styles.metaCounts}>
             <Text style={styles.metaLike}>♥ {collection.likeCount.toLocaleString()}</Text>
+            <Text style={styles.metaItems}>{collection.itemIds.length} items</Text>
           </View>
-          <Text style={styles.metaItems}>{collection.itemIds.length} items</Text>
         </View>
 
         {hovered ? (
@@ -954,6 +952,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: scrim.medium,
   },
+  /* `textOnAccent`, not `textPrimary`: the pill sits on artwork, so it needs
+     the on-dark colour regardless of which theme the app is in. In light mode
+     `textPrimary` is near-black and vanished into the scrim behind it. */
+  ownerOverlayName: { ...typography.meta, color: colors.textOnAccent, maxWidth: 96 },
   /** Only the top third — a full-height scrim would grey out the artwork. */
   coverScrim: { position: 'absolute', top: 0, left: 0, right: 0, height: '38%' },
 
@@ -968,12 +970,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
     padding: spacing.md,
-    gap: 2,
   },
-  metaOwner: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  metaOwnerName: { ...typography.meta, color: colors.textOnAccent, flexShrink: 1 },
-  metaTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
   // Bigger and heavier than cardTitle: on a browse grid the collection name is
   // the thing being chosen between, so it should win the card outright.
   metaName: {
@@ -984,10 +986,12 @@ const styles = StyleSheet.create({
     color: colors.textOnAccent,
     flex: 1,
   },
-  /* `danger` red is not legible on dark artwork and, more to the point, a like
-     count is not an error. The heart carries the meaning; the number stays
-     white like everything else on the band. */
-  metaLike: { ...typography.meta, color: colors.textOnAccent },
+  /** Counts stack right-aligned, clear of a long collection name. */
+  metaCounts: { alignItems: 'flex-end', gap: 2 },
+  /* Red, on the scrim rather than on raw artwork — the gradient reaches `heavy`
+     at the bottom edge, which is what makes `danger` legible here where it was
+     not before. */
+  metaLike: { ...typography.meta, color: colors.danger },
   metaItems: { ...typography.meta, color: colors.textOnAccent, opacity: 0.75 },
 
   /* Still used by CommunityCard, which keeps a body panel: it carries a reason

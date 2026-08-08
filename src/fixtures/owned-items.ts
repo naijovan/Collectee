@@ -223,6 +223,91 @@ const NADIA = ownAll('user-nadia', [
   { itemId: 'val-prism-spectre', confidence: 0.94, acquiredAt: '2026-07-09T12:00:00.000Z' },
 ]);
 
+/* ── The six added collectors ─────────────────────────────────────────────
+   Seeded to spread Discover across the range rather than cluster.
+
+   Matching counts VERIFIED items only (team decision, 3 Aug), so what sets a
+   score here is the size of the verified overlap with Jovan's 14 verified
+   items — NOT how much the collector owns. Each block below says which band it
+   is aiming for so the intent survives someone editing one of them.
+
+   Jovan's verified set, for reference:
+     codm  dlq33-lightbringer, fennec-ascended, drh-cerberus, charm-chronoseal
+     val   elderflame-vandal, prime-vandal, prime-karambit, voidglass-blade
+     mlbb  gusion-cyber-faust, manifold-rift, void-empress, lightborn-defender,
+           cyber-breacher, neon-ronin
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/** TOP BAND — deep verified overlap across all three titles. */
+const ZENNX = ownAll('user-zennx', [
+  { itemId: 'val-elderflame-vandal', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-02T10:00:00.000Z' },
+  { itemId: 'val-prime-karambit', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-02T10:00:00.000Z' },
+  { itemId: 'val-voidglass-blade', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-02T10:00:00.000Z' },
+  { itemId: 'codm-dlq33-lightbringer', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-02T10:00:00.000Z' },
+  { itemId: 'codm-drh-cerberus', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-02T10:00:00.000Z' },
+  { itemId: 'mlbb-gusion-cyber-faust', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-02T10:00:00.000Z' },
+  { itemId: 'mlbb-void-empress', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-02T10:00:00.000Z' },
+  { itemId: 'mlbb-neon-ronin', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-02T10:00:00.000Z' },
+  { itemId: 'mlbb-arcane-revenant', confidence: 0.93, acquiredAt: '2026-06-20T10:00:00.000Z' },
+]);
+
+/** UPPER-MID — Valorant blades plus a little crossover. */
+const NOVA = ownAll('user-nova', [
+  { itemId: 'val-prime-karambit', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-18T10:00:00.000Z' },
+  { itemId: 'val-voidglass-blade', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-18T10:00:00.000Z' },
+  { itemId: 'val-elderflame-vandal', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-18T10:00:00.000Z' },
+  { itemId: 'mlbb-neon-ronin', trust: 'verified', source: 'linked-account', acquiredAt: '2026-04-18T10:00:00.000Z' },
+  { itemId: 'val-riftblade-katana', confidence: 0.95, acquiredAt: '2026-07-01T10:00:00.000Z' },
+  { itemId: 'val-reaver-knife', confidence: 0.92, acquiredAt: '2026-07-01T10:00:00.000Z' },
+]);
+
+/** MID — CODM only, so the overlap caps at the four CODM items Jovan verified. */
+const TAREK = ownAll('user-tarek', [
+  { itemId: 'codm-dlq33-lightbringer', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-06T10:00:00.000Z' },
+  { itemId: 'codm-fennec-ascended', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-06T10:00:00.000Z' },
+  { itemId: 'codm-locus-ironclad', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-06T10:00:00.000Z' },
+  { itemId: 'codm-ak117-cordite-storm', confidence: 0.94, acquiredAt: '2026-06-30T10:00:00.000Z' },
+  { itemId: 'codm-m4-arctic-hunter', confidence: 0.91, acquiredAt: '2026-06-30T10:00:00.000Z' },
+]);
+
+/** LOWER-MID — MLBB collector, two shared verified items. */
+const PRIYA = ownAll('user-priya', [
+  { itemId: 'mlbb-lightborn-defender', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-22T10:00:00.000Z' },
+  { itemId: 'mlbb-manifold-rift', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-22T10:00:00.000Z' },
+  { itemId: 'mlbb-kagura-cherry-witch', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-22T10:00:00.000Z' },
+  { itemId: 'mlbb-selena-virulent-nightmare', confidence: 0.9, acquiredAt: '2026-07-14T10:00:00.000Z' },
+  { itemId: 'codm-charm-golden-skull', confidence: 0.88, acquiredAt: '2026-07-14T10:00:00.000Z' },
+]);
+
+/** LOW — a whole verified set Jovan owns none of. Different taste, not a small one. */
+const BO = ownAll('user-bo', [
+  { itemId: 'val-reaver-vandal', trust: 'verified', source: 'linked-account', acquiredAt: '2026-06-05T10:00:00.000Z' },
+  { itemId: 'val-reaver-sheriff', trust: 'verified', source: 'linked-account', acquiredAt: '2026-06-05T10:00:00.000Z' },
+  { itemId: 'val-reaver-knife', trust: 'verified', source: 'linked-account', acquiredAt: '2026-06-05T10:00:00.000Z' },
+  { itemId: 'val-oni-phantom', confidence: 0.93, acquiredAt: '2026-07-20T10:00:00.000Z' },
+]);
+
+/**
+ * LOW despite a LARGE inventory — nine items, one verified.
+ *
+ * The point of this fixture is the gap between what he owns and what counts.
+ * Nadia is the true zero (and must stay one — see her note above); Iman is the
+ * collector who scanned everything and linked nothing, which is exactly the
+ * case the Import flow's Verify step argues against. His score being low next
+ * to his item count is the argument made visible.
+ */
+const IMAN = ownAll('user-iman', [
+  { itemId: 'codm-dlq33-lightbringer', confidence: 0.95, acquiredAt: '2026-07-25T10:00:00.000Z' },
+  { itemId: 'codm-drh-cerberus', confidence: 0.94, acquiredAt: '2026-07-25T10:00:00.000Z' },
+  { itemId: 'codm-fennec-ascended', confidence: 0.93, acquiredAt: '2026-07-25T10:00:00.000Z' },
+  { itemId: 'codm-qq9-diavolo', confidence: 0.92, acquiredAt: '2026-07-25T10:00:00.000Z' },
+  { itemId: 'codm-hbra3-tidal', confidence: 0.91, acquiredAt: '2026-07-25T10:00:00.000Z' },
+  { itemId: 'val-elderflame-vandal', confidence: 0.95, acquiredAt: '2026-07-26T10:00:00.000Z' },
+  { itemId: 'val-prime-vandal', confidence: 0.94, acquiredAt: '2026-07-26T10:00:00.000Z' },
+  { itemId: 'val-glitchpop-vandal', confidence: 0.9, acquiredAt: '2026-07-26T10:00:00.000Z' },
+  { itemId: 'codm-charm-chronoseal', trust: 'verified', source: 'linked-account', acquiredAt: '2026-07-28T10:00:00.000Z' },
+]);
+
 export const OWNED_ITEMS: readonly OwnedItem[] = [
   ...JOVAN,
   ...REI,
@@ -232,6 +317,12 @@ export const OWNED_ITEMS: readonly OwnedItem[] = [
   ...ARYA,
   ...KAI,
   ...NADIA,
+  ...ZENNX,
+  ...NOVA,
+  ...TAREK,
+  ...PRIYA,
+  ...BO,
+  ...IMAN,
 ];
 
 export const OWNED_BY_USER: ReadonlyMap<string, readonly OwnedItem[]> = OWNED_ITEMS.reduce(

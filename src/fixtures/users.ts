@@ -101,6 +101,77 @@ export const USERS = [
     followedGames: ['mlbb', 'valorant'],
     isAccountVerified: false,
   },
+
+  /* ── Added to give Discover a real spread ─────────────────────────────────
+     Eight collectors meant "Collectors you may like" was showing most of the
+     app's population, and the scores clustered because the inventories were
+     built for other purposes.
+
+     These six are seeded deliberately across the range — see the ownership
+     blocks in owned-items.ts, which are what the percentages actually come
+     from. Matching counts VERIFIED items only (team decision, 3 Aug), so a
+     collector's score is set by how much of their *verified* set overlaps
+     Jovan's, not by how much they own.
+
+     Every avatar here was previously unused; none is shared with a seeded
+     collector, so nobody has a twin in a list of faces. */
+  {
+    id: 'user-zennx',
+    handle: 'zennx',
+    displayName: 'Zennx',
+    avatar: 'avatar-mlbb-lancelot', // follows all three — the near-twin match
+    bio: 'Mythics across all three. If you own it, I probably want it.',
+    followedGames: ['codm', 'valorant', 'mlbb'],
+    isAccountVerified: true,
+  },
+  {
+    id: 'user-nova',
+    handle: 'novaaim',
+    displayName: 'Nova',
+    avatar: 'avatar-val-sage', // valorant + mlbb
+    bio: 'Knives first, everything else second.',
+    followedGames: ['valorant', 'mlbb'],
+    isAccountVerified: true,
+  },
+  {
+    id: 'user-tarek',
+    handle: 'tarek.hq',
+    displayName: 'Tarek',
+    avatar: 'avatar-codm-scylla', // codm only
+    bio: 'Snipers and nothing but. Lightbringer is the ceiling.',
+    followedGames: ['codm'],
+    isAccountVerified: true,
+  },
+  {
+    id: 'user-priya',
+    handle: 'priyaaa',
+    displayName: 'Priya',
+    avatar: 'avatar-mlbb-ling', // mlbb + codm
+    bio: 'Land of Dawn first. Slowly getting talked into CODM.',
+    followedGames: ['mlbb', 'codm'],
+    isAccountVerified: true,
+  },
+  {
+    id: 'user-bo',
+    handle: 'bo.wav',
+    displayName: 'Bo',
+    avatar: 'avatar-val-clove', // valorant only
+    bio: 'Reaver line completionist. Not interested in anything else.',
+    followedGames: ['valorant'],
+    isAccountVerified: false,
+  },
+  {
+    /* Owns plenty, has verified almost none — the "verify your stuff" case.
+       Distinct from Nadia, who is the true zero. He scores low despite a large
+       inventory, which is the argument the Verify step makes. */
+    id: 'user-iman',
+    handle: 'imanx',
+    displayName: 'Iman',
+    avatar: 'avatar-codm-urban-tracker',
+    bio: 'Scanned everything, linked nothing. Will get to it.',
+    followedGames: ['codm', 'valorant'],
+    isAccountVerified: false,
+  },
 ] as const satisfies readonly User[];
 
 export const USERS_BY_ID: ReadonlyMap<string, User> = new Map(USERS.map((u) => [u.id, u]));
