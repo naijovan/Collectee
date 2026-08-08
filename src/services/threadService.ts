@@ -25,12 +25,14 @@ import {
   assembleReplies,
   canPost,
   lastActivityAt,
+  nextVote,
   orderThreads,
   postingBlockedReason,
+  rankReplies,
   validateThread,
   visibleReplies,
 } from '@/domain/threads';
-import type { ThreadReplyNode, ThreadValidation } from '@/domain/threads';
+import type { RankedReply, ThreadValidation, VoteDirection } from '@/domain/threads';
 import type { Comment, CommunityThread } from '@/types';
 import { socialService } from './socialService';
 import { LATENCY_FETCH, LATENCY_INSTANT, delay } from './latency';
@@ -38,6 +40,21 @@ import { LATENCY_FETCH, LATENCY_INSTANT, delay } from './latency';
 /** Session-scoped threads, layered over the seeds (§12.1 — no backend). */
 const created: CommunityThread[] = [];
 let nextId = 1;
+
+/**
+ * Who voted what, this session only.
+ *
+ * Keyed `userId::commentId` so one viewer holds at most one vote per reply by
+ * construction — the "no double-counting" rule is the shape of the store rather
+ * than something the callers have to remember. The seeded tallies on the
+ * fixture are never touched (§12.1): a displayed score is always the seed plus
+ * whatever this map holds, recomputed on read.
+ *
+ * Cleared by nothing but a reload, like every other session overlay here.
+ */
+const replyVotes = new Map<string, Exclude<VoteDirection, null>>();
+
+const voteKey = (userId: string, commentId: string) => `${userId}::${commentId}`;
 
 function allThreads(): CommunityThread[] {
   return [...THREADS, ...created];
@@ -54,7 +71,15 @@ export interface ThreadSummary {
 /** A thread page: everything resolved, with what was hidden accounted for. */
 export interface ThreadView {
   thread: CommunityThread;
-  nodes: ThreadReplyNode[];
+  /**
+   * Replies already ordered and scored — roots by Wilson bound, children in
+   * time order, buried ones last. See `domain/threads.rankReplies`.
+   *
+   * Ranked here rather than in the screen so the ordering is one pure function
+   * with the rest of the app's ranking, and so a screen cannot accidentally
+   * render an order the domain did not choose.
+   */
+  ranked: RankedReply[];
   /** Replies withheld pending review — surfaced, never silently dropped (§9.2). */
   withheldCount: number;
   /** Replies hidden by this viewer's own block list. */
@@ -131,7 +156,12 @@ export const threadService = {
     return delay(
       {
         thread,
-        nodes: assembleReplies(visible),
+        /* `visible` first, then rank. Order matters and not only for tidiness:
+           ranking never sees a withheld or blocked reply, so a vote score can
+           never bring one back into the thread. */
+        ranked: rankReplies(assembleReplies(visible), (commentId) =>
+          replyVotes.get(voteKey(viewerId, commentId)) ?? null,
+        ),
         withheldCount,
         blockedCount,
         canReply: canPost(gate),
@@ -139,6 +169,31 @@ export const threadService = {
       },
       LATENCY_FETCH,
     );
+  },
+
+  /**
+   * Cast, clear or switch this viewer's vote on one reply.
+   *
+   * Takes the direction PRESSED, not the direction wanted — `nextVote` in the
+   * domain decides what that means against what is already held, so the toggle
+   * and the switch rules live with the rest of the vote logic instead of in a
+   * screen. Returns the resulting direction so the caller can render the
+   * pressed state without a refetch.
+   *
+   * Deliberately does nothing about reports. A downvote is a preference; if the
+   * viewer wants this reply looked at, that is `report` below, and the two
+   * never touch.
+   */
+  async voteOnReply(
+    viewerId: string,
+    commentId: string,
+    pressed: 'up' | 'down',
+  ): Promise<VoteDirection> {
+    const key = voteKey(viewerId, commentId);
+    const next = nextVote(replyVotes.get(key) ?? null, pressed);
+    if (next === null) replyVotes.delete(key);
+    else replyVotes.set(key, next);
+    return delay(next, LATENCY_INSTANT);
   },
 
   /** Whether this viewer may start a thread here, and why not if not. */

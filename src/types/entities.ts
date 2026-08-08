@@ -173,6 +173,25 @@ export interface Comment {
    */
   parentId: string | null;
   likeCount: number;
+  /**
+   * Seeded vote tallies, for thread replies (§11 F5 discussion).
+   *
+   * OPTIONAL, and that is the contract point: `Comment` is also a collection
+   * comment and a room comment, and neither of those is voted on. Absent means
+   * "not a voted surface", which reads as zero everywhere it is summed, so no
+   * existing fixture had to change.
+   *
+   * These are the SEED only. A viewer's own vote is session state in
+   * `threadService` and is never written back here — see the note there. The
+   * score a reply displays is this pair plus that overlay.
+   *
+   * Voting is deliberately separate from `likeCount`, which predates it and
+   * means something else: a like is an endorsement with no opposite, and it is
+   * shown on collection comments too. Folding the two together would have made
+   * every existing like a vote in a ranking it was never cast for.
+   */
+  upvotes?: number;
+  downvotes?: number;
   createdAt: IsoDateString;
 }
 

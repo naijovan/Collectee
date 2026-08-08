@@ -82,6 +82,8 @@ export const THREAD_REPLIES = [
     body: 'Lightbringer, about forty crates in. Still the best thing I own.',
     parentId: null,
     likeCount: 47,
+    upvotes: 52,
+    downvotes: 3,
     createdAt: '2026-07-28T13:02:00.000Z',
   },
   {
@@ -92,6 +94,8 @@ export const THREAD_REPLIES = [
     body: 'Forty is nothing. I was ninety deep before Cerberus dropped.',
     parentId: 'cmt-thr-bv-1',
     likeCount: 23,
+    upvotes: 18,
+    downvotes: 6,
     createdAt: '2026-07-28T13:20:00.000Z',
   },
   {
@@ -102,6 +106,8 @@ export const THREAD_REPLIES = [
     body: 'Ascended, first ten pulls. I have not been that lucky since and I never will be again.',
     parentId: null,
     likeCount: 61,
+    upvotes: 74,
+    downvotes: 2,
     createdAt: '2026-07-29T08:44:00.000Z',
   },
 
@@ -114,6 +120,8 @@ export const THREAD_REPLIES = [
     body: 'I am around after 9. Fair warning, I only play knife-out.',
     parentId: null,
     likeCount: 12,
+    upvotes: 14,
+    downvotes: 1,
     createdAt: '2026-08-02T15:01:00.000Z',
   },
   {
@@ -124,6 +132,8 @@ export const THREAD_REPLIES = [
     body: 'Add me, same timezone. I will bring someone who actually aims.',
     parentId: 'cmt-thr-kc-1',
     likeCount: 8,
+    upvotes: 9,
+    downvotes: 0,
     createdAt: '2026-08-02T15:30:00.000Z',
   },
 
@@ -136,6 +146,8 @@ export const THREAD_REPLIES = [
     body: 'The older ones hold up better. Newer Collector releases lean on the event and the event is over in a fortnight.',
     parentId: null,
     likeCount: 34,
+    upvotes: 41,
+    downvotes: 4,
     createdAt: '2026-07-30T19:10:00.000Z',
   },
   {
@@ -146,6 +158,8 @@ export const THREAD_REPLIES = [
     body: 'Agreed, and the older ones show up less in match so they still feel rare.',
     parentId: 'cmt-thr-lod-1',
     likeCount: 15,
+    upvotes: 17,
+    downvotes: 1,
     createdAt: '2026-07-30T20:02:00.000Z',
   },
   /**
@@ -155,6 +169,13 @@ export const THREAD_REPLIES = [
    *
    * Kept mild on purpose: it needs to be obviously rule-breaking without
    * putting real abuse in a fixture anyone might screenshot.
+   *
+   * Its 1/9 vote tally is deliberate and it does NOT withhold it — the reports
+   * do that, on their own, exactly as before. The tally is here so the two
+   * mechanisms are visibly independent in the seed: this reply would be buried
+   * by votes if it were visible, and it is invisible for a reason that has
+   * nothing to do with them. Clear the reports in `/moderation` and it returns
+   * to the thread collapsed behind "show", not gone.
    */
   {
     id: 'cmt-thr-lod-3',
@@ -164,6 +185,8 @@ export const THREAD_REPLIES = [
     body: 'Half the collections in here are bought accounts anyway. Come to my server instead, link in my bio, free skins every week.',
     parentId: null,
     likeCount: 0,
+    upvotes: 1,
+    downvotes: 9,
     createdAt: '2026-08-01T03:22:00.000Z',
   },
 ] as const satisfies readonly Comment[];
