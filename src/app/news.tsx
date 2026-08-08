@@ -259,27 +259,29 @@ export default function NewsScreen() {
         Game identity, above the digest. Saved has no game and gets no banner.
 
         ── This banner is load-bearing for the first-run walkthrough ─────────
-        The tour spotlights the digest BELOW this. Adding the banner moves that
-        target down by exactly 128px (BANNER_HEIGHT 112 + spacing.lg), putting
-        the digest at ~222px from the top of the scroll content and its bottom
-        edge at ~394px.
+        The tour spotlights the digest BELOW this, so the banner's height sets
+        where that target lands.
 
-        Two consequences, both checked before this landed:
+        The banner is no longer a fixed 112. It is `BANNER_ASPECT` (3:1) on the
+        column's own width, which is the source art's aspect and therefore
+        crops nothing. Being width-driven is what makes it safe: the old note
+        here warned that the banner "cannot grow past ~112px" or the digest
+        crowds the fold on a 667-tall phone, and that is still true of a FIXED
+        height — but on a phone the column is narrow, so the ratio produces
+        almost the same number it always did.
 
-        1. The digest still clears the fold on the shortest viewport we care
-           about (iPhone SE, 667) with ~229px to spare, so the spotlight never
-           lands on something scrolled out of view.
+          375pt screen -> column 343 -> banner 114 (was 112)
+                          digest top ~202, bottom ~374, inside a 667 fold
+         1280pt screen -> column 688 -> banner 229 (was 112)
+                          digest top ~317, bottom ~489
 
-        2. At 667 the tour CARD flips from below the hole to above it —
-           `TourOverlay` puts it on whichever side has more room, and below
-           drops to 229px against 266px above. That is the overlay working as
-           designed, not a regression, but it is why the banner cannot grow:
-           past ~112px the card is forced above the hole on more devices, and
-           past ~160px the digest itself starts crowding the fold.
+        So the phone geometry the original arithmetic protected is intact to
+        within two points, and the growth all lands on the wide column, which
+        is where the banner looked undersized next to the 3:2 cards.
 
-        If this height ever changes, re-do that arithmetic. `BANNER_HEIGHT` is
-        a fixed constant rather than an intrinsic image height precisely so the
-        number stays knowable.
+        Stop 4 was re-measured through the shipped `placeGuide` after this
+        change — see the commit. If the column cap or this ratio changes, redo
+        both the table above and that measurement.
       */}
       {title !== null ? <NewsBanner title={title} /> : null}
 
