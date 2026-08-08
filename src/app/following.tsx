@@ -20,7 +20,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
-import { EmptyState, LoadingState, SecondaryButton, SectionHeader } from '@/components';
+import { ASSISTANT_CLEARANCE, EmptyState, LoadingState, SecondaryButton, SectionHeader } from '@/components';
 import { newsService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
@@ -188,7 +188,11 @@ export default function FollowingScreen() {
         session only in this build (§12.1).
       </Text>
 
-      <View style={{ height: spacing.xxl }} />
+      {/* The floating assistant sits over this corner. Reserve its real height
+          so the last row — including any rule above a footnote — is never
+          resting underneath it. `spacing.xxl` was not enough: it is 32 against
+          the launcher's 184. */}
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
   );
 }

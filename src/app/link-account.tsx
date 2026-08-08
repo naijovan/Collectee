@@ -23,7 +23,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import { LoadingState, PrimaryButton, SecondaryButton } from '@/components';
+import { ASSISTANT_CLEARANCE, LoadingState, PrimaryButton, SecondaryButton } from '@/components';
 import { FEATURES } from '@/config/features';
 import { inventoryService } from '@/services';
 import { useApp } from '@/state/AppContext';
@@ -193,7 +193,11 @@ export default function LinkAccountScreen() {
         </Text>
       </View>
 
-      <View style={{ height: spacing.xxl }} />
+      {/* The floating assistant sits over this corner. Reserve its real height
+          so the last row — including any rule above a footnote — is never
+          resting underneath it. `spacing.xxl` was not enough: it is 32 against
+          the launcher's 184. */}
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
   );
 }

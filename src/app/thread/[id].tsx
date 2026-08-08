@@ -23,15 +23,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
-import {
-  Avatar,
-  EmptyState,
-  KeyboardSafe,
-  LoadingState,
-  PrimaryButton,
-  SectionHeader,
-  timeAgo,
-} from '@/components';
+import { ASSISTANT_CLEARANCE, Avatar, EmptyState, KeyboardSafe, LoadingState, PrimaryButton, SectionHeader, timeAgo } from '@/components';
 import { FLAG_REASON_DESCRIPTIONS, FLAG_REASON_LABELS } from '@/domain/trust';
 import { socialService, threadService } from '@/services';
 import type { ThreadView } from '@/services';
@@ -303,7 +295,11 @@ export default function ThreadScreen() {
         <Text style={styles.footnote}>{view.postingBlockedReason}</Text>
       )}
 
-      <View style={{ height: spacing.xxl }} />
+      {/* The floating assistant sits over this corner. Reserve its real height
+          so the last row — including any rule above a footnote — is never
+          resting underneath it. `spacing.xxl` was not enough: it is 32 against
+          the launcher's 184. */}
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
     </KeyboardSafe>
   );

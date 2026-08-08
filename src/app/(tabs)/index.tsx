@@ -386,9 +386,14 @@ export default function HomeScreen() {
                 greeting look like a label above a title; it is one sentence and
                 reads as one. The name carries the weight so the eye lands on who
                 this is, not on the time of day. */}
+            {/* One colour for the whole line. The greeting word was
+                `textSecondary` against a `textPrimary` name, which read as the
+                first half being de-emphasised rather than as one sentence —
+                and at 34px of display type that contrast is loud. The two
+                nested spans went with it: they existed only to carry the
+                colours that now agree. */}
             <Text style={styles.greetingLine} numberOfLines={1}>
-              <Text style={styles.greetingWord}>{greeting()}, </Text>
-              <Text style={styles.greetingName}>{viewer?.displayName ?? '—'}</Text>
+              {greeting()}, {viewer?.displayName ?? '—'}
             </Text>
           </View>
 
@@ -898,8 +903,6 @@ const styles = StyleSheet.create({
      "Discover" and Collections' title rather than a smaller cousin. */
   greetingLine: { ...typography.screenTitle, color: colors.textPrimary },
   /** Muted so the name wins without needing a second, larger size. */
-  greetingWord: { color: colors.textSecondary },
-  greetingName: { color: colors.textPrimary },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   bell: { padding: spacing.xs },
   bellGlyph: { fontSize: 22, color: colors.textSecondary },

@@ -19,7 +19,8 @@
  * Masking would mean `react-native-svg`, which is not a dependency and §13.1
  * says nobody adds one without saying so. Four scrim panels around a gap give a
  * genuinely transparent hole on both platforms with no dependency. Rounded
- * corners come from a ring drawn on the boundary, which is also what pulses.
+ * corners come from a ring drawn on the boundary, which is also what marks the
+ * target.
  *
  * Nothing underneath is brightened — it cannot be. The target reads as bright
  * because it is the only thing NOT dimmed, which is what a spotlight is.
@@ -88,6 +89,15 @@ const REMEASURE_MS = 500;
 
 /** Breathing room between the target's box and the edge of the hole. */
 const HOLE_PAD = 8;
+
+/**
+ * The outer glow's fixed opacity, now that it does not breathe.
+ *
+ * 0.34 was the bright end of the range it used to travel through. With the
+ * movement gone the dim end had no job left — it only made the highlight
+ * weaker half the time — so the glow simply sits at its strongest.
+ */
+const GLOW_OPACITY = 0.34;
 /** Gap between the hole and the card beside it. */
 const CARD_GAP = spacing.md;
 
@@ -209,7 +219,6 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
   );
 
   const fade = useRef(new Animated.Value(1)).current;
-  const pulse = useRef(new Animated.Value(0)).current;
 
   /**
    * Move the app to a stop's route.
@@ -354,39 +363,28 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
     };
   }, [phase, stop, hole, measureUnion, screenW, screenH]);
 
-  /* Reduce Motion means reduce, not remove: the ring still marks the target,
-     it just stops repeating. The pulse is pure decoration — removing it loses
-     nothing, which is this codebase's test for what stops dead. */
-  useEffect(() => {
-    if (reduceMotion || phase !== 'shown' || !hole) {
-      pulse.setValue(0);
-      return;
-    }
-    /* `motion.breath`, not a local number, and `sin`, not `quad`.
-       At 900ms with a quad ease the glow hit its ends hard and paused there,
-       which is what made it read as a blink around the target rather than a
-       highlight of it — Jovan's note. A sine ease has no flat top, so the
-       brightest and dimmest moments are instants rather than beats. */
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: motion.breath,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: NATIVE_DRIVER,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: motion.breath,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: NATIVE_DRIVER,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse, reduceMotion, phase, hole]);
-
+  /*
+   * ── The highlight does not pulse any more ─────────────────────────────────
+   * There used to be a breathing loop here driving the glow's opacity and a
+   * scale transform on it. Ray reported "the blue focus outline appears to be
+   * MOVING" on the Explore header and the news digest card, and that is what it
+   * was: both are tour targets, and the app contains no other animated border
+   * and no custom focus ring, so there was nothing else it could have been.
+   *
+   * The previous round had already softened this from a 1.8s cycle at 6% scale
+   * to a 2.6s one at 2%. Softening was the wrong axis. 2% of a 688pt-wide
+   * digest card is still about 7pt of travel on each edge, and an outline that
+   * changes size is read as moving no matter how slowly it does it — the eye is
+   * far more sensitive to edge displacement than to brightness.
+   *
+   * So the movement is gone rather than reduced: a solid ring plus a static
+   * outer glow, both at fixed opacity, fading only with the stop transition.
+   * That is what Ray asked for and it is the correct treatment anyway — the
+   * ring's job is to say WHERE, and it does that better standing still.
+   *
+   * This also removes the last ambient loop from the tour, so there is nothing
+   * left here for Reduce Motion to switch off.
+   */
   /**
    * Is this the guided run?
    *
@@ -619,15 +617,13 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
               },
             ]}
           />
-          {/* A second ring outside the first, scaling and fading — the glow.
-              Separate node so the solid edge stays crisp while this breathes.
-
-              Amplitudes are deliberately small. The old 0.55→0.12 swing was
-              wider than the ring's own opacity, so the decoration moved more
-              than the thing it decorated; and 6% of scale on a card-sized
-              target is several pixels of edge travel, which reads as the target
-              itself twitching. The solid ring is what MARKS the target — this
-              only has to suggest it is live. */}
+          {/* A second ring outside the first — the glow. Static now; see the
+              note where the pulse loop used to be. Still a separate node so the
+              solid inner edge stays crisp against the softer outer one, and it
+              still fades with `fade` so it comes and goes with the stop rather
+              than snapping. `GLOW_OPACITY` sits at the bright end of the old
+              breathing range: with nothing moving, the dim end only made the
+              highlight weaker. */}
           <Animated.View
             pointerEvents="none"
             style={[
@@ -638,13 +634,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
                 width: hole.width + HOLE_PAD * 2,
                 height: hole.height + HOLE_PAD * 2,
                 borderRadius: ringRadius,
-                opacity: Animated.multiply(
-                  fade,
-                  pulse.interpolate({ inputRange: [0, 1], outputRange: [0.34, 0.16] }),
-                ),
-                transform: [
-                  { scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }) },
-                ],
+                opacity: Animated.multiply(fade, GLOW_OPACITY),
               },
             ]}
           />
@@ -680,7 +670,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
         /* Guided run. The guide takes the whole lower (or upper) band rather
            than sitting beside the hole like the card does — she is the subject,
            not an annotation. Everything above this point is shared with the
-           card path, so the cutout, the ring and the pulse are literally the
+           card path, so the cutout, the ring and the glow are literally the
            same nodes.
  
            ── Nothing is painted until the new stop is measured ──────────────

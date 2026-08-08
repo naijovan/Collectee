@@ -18,7 +18,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import { LoadingState, SecondaryButton } from '@/components';
+import { ASSISTANT_CLEARANCE, LoadingState, SecondaryButton } from '@/components';
 import { timeAgo } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
@@ -144,7 +144,11 @@ export default function ArticleScreen() {
         </Text>
       </View>
 
-      <View style={{ height: spacing.xxl }} />
+      {/* The floating assistant sits over this corner. Reserve its real height
+          so the last row — including any rule above a footnote — is never
+          resting underneath it. `spacing.xxl` was not enough: it is 32 against
+          the launcher's 184. */}
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
   );
 }
