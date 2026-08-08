@@ -58,6 +58,7 @@ import { FEATURES } from '@/config/features';
 import { headlineItem } from '@/domain/collections';
 import { pickThumbnailIds } from '@/domain/news';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useDragScroll } from '@/hooks/useDragScroll';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import {
   catalogueService,
@@ -132,6 +133,10 @@ export default function HomeScreen() {
 
   /** Tab screens stay mounted, so returning here has to be sent back to the top. */
   const scrollRef = useTopOnFocus();
+  /* Click-and-drag panning for the two horizontal rails. Web-only; a browser
+     gives an overflow container wheel scrolling and no mouse drag. */
+  const newsRail = useDragScroll<FlatList>();
+  const collectorsRail = useDragScroll<FlatList>();
   /* Drives the header's frosted backdrop, which is transparent at the top
      of the page and fades in once it starts doing a job. */
   const { scrolled, scrollProps } = useScrolledPast();
@@ -448,6 +453,7 @@ export default function HomeScreen() {
                exactly the layout it had. The text stack sets the height in both
                cases, which is what stops section 5 below from moving. */
             <FlatList
+              ref={newsRail}
               horizontal
               showsHorizontalScrollIndicator={false}
               data={articles}
@@ -517,6 +523,7 @@ export default function HomeScreen() {
             <LoadingState height={150} />
           ) : (
             <FlatList
+              ref={collectorsRail}
               horizontal
               showsHorizontalScrollIndicator={false}
               data={collectors}

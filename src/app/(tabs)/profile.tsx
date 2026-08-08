@@ -34,6 +34,7 @@ import {
 } from '@/components';
 import { headlineItem } from '@/domain/collections';
 import { intensityOption } from '@/domain/onboarding';
+import { useDragScroll } from '@/hooks/useDragScroll';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, inventoryService, roomService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
@@ -77,6 +78,9 @@ export default function ProfileScreen() {
   }
 
   const scrollRef = useTopOnFocus();
+  /* Click-and-drag panning for the inventory rail. Web-only; native pans on
+     touch already. */
+  const inventoryRail = useDragScroll<FlatList>();
   const [pickerOpen, setPickerOpen] = useState(false);
 
 
@@ -353,6 +357,7 @@ export default function ProfileScreen() {
             Twenty is long enough to keep scrolling on any width and still
             short enough to end. */}
         <FlatList
+          ref={inventoryRail}
           horizontal
           showsHorizontalScrollIndicator={false}
           data={inventory.slice(0, PREVIEW_ITEMS)}
