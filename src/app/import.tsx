@@ -257,12 +257,36 @@ export default function ImportScreen() {
      * catalogues and names the real item, which turns this into a field
      * comparison.
      */
+    /**
+     * Two ways a cross-game read reaches us, and both are honoured.
+     *
+     * 1. `itemId` names an item from another game. What the current prompt asks
+     *    for, and the clean answer.
+     *
+     * 2. `itemId` is null but `candidateItemIds` contains one. What the model
+     *    does when the prompt has not told it cross-game answers are allowed —
+     *    it recognises the item, lists it as a candidate, and declines to
+     *    commit. Reading the candidates recovers that.
+     *
+     * The second path is not only a deploy-lag workaround. A model that is
+     * genuinely torn between two games will always express that as candidates
+     * rather than a confident id, and refusing to look at them would throw away
+     * the one place it said what it actually saw.
+     */
+    const resolveForeign = (d: ScanDetection): Item | undefined => {
+      const direct = d.itemId ? items.get(d.itemId) : undefined;
+      if (direct && direct.title !== title) return direct;
+      if (direct) return undefined; // matched the chosen game — nothing to flag
+      return d.candidateItemIds
+        .map((id) => items.get(id))
+        .find((candidate) => candidate !== undefined && candidate.title !== title);
+    };
+
     const foreign = detections
-      .filter((d) => d.itemId !== null && d.outcome !== 'duplicate')
-      .map((d) => ({ detection: d, item: items.get(d.itemId!) }))
+      .filter((d) => d.outcome !== 'duplicate')
+      .map((d) => ({ detection: d, item: resolveForeign(d) }))
       .filter(
-        (entry): entry is { detection: ScanDetection; item: Item } =>
-          entry.item !== undefined && entry.item.title !== title,
+        (entry): entry is { detection: ScanDetection; item: Item } => entry.item !== undefined,
       );
     if (foreign.length === 0) return null;
 
@@ -970,10 +994,10 @@ export default function ImportScreen() {
                 {wrongGame.matches.length === 1 ? 'item' : 'items'}
               </Text>
               <Text style={styles.body}>
-                You picked {GAME_LABELS[title]}, and a scan only compares against the game you
-                chose — so {wrongGame.matches.length === 1 ? 'this one' : 'these'} had nothing to
-                match. We found {wrongGame.matches.length === 1 ? 'it' : 'them'} in the{' '}
-                {GAME_LABELS[wrongGame.title]} catalogue instead.
+                You picked {GAME_LABELS[title]}, so nothing in that catalogue matched. The closest
+                we found {wrongGame.matches.length === 1 ? 'is' : 'are'} in{' '}
+                {GAME_LABELS[wrongGame.title]}. Check{' '}
+                {wrongGame.matches.length === 1 ? 'it' : 'them'} and confirm if we got it right.
               </Text>
 
               {/*

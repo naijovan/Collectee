@@ -136,13 +136,35 @@ export function ItemCard({
           seed={item.id}
           tier={item.rarityTier}
           renderUrl={item.renderUrl}
+          /* `cover` on the overlay variant so the subject fills the tile.
+             The registry's default is `contain`, which is right for a small
+             grid thumbnail — nothing is ever cut — but on a 168x200 card it
+             letterboxed the character portraits and left them floating to one
+             side inside their own box. */
+          fit={overlay ? 'cover' : undefined}
           style={artHeight === undefined ? styles.itemArt : { height: artHeight }}
         />
         {/* Compact — the full native label ("Legendary", "Epic Skin", …) does
-            not fit over 132px of art, and it is already printed below. */}
-        <View style={styles.rarityOverlay} pointerEvents="none">
-          <RarityBadge tier={item.rarityTier} title={item.title} compact />
-        </View>
+            not fit over 132px of art, and it is already printed below.
+
+            Hidden on the overlay variant: that one has room to print the full
+            label at the bottom, and showing the glyph as well would put the
+            same fact in two corners of a 168px card. */}
+        {overlay ? null : (
+          <View style={styles.rarityOverlay} pointerEvents="none">
+            <RarityBadge tier={item.rarityTier} title={item.title} compact />
+          </View>
+        )}
+
+        {/* Game badge top-left, same component and colours as the collection
+            covers and the news cards. The overlay variant loses the meta row
+            that used to print the game underneath, so without this the one
+            thing telling you which title an item belongs to would be gone. */}
+        {overlay ? (
+          <View style={styles.badgeOverlay}>
+            <GameBadge title={item.title} />
+          </View>
+        ) : null}
 
         {overlay ? (
           <>
@@ -156,9 +178,15 @@ export function ItemCard({
               <Text style={styles.itemOverlayName} numberOfLines={2}>
                 {item.name}
               </Text>
+              {/* Rarity in words rather than the game, which the badge above
+                  now carries. Printing both would say the same two facts twice
+                  on a 168px card. */}
               <View style={styles.itemMetaRow}>
-                <Text style={styles.itemOverlayMeta} numberOfLines={1}>
-                  {GAME_SHORT_LABELS[item.title]}
+                <Text
+                  style={[styles.itemOverlayMeta, { color: rarityColors[item.rarityTier] }]}
+                  numberOfLines={1}
+                >
+                  {rarityLabelFor(item.rarityTier, item.title)}
                 </Text>
                 {trustLevel ? <TrustBadge level={trustLevel} /> : null}
               </View>
@@ -910,7 +938,9 @@ const styles = StyleSheet.create({
   itemScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
   itemOverlayBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.sm, gap: 2 },
   itemOverlayName: { ...typography.cardTitle, color: colors.textOnAccent },
-  itemOverlayMeta: { ...typography.meta, color: colors.textOnAccent, opacity: 0.8 },
+  /* Tier-coloured, matching every other rarity treatment in the app (§12.2) —
+     a legendary should not read the same weight as a common here either. */
+  itemOverlayMeta: { ...typography.meta },
   rarityOverlay: { position: 'absolute', top: spacing.xs, right: spacing.xs },
 
   itemBody: {
