@@ -293,6 +293,22 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
              card shows centred with no cutout rather than a hole in the wrong
              place. A misaligned spotlight is worse than none — it points
              confidently at nothing. */
+          /* DEV ONLY. Placement bugs on this overlay are geometry bugs, and
+             geometry cannot be reasoned about from a screenshot — the Import
+             tab was buried for two rounds because the rect was being guessed
+             at rather than read. This prints what the anchors actually
+             reported, so the next one is a number and not an argument.
+             Stripped from production builds by the __DEV__ guard. */
+          if (__DEV__) {
+            // eslint-disable-next-line no-console
+            console.log(
+              `[tour] ${target.id} target=${target.targetIds.join('+')} rect=`,
+              rect
+                ? `${Math.round(rect.x)},${Math.round(rect.y)} ${Math.round(rect.width)}x${Math.round(rect.height)}`
+                : 'NOT MEASURED (falling back to no cutout)',
+              `screen=${Math.round(screenW)}x${Math.round(screenH)}`,
+            );
+          }
           setHole(rect);
           setPhase('shown');
           Animated.timing(fade, {
@@ -382,6 +398,18 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
   /* Computed once. Two calls would be two chances for the wrapper's anchor and
      the figure's placement to disagree about where she is standing. */
   const guidePlacement = placeGuide({ width: screenW, height: screenH }, insets, hole);
+
+  /* Companion to the rect log above — what the solver DID with that rect. */
+  useEffect(() => {
+    if (!__DEV__ || !guided || phase !== 'shown' || !stop) return;
+    const f = guidePlacement.figure;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[tour] ${stop.id} fit=${guidePlacement.fit} flipped=${guidePlacement.flipped}`,
+      f ? `colly=${Math.round(f.x)},${Math.round(f.y)} ${Math.round(f.width)}x${Math.round(f.height)}` : 'colly=hidden',
+      `bubble=${Math.round(guidePlacement.bubble.x)},${Math.round(guidePlacement.bubble.y)}`,
+    );
+  }, [guided, phase, stop, guidePlacement]);
 
   // ── The prompt ──────────────────────────────────────────────────────────
   if (index === -1) {

@@ -145,6 +145,24 @@ export function placeGuide(
   const holeCx = hole.x + hole.width / 2;
   const holeCy = hole.y + hole.height / 2;
 
+  /**
+   * Is the target bolted to the bottom of the screen?
+   *
+   * The tab bar, the Import tab inside it and the assistant launcher all are.
+   * They share a failure the solver alone cannot prevent: Colly is drawn ON TOP
+   * of the overlay, cutout included, so if she is placed anywhere across the
+   * bottom she covers the lit region even when the maths says she is beside the
+   * target. That is what buried the Import tab — the hole was cut correctly and
+   * she stood over it.
+   *
+   * So this is a hard constraint, deliberately independent of the region
+   * scoring: a bottom-anchored target confines her to the upper half, full
+   * stop. An error in the measured rect can then still misplace her sideways,
+   * but it can no longer park her on the thing she is presenting.
+   */
+  const midline = safe.y + safe.h / 2;
+  const bottomAnchored = hole.y + hole.height > safe.y + safe.h * 0.72;
+
   type Name = 'left' | 'right' | 'above' | 'below';
   const regions: { name: Name; box: Box }[] = [
     { name: 'left', box: { x: safe.x, y: safe.y, w: blocked.x - safe.x, h: safe.h } },
@@ -183,7 +201,18 @@ export function placeGuide(
       : { height: beside, side: 'beside' as const };
   };
 
-  const scored = regions
+  /* Bottom-anchored: only the band above the target is eligible, and it is
+     further capped at the midline so her feet never cross it. */
+  const eligible = bottomAnchored
+    ? regions
+        .filter((r) => r.name === 'above')
+        .map((r) => ({
+          ...r,
+          box: { ...r.box, h: Math.max(0, Math.min(r.box.h, midline - r.box.y)) },
+        }))
+    : regions;
+
+  const scored = eligible
     .map((r) => ({ ...r, ...solve(r.box) }))
     .filter((r) => r.height >= MIN_HEIGHT)
     /* Sides first at equal height: standing next to something and pointing
@@ -213,13 +242,33 @@ export function placeGuide(
   const h = best.height;
   const w = h * FIGURE_ASPECT;
   const r = best.box;
-  const bw = clamp(BUBBLE_W, BUBBLE_MIN_W, Math.max(BUBBLE_MIN_W, best.side === 'beside' ? r.w - w - GAP : r.w));
 
   /* Hug the edge nearest the target and sit level with it, then clamp the
      FIGURE alone into its region — the bubble is placed afterwards around
      wherever she ended up, so a tight band pushes the bubble rather than
      shoving her away from the thing she is pointing at. */
-  let fx = best.name === 'left' ? r.x + r.w - w : best.name === 'right' ? r.x : holeCx - w / 2;
+  /**
+   * Above and below used to centre her on the target, which put her centre of
+   * mass exactly on its centre line — and the pose only points sideways, so the
+   * arm aimed at nothing. She is offset to one side of the target's centre
+   * instead, far enough to read as "beside", and the flip below then aims her
+   * back across it. Pointing along a wide target beats pointing off-screen.
+   */
+  const sideOffset = GAP * 2;
+  /* Of the two ways to stand beside the target's centre line, take the one
+     that leaves the most room OUTSIDE her — that outer space is where the
+     bubble goes, and a bubble on the inside would sit under her pointing arm,
+     so she reads as gesturing at her own dialogue. */
+  const outerIfRight = r.x + r.w - (holeCx + sideOffset + w);
+  const outerIfLeft = holeCx - sideOffset - w - r.x;
+  let fx =
+    best.name === 'left'
+      ? r.x + r.w - w
+      : best.name === 'right'
+        ? r.x
+        : outerIfRight >= outerIfLeft
+          ? holeCx + sideOffset
+          : holeCx - sideOffset - w;
   let fy = best.name === 'above' ? r.y + r.h - h : best.name === 'below' ? r.y : holeCy - h / 2;
   fx = clamp(fx, r.x, r.x + r.w - w);
   fy = clamp(fy, r.y, r.y + r.h - h);
@@ -227,30 +276,45 @@ export function placeGuide(
   /* Bubble: under her when there is room, beside her when the band is short,
      above her when she is already at the floor. Whichever it lands on, it is
      clamped into the region and checked against the target. */
-  let bx: number;
-  let by: number;
-  if (best.side === 'beside') {
-    const toRight = fx + w + GAP + bw <= r.x + r.w;
-    bx = toRight ? fx + w + GAP : fx - GAP - bw;
-    by = clamp(fy + h / 2 - BUBBLE_H / 2, r.y, r.y + Math.max(0, r.h - BUBBLE_H));
-  } else if (fy + h + GAP + BUBBLE_H <= r.y + r.h) {
-    bx = fx + w / 2 - bw / 2;
-    by = fy + h + GAP;
-  } else {
-    bx = fx + w / 2 - bw / 2;
-    by = fy - GAP - BUBBLE_H;
-  }
-  bx = clamp(bx, r.x, r.x + r.w - bw);
-  by = clamp(by, r.y, r.y + Math.max(0, r.h - BUBBLE_H));
+  /**
+   * The bubble is placed around wherever she ended up, and is allowed to leave
+   * her region — it only has to stay inside the safe area and out of the
+   * blocked rect. Confining it to the region was too strict: with the figure
+   * capped at the midline on a bottom-anchored stop, no region holds both, and
+   * the bubble has a perfectly good home just below her.
+   */
+  /* Sized to whatever the chosen side actually has, down to the minimum,
+     rather than a fixed width that then fails to fit and forces the bubble
+     back across her. */
+  const outerRoom = fx + w / 2 > holeCx ? safe.x + safe.w - (fx + w) : fx - safe.x;
+  const bw = clamp(BUBBLE_W, BUBBLE_MIN_W, Math.max(BUBBLE_MIN_W, outerRoom - GAP));
 
-  /* Belt and braces. The region maths should make this unreachable, but the
-     rule is "never covers the target", not "should not". */
-  const bubbleBox: Box = { x: bx, y: by, w: bw, h: BUBBLE_H };
-  if (overlaps(bubbleBox, blocked)) {
-    by = blocked.y + blocked.h + GAP <= safe.y + safe.h - BUBBLE_H
-      ? blocked.y + blocked.h + GAP
-      : blocked.y - GAP - BUBBLE_H;
-    by = clamp(by, safe.y, safe.y + safe.h - BUBBLE_H);
+  const inSafe = (bx0: number, by0: number) =>
+    bx0 >= safe.x && by0 >= safe.y &&
+    bx0 + bw <= safe.x + safe.w && by0 + BUBBLE_H <= safe.y + safe.h;
+
+  const centredX = clamp(fx + w / 2 - bw / 2, safe.x, safe.x + safe.w - bw);
+  const midY = clamp(fy + h / 2 - BUBBLE_H / 2, safe.y, safe.y + safe.h - BUBBLE_H);
+
+  /* Away-side first: she points toward the target, so the bubble belongs on
+     her other flank. `pointsLeft` mirrors the flip computed below. */
+  const pointsLeft = fx + w / 2 > holeCx;
+  const away: [number, number] = pointsLeft ? [fx + w + GAP, midY] : [fx - GAP - bw, midY];
+  const toward: [number, number] = pointsLeft ? [fx - GAP - bw, midY] : [fx + w + GAP, midY];
+
+  const candidates: [number, number][] =
+    best.side === 'beside'
+      ? [away, [centredX, fy + h + GAP], [centredX, fy - GAP - BUBBLE_H], toward]
+      : [[centredX, fy + h + GAP], [centredX, fy - GAP - BUBBLE_H], away, toward];
+
+  let bx = centredX;
+  let by = clamp(fy + h + GAP, safe.y, safe.y + safe.h - BUBBLE_H);
+  for (const [cx, cy] of candidates) {
+    if (inSafe(cx, cy) && !overlaps({ x: cx, y: cy, w: bw, h: BUBBLE_H }, blocked)) {
+      bx = cx;
+      by = cy;
+      break;
+    }
   }
 
   return {
