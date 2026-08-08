@@ -58,6 +58,20 @@ export interface ArtEntry {
    * typecheck` failed on origin/main with four errors. The registry-side half
    * of that change appears not to have been pushed.
    *
+   * Marcus is right, and confirmed. The cause: an unfinished display-art
+   * pipeline (`displayArtRegistry.ts`, `scripts/bake-display-art.ts`, ~104MB
+   * of renditions) was sitting UNCOMMITTED in the working tree while the
+   * component halves of it went in with unrelated card work. The consuming
+   * code shipped; the registry that satisfies it did not.
+   *
+   * Widened from two fields to four — `primitives.tsx` also reads `.compact`
+   * and `.squareWide`, which Marcus's original two did not cover, so the same
+   * failure recurred one file over.
+   *
+   * The pipeline itself is deliberately still NOT committed. 104MB of renditions
+   * that nothing populates is not worth landing to satisfy a type; whoever owns
+   * that work should land it whole.
+   *
    * Declared OPTIONAL and nothing populates it, which is deliberate: every
    * call site already guards with `art.displaySource ? … : art.source`, so
    * `undefined` means every render behaves exactly as it does today. This
@@ -67,6 +81,10 @@ export interface ArtEntry {
   displaySource?: {
     /** Wide crop, for hero-sized surfaces. */
     wide: ImageSourcePropType;
+    /** Wide crop at card size — `primitives.tsx` picks this below 600px. */
+    compact: ImageSourcePropType;
+    /** Square crop for tall boxes. */
+    squareWide: ImageSourcePropType;
     /** Square crop that stays sharp at 56-88px. */
     squareCompact: ImageSourcePropType;
   };
