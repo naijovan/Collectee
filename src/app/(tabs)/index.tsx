@@ -717,8 +717,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    justifyContent: 'center',
+    /* Bottom-anchored, not centred.
+       Centred, the block floated in the middle of the art with roughly equal
+       air above and below, which read as unplaced — nothing tied it to the
+       banner. Sitting on the lower edge gives it a baseline to stand on, and it
+       is also where the fade is heaviest, so the type has its darkest ground. */
+    justifyContent: 'flex-end',
     padding: spacing.lg,
+    paddingBottom: spacing.xl,
     gap: spacing.xs,
   },
   /* Explore and the supported titles share the bottom line, the way the
