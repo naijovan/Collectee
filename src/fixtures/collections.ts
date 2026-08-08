@@ -182,6 +182,73 @@ export const COLLECTIONS = [
     createdAt: '2026-06-07T19:05:00.000Z',
   },
   /**
+   * Jovan's MLBB-only collection.
+   *
+   * Added when "Dragon, Blade, Sovereign" stopped appearing under Collections —
+   * a collection with a published showroom now belongs to the Showrooms section
+   * alone, so the tab lost a card. This fills that slot with something the
+   * viewer's collection list did not otherwise have: a set from one game, and
+   * the one game the other four barely touch.
+   *
+   * Three verified, three not. Deliberately mixed rather than all-verified:
+   * this is the collection that demonstrates §9.4 on the viewer's own page —
+   * six items, three eligible for a showroom, and the room picker will say so
+   * rather than silently offering half.
+   */
+  {
+    id: 'col-jovan-land-of-dawn',
+    userId: 'user-jovan',
+    name: 'Land of Dawn Nights',
+    description: 'The MLBB half of the shelf. Neon, void and everything that glows after dark.',
+    coverUrl: '',
+    themeTags: ['mlbb', 'collector'],
+    itemIds: [
+      'mlbb-neon-ronin',
+      'mlbb-cyber-breacher',
+      'mlbb-lightborn-defender',
+      'mlbb-voidstorm-spirit',
+      'mlbb-arcane-revenant',
+      'mlbb-neon-encore',
+    ],
+    visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 1147,
+    createdAt: '2026-07-24T20:15:00.000Z',
+  },
+  /**
+   * An MLBB-only collection, and the reason it exists is the badge.
+   *
+   * `CollectionCard` badges the HEADLINE item's game — the rarest thing in the
+   * collection — so a cross-game set whose rarest item is a CODM mythic reads
+   * as CODM at a glance. Three of the top four on Explore were badged CODM even
+   * though only one of them was CODM-only, which made the feed look like a
+   * single-game app.
+   *
+   * Fully verified, deliberately: `rankByVerification` puts complete
+   * collections in the leading block, so this reaches the first row rather than
+   * sitting below the fold where it would fix nothing. Danish's "Land of Dawn
+   * Collectors" is also MLBB-only but ranks lower on verification.
+   *
+   * Priya's, because her seeded inventory is MLBB-first and these three are
+   * exactly her verified set — the collection is what she actually owns rather
+   * than a set assembled to fill a slot.
+   */
+  {
+    id: 'col-priya-dawn-verified',
+    userId: 'user-priya',
+    name: 'Verified in the Dawn',
+    description: 'Every Land of Dawn skin I can prove is mine. Linked, not scanned.',
+    coverUrl: '',
+    themeTags: ['mlbb', 'collector'],
+    itemIds: ['mlbb-lightborn-defender', 'mlbb-manifold-rift', 'mlbb-kagura-cherry-witch'],
+    visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 2260,
+    createdAt: '2026-07-19T11:40:00.000Z',
+  },
+  /**
    * The viewer's own showroom, backing `room-jovan-triptych`.
    *
    * Exactly three items, and every one of them is a REAL baked mesh in
