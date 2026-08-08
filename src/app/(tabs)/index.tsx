@@ -713,9 +713,17 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
   },
-  /* Full card width, 16:9 — a room backdrop is a landscape, and the square
-     thumb this component defaults to cropped most of it away. */
-  roomCardArt: { width: '100%', height: undefined, aspectRatio: 16 / 9, borderRadius: 0 },
+  /**
+   * 148 to the pixel, because that is what `CollectionCard`'s cover is
+   * (`collectionArt` in components/cards.tsx) and these two card types sit in
+   * the same column of the same page.
+   *
+   * An explicit height rather than an aspect ratio: `roomThumb` hard-codes
+   * `height: 46` for its row-avatar use, and overriding that with
+   * `height: undefined` + `aspectRatio` does not reliably reset it in React
+   * Native — the 46 survived and the covers came out as letterbox strips.
+   */
+  roomCardArt: { width: '100%', height: 148, borderRadius: 0 },
   roomCardBody: { padding: spacing.md, gap: spacing.xs },
 
   roomThumb: { width: 64, height: 46 },

@@ -11,7 +11,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import {
@@ -76,6 +84,7 @@ interface Entry {
 
 export default function CollectionsScreen() {
   const router = useRouter();
+  const { width: viewportWidth } = useWindowDimensions();
   const { viewer, viewerId, inventory } = useApp();
 
   const scrollRef = useTopOnFocus();
@@ -175,9 +184,9 @@ export default function CollectionsScreen() {
 
   /** One card, used by both suggestion lists. */
   function renderIdea(idea: SuggestedGroup) {
-              const canShowroom = idea.eligibility.eligible && idea.themeName;
-      return (
-        <View key={idea.suggestion.name} style={styles.ideaCard}>
+    const canShowroom = idea.eligibility.eligible && idea.themeName;
+    return (
+      <View key={idea.suggestion.name} style={styles.ideaCard}>
           {/* Show the items, not just their count. A suggestion asks the
               user to trust a grouping they did not make, and the fastest
               way to earn that is to let them see what is in it. */}
@@ -304,7 +313,11 @@ export default function CollectionsScreen() {
           {entries
             .filter((entry) => matchesFilter(entry.collection, rooms.get(entry.collection.id), filter))
             .map((entry, index) => (
-              <FadeInView key={entry.collection.id} index={index} style={styles.gridItem}>
+              <FadeInView
+                key={entry.collection.id}
+                index={index}
+                style={[styles.gridItem, viewportWidth < 600 && styles.gridItemPhone]}
+              >
                 <CollectionCard
                   collection={entry.collection}
                   owner={viewer}
@@ -349,7 +362,7 @@ export default function CollectionsScreen() {
             {builtRooms.map((entry) => (
               <Pressable
                 key={entry.collection.id}
-                style={styles.gridItem}
+                style={[styles.gridItem, viewportWidth < 600 && styles.gridItemPhone]}
                 onPress={() =>
                   router.push({
                     pathname: '/room/immersive/[id]',
@@ -371,11 +384,11 @@ export default function CollectionsScreen() {
 
       {/* ── Suggestions ─────────────────────────────────────────────── */}
       {ideas.length > 0 ? (
-        <View>
-          <SectionHeader title="Suggestions" prominent />
-          <Text style={styles.muted}>
-            Groupings we found in your inventory.
-          </Text>
+        <View style={styles.suggestionsSection}>
+          <View style={styles.suggestionIntro}>
+            <SectionHeader title="Suggestions" prominent />
+            <Text style={styles.muted}>Groupings we found in your inventory.</Text>
+          </View>
 
           {/* Split by outcome rather than mixed with a badge each. The two
               headings answer the question the badge was answering one card at a
@@ -383,29 +396,33 @@ export default function CollectionsScreen() {
               half goes first because it is the one gated on verification and so
               the one worth acting on while the items are fresh. */}
           {showroomIdeas.length > 0 ? (
-            <>
-              <SectionHeader title="Ready for a Showroom" />
-              <Text style={styles.muted}>
-                Enough verified items to build an interactive room in one step.
-              </Text>
-            </>
+            <View style={styles.ideaGroup}>
+              <View style={styles.ideaGroupHeader}>
+                <SectionHeader title="Ready for a Showroom" />
+                <Text style={styles.muted}>
+                  Enough verified items to build an interactive room in one step.
+                </Text>
+              </View>
+              <View style={styles.ideaList}>
+                {showroomIdeas.map((idea) => renderIdea(idea))}
+              </View>
+            </View>
           ) : null}
-          <View style={styles.ideaList}>
-            {showroomIdeas.map((idea) => renderIdea(idea))}
-          </View>
 
           {collectionIdeas.length > 0 ? (
-            <>
-              <SectionHeader title="Ready for a collection" />
-              <Text style={styles.muted}>
-                Good groupings, but short on verified items — these list in 2D until you
-                connect a game account.
-              </Text>
-            </>
+            <View style={styles.ideaGroup}>
+              <View style={styles.ideaGroupHeader}>
+                <SectionHeader title="Ready for a collection" />
+                <Text style={styles.muted}>
+                  Good groupings, but short on verified items — these list in 2D until you
+                  connect a game account.
+                </Text>
+              </View>
+              <View style={styles.ideaList}>
+                {collectionIdeas.map((idea) => renderIdea(idea))}
+              </View>
+            </View>
           ) : null}
-          <View style={styles.ideaList}>
-            {collectionIdeas.map((idea) => renderIdea(idea))}
-          </View>
         </View>
       ) : null}
 
@@ -555,16 +572,45 @@ const styles = StyleSheet.create({
   title: { ...typography.screenTitle, color: colors.textPrimary },
   muted: { ...typography.meta, color: colors.textSecondary },
 
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
-  gridItem: { width: '48%', gap: spacing.xs },
+  /**
+   * Column and row gaps are set separately.
+   *
+   * One `gap` gave both the same 12, but the vertical direction was not
+   * spending 12 — each cell also carries the visibility label BELOW the card,
+   * so the real distance between two rows of art was the label's line height
+   * plus its own gap plus the row gap. Rows drifted noticeably further apart
+   * than columns and the grid stopped reading as a grid.
+   *
+   * Columns keep 12; rows drop to 8 and the label tightens against its card, so
+   * the label reads as part of the cell above it rather than as a floating line
+   * between two rows.
+   */
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: spacing.md,
+    rowGap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  gridItem: { width: '48%', gap: 2 },
+  gridItemPhone: { width: '100%' },
   visibility: { ...typography.meta, color: colors.textTertiary, paddingLeft: spacing.xs },
 
+  suggestionsSection: { gap: spacing.xl },
+  suggestionIntro: { gap: spacing.sm },
+  ideaGroup: { gap: spacing.md },
+  ideaGroupHeader: { gap: spacing.xs },
   ideaList: { gap: spacing.md },
-  ideaPreview: { flexDirection: 'row', gap: spacing.xs },
-  // 128, not 64: three tiles across a full-width card are already wide, and at
-  // 64 the crop was a letterbox strip that showed neither the weapon nor the
-  // face. Two items plus an overflow chip keeps each tile big enough to read.
-  ideaThumb: { flex: 1, height: 128, borderRadius: radius.sm },
+  ideaPreview: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    width: '100%',
+    maxWidth: 960,
+    alignSelf: 'center',
+  },
+  // A real 3:2 frame keeps the complete item visible. The previous fixed 128px
+  // height stretched these beyond 2:1 on desktop and cropped handles/barrels.
+  ideaThumb: { flex: 1, aspectRatio: 3 / 2, borderRadius: radius.sm },
   ideaMore: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSunken },
   ideaMoreText: { ...typography.cardTitle, color: colors.textSecondary },
   ideaBody: { gap: spacing.xs },
