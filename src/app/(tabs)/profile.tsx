@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Animated,
   FlatList,
   Pressable,
   ScrollView,
@@ -38,6 +39,7 @@ import { headlineItem } from '@/domain/collections';
 import { intensityOption } from '@/domain/onboarding';
 import { useDragScroll } from '@/hooks/useDragScroll';
 import { useScrolledPast } from '@/components/PinnedHeader';
+import { useHoverPop } from '@/components/primitives';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, inventoryService, roomService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
@@ -94,6 +96,7 @@ export default function ProfileScreen() {
   /* Drives the header's frosted backdrop — transparent at the top of the page,
      fading in once it has something to sit over. Same as the other tabs. */
   const { scrolled, scrollProps } = useScrolledPast();
+  const settingsPop = useHoverPop();
   /* Click-and-drag panning for the inventory rail. Web-only; native pans on
      touch already. */
   const inventoryRail = useDragScroll<FlatList>();
@@ -184,15 +187,21 @@ export default function ProfileScreen() {
       <PinnedHeader scrolled={scrolled}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Your Profile</Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            hitSlop={10}
-            onPress={() => router.push('/settings')}
-            style={({ pressed }) => [styles.settings, pressed && { opacity: 0.7 }]}
-          >
-            <Text style={styles.settingsGlyph}>⚙</Text>
-          </Pressable>
+          {/* The same spring the chips, pill CTAs and the brand mark use — this
+              is the only control on the bar, and it was the one that did not
+              answer the pointer. */}
+          <Animated.View style={settingsPop.popStyle}>
+            <Pressable
+              {...settingsPop.hoverProps}
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+              hitSlop={10}
+              onPress={() => router.push('/settings')}
+              style={({ pressed }) => [styles.settings, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={styles.settingsGlyph}>⚙</Text>
+            </Pressable>
+          </Animated.View>
         </View>
       </PinnedHeader>
 
@@ -658,14 +667,15 @@ const styles = StyleSheet.create({
    * though the mark inside is 26 — a bare glyph is a small thing to hit.
    */
   settings: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /* Bigger than the 18 it was: at that size a gear on a dark bar reads as
-     decoration rather than as the one control on the header. */
-  settingsGlyph: { color: colors.textPrimary, fontSize: 26, lineHeight: 30 },
+  /* 32, up from the 18 it started at. A bare glyph with no disc behind it has
+     to carry its own weight against a 34px title, and at 26 it still read as
+     smaller than the words it sits opposite. */
+  settingsGlyph: { color: colors.textPrimary, fontSize: 32, lineHeight: 36 },
 
   statHint: { ...typography.meta, color: colors.accent, textAlign: 'center', marginTop: 2 },
 
