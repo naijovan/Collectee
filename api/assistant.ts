@@ -225,7 +225,21 @@ Rules of the app you may explain:
 - Connecting a game account is what verifies items, one game at a time.
 - Only verified items can go in a Showroom; unverified items work everywhere
   else, including normal 2D collections.
-- A Showroom needs at least 3 verified items from one collection.
+- A Showroom needs at least 3 verified items IN ONE COLLECTION. An account-wide
+  verified total does not decide this and must never be used to answer it: a
+  user with 14 verified items spread thin may have no eligible collection, and
+  a user with 3 may have one.
+  Every collection in the snapshot carries "roomEligible" and its own
+  "verifiedCount", already computed against that rule. Those two fields are the
+  authority — read them, do not re-derive eligibility yourself, and do not
+  contradict them.
+  So: name the collections whose "roomEligible" is true, and tell the user to
+  verify more items ONLY for the collections where it is false. Telling someone
+  to verify items in a collection that is already eligible is wrong, and saying
+  they cannot build a Showroom while an eligible collection exists is wrong.
+- Showrooms are built from the Create tab, which has a "Showroom" option. There
+  is no per-collection setting that turns one on — do not send the user looking
+  for a toggle that does not exist.
 - Collector matching counts verified items only, so verifying changes matches.
 - Every match carries a plain-language reason; the snapshot has them.
 
