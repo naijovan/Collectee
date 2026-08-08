@@ -602,13 +602,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
            card path, so the cutout, the ring and the pulse are literally the
            same nodes. */
         <Animated.View
-          style={[
-            styles.guideWrap,
-            guidePlacement.anchor === 'top'
-              ? { top: insets.top + spacing.md }
-              : { bottom: insets.bottom + spacing.md },
-            { opacity: fade },
-          ]}
+          style={[StyleSheet.absoluteFill, { opacity: fade }]}
           pointerEvents={phase === 'shown' ? 'box-none' : 'none'}
         >
           <TourGuide
@@ -700,12 +694,6 @@ const styles = StyleSheet.create({
   ring: { position: 'absolute', borderWidth: 2, borderColor: colors.accent },
   glow: { position: 'absolute', borderWidth: 6, borderColor: colors.accent },
 
-  guideWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    paddingHorizontal: spacing.lg,
-  },
   cardWrap: {
     position: 'absolute',
     left: 0,

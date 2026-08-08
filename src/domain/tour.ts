@@ -128,7 +128,12 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'Ask about your own collection',
       body:
         'Try "Who is my top match, and why?" — it answers from your actual inventory and tells you which items you have in common.',
-      guide: { pose: 'happy', line: 'And that is me! Ask me anything about your own collection — try “Who is my top match, and why?”' },
+      guide: {
+        pose: 'happy',
+        line:
+          'And that\u2019s me! Anytime you need me, I\u2019m right here at the bottom right — ' +
+          'ask me anything about your collection.',
+      },
     },
   ];
 

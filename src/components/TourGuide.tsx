@@ -44,6 +44,13 @@ import type { LayoutRectangle } from 'react-native';
 
 import { guidePose } from '@/config/tourGuideArt';
 import type { GuidePose } from '@/config/tourGuideArt';
+import { placeGuide } from '@/domain/tourGuidePlacement';
+import type { GuidePlacement } from '@/domain/tourGuidePlacement';
+
+/* Re-exported so `TourOverlay` keeps importing both from one place. The maths
+   lives in the domain layer; this file renders it. */
+export { placeGuide };
+export type { GuidePlacement };
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { colors, interaction, motion, radius, spacing, typography } from '@/theme/theme';
 
@@ -51,73 +58,10 @@ import { ASSISTANT_NAME } from './assistantDock';
 
 const NATIVE_DRIVER = Platform.OS !== 'web';
 
-/** Never smaller than this, whatever the viewport. Below it she is a sticker. */
-const MIN_HEIGHT = 240;
-/**
- * Share of viewport height she aims for.
- *
- * Nudged 0.40 -> 0.44 so she is unambiguously the focal point. The cap below
- * still reserves the bubble and controls, so this cannot crowd them: on an
- * 800pt viewport she asks for 352 against a cap of 540.
- */
-const TARGET_FRACTION = 0.44;
-/** Floor on the share, so a very short window still gives her presence. */
-const MIN_FRACTION = 0.38;
 /** Reserved under her for the bubble and controls, so both always fit. */
 const BUBBLE_RESERVE = 260;
 /** Idle bob travel. Small enough to read as breathing, not floating. */
 const BOB_PX = 4;
-
-export interface GuidePlacement {
-  /** Figure height in px, already clamped to the viewport. */
-  height: number;
-  /** 'left' | 'right' when beside a target, 'centre' for a solo stop. */
-  side: 'left' | 'right' | 'centre';
-  /**
-   * Which edge she is anchored to.
-   *
-   * Bottom by default — a character standing low reads as being in the room
-   * with you. She moves to the top when the highlighted region is itself low
-   * (the tab bar and the assistant launcher are both bottom-anchored), because
-   * standing on the thing she is presenting is worse than standing anywhere.
-   */
-  anchor: 'top' | 'bottom';
-}
-
-/**
- * Where the guide stands for a given stop.
- *
- * Exported and pure so the overlay can lay the bubble out against the same
- * answer rather than recomputing a second, subtly different one.
- */
-export function placeGuide(
-  screen: { width: number; height: number },
-  insets: { top: number; bottom: number },
-  hole: LayoutRectangle | null,
-): GuidePlacement {
-  const usable = screen.height - insets.top - insets.bottom;
-
-  /* Target 40% of the viewport, never under 35% or MIN_HEIGHT, and never so
-     tall that the bubble and controls below her stop fitting. The cap is what
-     keeps "always fully visible" true on a short window rather than aspirational. */
-  const wanted = Math.max(usable * TARGET_FRACTION, usable * MIN_FRACTION, MIN_HEIGHT);
-  const cap = Math.max(MIN_HEIGHT, usable - BUBBLE_RESERVE);
-  const height = Math.min(wanted, cap);
-
-  if (!hole) return { height, side: 'centre', anchor: 'bottom' };
-
-  /* Beside the target, on whichever side has more room. Same rule the card
-     already uses vertically, applied horizontally. */
-  const roomLeft = hole.x;
-  const roomRight = screen.width - (hole.x + hole.width);
-  const side = roomRight >= roomLeft ? 'right' : 'left';
-
-  /* If the target sits in the lower half she cannot also stand there. */
-  const holeCentreY = hole.y + hole.height / 2;
-  const anchor = holeCentreY > insets.top + usable * 0.55 ? 'top' : 'bottom';
-
-  return { height, side, anchor };
-}
 
 export function TourGuide({
   pose,
@@ -221,55 +165,65 @@ export function TourGuide({
     return () => anim.stop();
   }, [cheer, reduceMotion, pose]);
 
-  /* Flip so she gestures INWARD, toward the highlighted region. The art is
-     drawn pointing to the character's own left, so standing on the right means
-     mirroring her. See `config/tourGuideArt`. */
-  const flipped = placement.side === 'right';
+  /* Solved in `placeGuide` against the target's position — see the note on
+     `flipped` there for which way the unflipped art points. */
+  const flipped = placement.flipped;
 
   const scale = Animated.add(
     enter,
     cheer.interpolate({ inputRange: [0, 1], outputRange: [0, 0.06] }),
   );
 
-  const alignment =
-    placement.side === 'left'
-      ? styles.alignStart
-      : placement.side === 'right'
-        ? styles.alignEnd
-        : styles.alignCentre;
+  const { figure, bubble } = placement;
 
   return (
-    <View style={[styles.root, alignment]} pointerEvents="box-none">
-      {/* Figure. pointerEvents none throughout — she is scenery, and a tap on
-          her must fall through to the scrim rather than doing nothing. */}
-      <Animated.View
-        pointerEvents="none"
-        style={{
-          height: placement.height,
-          opacity: enter,
-          transform: [
-            { scale },
-            { translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -BOB_PX] }) },
-            ...(flipped ? [{ scaleX: -1 }] : []),
-          ],
-        }}
-      >
-        {art ? (
-          <Image
-            source={art}
-            style={{ height: placement.height, aspectRatio: 3 / 4 }}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
-        ) : null}
-      </Animated.View>
+    /* A full-screen box the two children position themselves inside, so both
+       read from the same solved geometry and neither can drift onto the
+       target. `box-none` keeps the empty space click-through. */
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {/* Figure. Never interactive — a tap on her falls through to the scrim
+          rather than doing nothing. Dropped entirely on the bubbleOnly rung. */}
+      {figure ? (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: figure.x,
+            top: figure.y,
+            width: figure.width,
+            height: figure.height,
+            opacity: enter,
+            transform: [
+              { scale },
+              { translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [0, -BOB_PX] }) },
+              ...(flipped ? [{ scaleX: -1 }] : []),
+            ],
+          }}
+        >
+          {art ? (
+            <Image
+              source={art}
+              style={{ width: '100%', height: '100%' }}
+              resizeMode="contain"
+              accessibilityIgnoresInvertColors
+            />
+          ) : null}
+        </Animated.View>
+      ) : null}
 
       {/* Bubble and controls. One card, so the buttons never separate from the
           voice that is asking you to press them. */}
-      <View style={styles.bubble}>
+      <View
+        style={[
+          styles.bubble,
+          { position: 'absolute', left: bubble.x, top: bubble.y, width: bubble.width },
+        ]}
+      >
         {/* Tail points up at her. Rotated square rather than a triangle glyph,
             so it takes the bubble's own border and background. */}
-        <View style={[styles.tail, alignment === styles.alignCentre ? styles.tailCentre : null]} />
+        {/* Points up at her. She is directly above the bubble by construction,
+            so the tail is centred rather than guessing a side. */}
+        <View style={[styles.tail, styles.tailCentre]} />
 
         <View style={styles.topRow}>
           <View style={styles.nameChip}>
@@ -315,14 +269,7 @@ export function TourGuide({
 }
 
 const styles = StyleSheet.create({
-  root: { width: '100%', gap: spacing.xs },
-  alignStart: { alignItems: 'flex-start' },
-  alignEnd: { alignItems: 'flex-end' },
-  alignCentre: { alignItems: 'center' },
-
   bubble: {
-    width: '100%',
-    maxWidth: 460,
     gap: spacing.sm,
     padding: spacing.lg,
     borderRadius: radius.card,
