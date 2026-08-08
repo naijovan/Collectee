@@ -43,6 +43,27 @@ export interface TourStop {
   /** Corner treatment for the cutout. `pill` for round targets. */
   shape?: 'rect' | 'pill';
   /**
+   * Stretch the cutout to the full screen width, ignoring the measured left and
+   * right edges. Vertical position and height are untouched.
+   *
+   * ── When this is right, and when it is wrong ──────────────────────────────
+   * For a target that IS a full-width band, the measured rect is the padded row
+   * inside it rather than the band itself, so the highlight stops short of both
+   * screen edges and reads as a floating box in the middle of a header. Explore
+   * is the case: both its anchors live inside `PinnedHeader`, which carries
+   * `paddingHorizontal: spacing.lg`, so the union comes back at x=16 with the
+   * ring landing 8pt inside each edge.
+   *
+   * It is WRONG for a target that is genuinely inset. The tab bar is a floating
+   * pill with real 14pt margins and the news digest is a card in a centred
+   * column; their measured rects are their actual shapes, and stretching those
+   * highlights would ring empty background beside the thing being pointed at.
+   * Both were checked — see the note in `TourOverlay`'s `fullBleedHole`.
+   *
+   * So this is opt-in per stop rather than a rule about wide targets.
+   */
+  fullBleed?: boolean;
+  /**
    * Present this target by LIFTING it above the overlay instead of cutting a
    * hole around it.
    *
@@ -137,6 +158,10 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       id: 'discover',
       route: '/explore',
       targetIds: ['explore-title', 'explore-chips'],
+      /* Both anchors sit inside `PinnedHeader`'s horizontal padding, so the
+         union is the padded row and not the header band it belongs to. The
+         band runs edge to edge, and so should the highlight. */
+      fullBleed: true,
       title: 'Find collectors like you',
       body:
         'Discover people with similar collections, games and interests.',

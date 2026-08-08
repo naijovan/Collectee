@@ -98,6 +98,34 @@ const HOLE_PAD = 8;
  * weaker half the time — so the glow simply sits at its strongest.
  */
 const GLOW_OPACITY = 0.34;
+
+/**
+ * Stretch a measured rect to the full screen width, for stops marked
+ * `fullBleed`. Vertical position and height are untouched.
+ *
+ * ── The `HOLE_PAD` inset is deliberate, not an oversight ──────────────────
+ * Everything downstream draws at `hole.x - HOLE_PAD` and `hole.width +
+ * HOLE_PAD * 2`, so returning `x: 0, width: screenW` would put the ring's own
+ * left and right borders 8pt OFF screen — a full-width band with no visible
+ * ends, which is not what "spans the full width" means to anyone looking at
+ * it. Insetting by exactly the pad here means the pad is added straight back,
+ * and the ring lands on 0 and `screenW` with both edges on screen.
+ *
+ * Applied to the hole rather than to the ring because the hole is shared: the
+ * four scrim panels, the glow and `placeGuide` all read it. Widening only the
+ * ring would draw a border over dimmed background on both flanks.
+ *
+ * ── Why this is not simply applied to every wide target ───────────────────
+ * Checked against the other two candidates and neither should have it. The tab
+ * bar has real 14pt margins and is a floating pill — its measured rect is its
+ * true shape. The news digest is a card inside a 720 column that is centred on
+ * a wide screen, so at 1280 a full-bleed ring would be nearly 600pt wider than
+ * the card it is pointing at. Both are correctly inset today.
+ */
+function fullBleedHole(rect: AnchorRect | null, screenW: number): AnchorRect | null {
+  if (!rect) return null;
+  return { ...rect, x: HOLE_PAD, width: Math.max(0, screenW - HOLE_PAD * 2) };
+}
 /** Gap between the hole and the card beside it. */
 const CARD_GAP = spacing.md;
 
@@ -218,6 +246,19 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
     [],
   );
 
+  /**
+   * Always-current screen width, for the present callback.
+   *
+   * That callback deliberately does NOT list `screenW` in its deps — it drives
+   * navigation and a settle timer, and re-creating it on every resize frame
+   * would re-present the stop mid-gesture. It reads the width through this ref
+   * instead, so `fullBleedHole` cannot stretch a rect to a width the window no
+   * longer has. The re-measure effect below has `screenW` in its deps properly
+   * and corrects anything this misses on the next tick.
+   */
+  const screenWRef = useRef(screenW);
+  screenWRef.current = screenW;
+
   const fade = useRef(new Animated.Value(1)).current;
 
   /**
@@ -318,7 +359,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
               `screen=${Math.round(screenW)}x${Math.round(screenH)}`,
             );
           }
-          setHole(rect);
+          setHole(target.fullBleed ? fullBleedHole(rect, screenWRef.current) : rect);
           setPhase('shown');
           Animated.timing(fade, {
             toValue: 1,
@@ -344,8 +385,9 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
       let rect = await measureUnion(stop.targetIds);
       if (!rect && stop.fallbackTargetIds) rect = await measureUnion(stop.fallbackTargetIds);
       if (!live) return;
+      const next = stop.fullBleed ? fullBleedHole(rect, screenW) : rect;
       // Only when it actually moved, so this is not a 2Hz re-render.
-      setHole((current) => (sameRect(current, rect) ? current : rect));
+      setHole((current) => (sameRect(current, next) ? current : next));
     };
 
     /* Once immediately, not only on the next tick.
