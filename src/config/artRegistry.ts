@@ -37,6 +37,9 @@ import type { ImageSourcePropType } from 'react-native';
 
 import type { GameTitle } from '@/types';
 
+import { DISPLAY_ART } from './displayArtRegistry';
+import type { DisplayArtSource } from './displayArtRegistry';
+
 /**
  * A render plus how it should sit in its box.
  *
@@ -50,26 +53,22 @@ export interface ArtEntry {
   /** Art description. Screen readers get this, not the filename. */
   alt: string;
   /**
-   * Optional pre-cropped renditions, for callers that know their aspect.
+   * Card-safe renditions, attached by `artFor` from `displayArtRegistry.ts`.
    *
-   * ⚠️ ADDED BY MARCUS 8 AUG TO UNBREAK MAIN — Jovan, this is yours, please
-   * confirm. `cards.tsx` on `a6731ca` reads `art.displaySource.wide` and
-   * `.squareCompact`, but the field was never added here, so `npm run
-   * typecheck` failed on origin/main with four errors. The registry-side half
-   * of that change appears not to have been pushed.
+   * The originals are authored at mixed aspects and drawn with `contain`, so a
+   * 16:9 card showing a square render letterboxes it — correct, and the black
+   * bars people keep reporting. These are pre-cropped at the four aspects the
+   * app actually renders and draw with `cover`.
    *
-   * Declared OPTIONAL and nothing populates it, which is deliberate: every
-   * call site already guards with `art.displaySource ? … : art.source`, so
-   * `undefined` means every render behaves exactly as it does today. This
-   * unbreaks the build without inventing a rendition pipeline. Populate it
-   * when the real one lands.
+   * History worth keeping: Marcus stubbed this field on 8 Aug to unbreak main,
+   * because `cards.tsx` read `displaySource.wide` while the registry half of
+   * that change sat uncommitted in a working tree. It compiled and populated
+   * nothing, so the bars came back. This is the real join.
+   *
+   * ⚠️ 3D and depth bakes must keep using `source` — a cropped rendition has
+   * had its edges cut, and those need the whole subject.
    */
-  displaySource?: {
-    /** Wide crop, for hero-sized surfaces. */
-    wide: ImageSourcePropType;
-    /** Square crop that stays sharp at 56-88px. */
-    squareCompact: ImageSourcePropType;
-  };
+  displaySource?: DisplayArtSource;
 }
 
 const portrait = (source: ImageSourcePropType, alt: string): ArtEntry => ({
@@ -542,7 +541,27 @@ export const ROOM_BACKDROPS: Record<string, ImageSourcePropType> = {
 
 /** The bundled render for an item, or null when it has none yet. */
 export function artFor(itemId: string): ArtEntry | null {
-  return (ART as Record<string, ArtEntry>)[itemId] ?? null;
+  const entry = (ART as Record<string, ArtEntry>)[itemId];
+  if (entry === undefined) return null;
+
+  /**
+   * Attach the card-safe renditions, when the item has them.
+   *
+   * This is the join that removes the black bars. The originals are authored
+   * at mixed aspects and rendered with `contain`, so a 16:9 card showing a
+   * square render letterboxes it — correct, and ugly. `DISPLAY_ART` holds
+   * pre-cropped versions at the four aspects the app actually renders, which
+   * `ItemArt` picks between by measured box, and those draw with `cover`.
+   *
+   * Merged here rather than baked into `ART` because `bake-display-art.ts`
+   * regenerates `displayArtRegistry.ts` wholesale — keeping the two files
+   * separate means a re-bake never touches hand-authored `alt` text or `fit`.
+   *
+   * ⚠️ 3D surfaces must keep using `source`. A cropped rendition has had its
+   * edges cut, and the mesh and depth bakes need the whole subject.
+   */
+  const display = DISPLAY_ART[itemId];
+  return display === undefined ? entry : { ...entry, displaySource: display };
 }
 
 /** Whether an item has a render. Lets a cover skip items that would be blocks. */

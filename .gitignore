@@ -82,3 +82,9 @@ assets/collectee/collectee-app-ready/images/
 # the pre-commit hook in `.git/hooks/pre-commit` is what covers that, and hooks
 # are local, so anyone cloning this repo needs their own copy.
 scratchpad/
+
+# Display-art bake INPUTS (~29MB). `scripts/bake-display-art.ts` reads these to
+# produce assets/collectee/display/, which IS committed because the app
+# requires it at build time. The inputs are not needed to run or ship the app,
+# and re-baking is a local step.
+assets/collectee/display-sources/

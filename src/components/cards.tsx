@@ -35,6 +35,7 @@ import {
   rarityColors,
   rarityTreatments,
   scrim,
+  visibilityColors,
   spacing,
   typography,
 } from '@/theme/theme';
@@ -288,7 +289,7 @@ export function CollectionCard({
                 as a caption floating between two cards rather than a property
                 of the one above it. */}
             {showVisibility ? (
-              <Text style={styles.metaVisibility}>
+              <Text style={[styles.metaVisibility, { color: visibilityColors[collection.visibility] }]}>
                 {VISIBILITY_LABELS[collection.visibility]}
               </Text>
             ) : null}
