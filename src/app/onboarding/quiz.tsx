@@ -415,7 +415,7 @@ function IntensityStep({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: {
     padding: spacing.xl,
     paddingBottom: spacing.xxl,
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   /* Matches the step column above it, so the CTA lines up with the content
      rather than stretching across a desktop browser window. */

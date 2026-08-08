@@ -47,8 +47,7 @@ import {
   rarityTreatments,
   scrim,
   spacing,
-  typography,
-} from '@/theme/theme';
+  typography, accentLink } from '@/theme/theme';
 
 function ResolvedItemImage({
   source,
@@ -866,7 +865,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { ...typography.sectionHeader, color: colors.textPrimary },
   sectionTitleProminent: { fontSize: 22, lineHeight: 28, letterSpacing: 0 },
-  seeAll: { ...typography.meta, color: colors.accent },
+  /* Text buttons take the gradient's violet end — see `accentLink`. */
+  seeAll: { ...typography.meta, color: accentLink },
 
   chipRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   chip: {

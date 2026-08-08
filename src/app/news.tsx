@@ -367,7 +367,7 @@ export default function NewsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.lg },
   list: { gap: spacing.md },
   footnote: { ...typography.meta, color: colors.textTertiary },

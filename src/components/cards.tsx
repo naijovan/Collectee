@@ -986,13 +986,9 @@ const styles = StyleSheet.create({
   // Bigger and heavier than cardTitle: on a browse grid the collection name is
   // the thing being chosen between, so it should win the card outright.
   metaLeft: { flex: 1, gap: 2 },
-  metaName: {
-    ...typography.sectionHeader,
-    fontSize: 21,
-    lineHeight: 27,
-    fontFamily: fonts.display,
-    color: colors.textOnAccent,
-  },
+  /* The shared overlay treatment — bigger, tighter, and shadowed so it lifts
+     off the artwork instead of sinking into it. See `typography.overlayTitle`. */
+  metaName: { ...typography.overlayTitle, color: colors.textOnAccent },
   metaVisibility: { ...typography.meta, color: colors.textOnAccent, opacity: 0.75 },
   /** Counts stack right-aligned, clear of a long collection name. */
   metaCounts: { alignItems: 'flex-end', gap: 2 },

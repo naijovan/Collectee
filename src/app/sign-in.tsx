@@ -393,7 +393,7 @@ const MARK_SIZE = 76;
 const FACET = 34;
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
 
   wash: { position: 'absolute', left: 0, right: 0 },
   /* Low opacity because these sit under text. The colours are picked for hue,

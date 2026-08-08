@@ -174,6 +174,25 @@ export const accentGradient = {
  *
  * Only for controls that float. A glow on an in-layout button is noise.
  */
+/**
+ * Text buttons — "See all", "Change", "Clear", the stepper's back link.
+ *
+ * These have no fill to put a gradient in, so they take the ramp's END colour
+ * instead. React Native cannot gradient-fill text: the only routes are a
+ * masking library (a new dependency, which §13.1 says goes through chat first)
+ * or web-only `background-clip: text`, which would leave the label invisible on
+ * iOS and Android. Jovan's call, 8 Aug: take the violet, skip the dependency.
+ *
+ * Violet rather than the blue `from` end, deliberately. A borderless label in
+ * `accent` is indistinguishable from the old flat-blue button era; in violet it
+ * is visibly part of the same family as the gradient CTAs without pretending to
+ * be one of them.
+ *
+ * NOT for every accent-coloured word. Active step labels, the scan percentage
+ * and the active tab are state indicators, not buttons, and they keep `accent`.
+ */
+export const accentLink = '#A855F7';
+
 export const accentGlow = {
   shadowColor: '#9333EA',
   shadowOpacity: 0.55,
@@ -411,6 +430,40 @@ export const brand = {
   googleGreen: '#34A853',
 } as const;
 
+/**
+ * App background — a restrained "display shelf" field that sits behind screen
+ * content. It is intentionally quieter than the cards and item art: soft bands,
+ * edge light and a little material depth, never a hero image.
+ *
+ * These are rgba values because the component builds the background out of
+ * layered washes. They live here under the same rule as `scrim`: translucency is
+ * still a colour decision, so it belongs in the token file and nowhere else.
+ */
+export const appBackground = {
+  dark: {
+    base: DARK_PALETTE.background,
+    clear: 'rgba(47,107,255,0)',
+    topGlow: 'rgba(47,107,255,0.12)',
+    sideGlow: 'rgba(18,228,240,0.07)',
+    lowerGlow: 'rgba(245,165,36,0.045)',
+    shelfLine: 'rgba(255,255,255,0.06)',
+    shelfShadow: 'rgba(0,0,0,0.34)',
+    shelfGlow: 'rgba(47,107,255,0.075)',
+    shelfWarm: 'rgba(245,165,36,0.035)',
+  },
+  light: {
+    base: LIGHT_PALETTE.background,
+    clear: 'rgba(29,79,216,0)',
+    topGlow: 'rgba(29,79,216,0.055)',
+    sideGlow: 'rgba(15,157,99,0.04)',
+    lowerGlow: 'rgba(178,106,2,0.04)',
+    shelfLine: 'rgba(11,13,16,0.07)',
+    shelfShadow: 'rgba(11,13,16,0.045)',
+    shelfGlow: 'rgba(29,79,216,0.035)',
+    shelfWarm: 'rgba(178,106,2,0.025)',
+  },
+} as const;
+
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -462,6 +515,32 @@ export const typography = {
    * `{ ...typography.meta, ...typography.numeric }`.
    */
   numeric: { fontVariant: ['tabular-nums'] as 'tabular-nums'[] },
+  /**
+   * The name of a collection or a showroom, set over its own artwork.
+   *
+   * Bigger and tighter than `sectionHeader`, and carrying a shadow. All three
+   * do the same job: these titles sit ON a picture, and plain white type at 21
+   * disappeared into every light crop and read as a caption rather than as the
+   * name of the thing. A grid of them looked like a list of files.
+   *
+   * The shadow is the load-bearing part. A scrim alone cannot save a light
+   * label over a bright render — the mosaics with pale sky in them were exactly
+   * that case — and a soft dark halo tight to the glyphs fixes it without
+   * darkening the art further.
+   *
+   * `-0.4` tracking rather than `sectionHeader`'s `-0.2`: at 23 the display
+   * face opens up, and the tighter set is what keeps a long collection name on
+   * one line.
+   */
+  overlayTitle: {
+    fontSize: 23,
+    lineHeight: 28,
+    fontFamily: fonts.display,
+    letterSpacing: -0.4,
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
 } as const;
 
 /** Was hardcoded as `0.5` in five files. Uppercase eyebrow text wants it. */
@@ -511,6 +590,7 @@ export const theme = {
   rarityColors,
   rarityTreatments,
   rarityGlyphs,
+  appBackground,
   gameAccents,
   spacing,
   radius,

@@ -35,13 +35,14 @@ import { Stack, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { StyleSheet, View } from 'react-native';
 
 import { AppProvider, useApp } from '@/state/AppContext';
 import { AssistantDockProvider } from '@/state/AssistantDock';
 import { TourAnchorsProvider } from '@/state/TourAnchors';
 import { ThemeModeProvider, useThemeMode } from '@/theme/ThemeMode';
 import { installWebChrome } from '@/theme/webChrome';
-import { AssistantButton, TourOverlay } from '@/components';
+import { AppBackground, AssistantButton, TourOverlay } from '@/components';
 import { colors, fonts } from '@/theme/theme';
 
 /* Hold the native splash until the fonts resolve, so the first frame is already
@@ -82,84 +83,94 @@ export default function RootLayout() {
     <ThemeModeProvider>
       <AppProvider>
         <AssistantDockProvider>
-        <TourAnchorsProvider>
-        <ThemedChrome />
-        <FirstRunGate />
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.textPrimary,
-          headerTitleStyle: { fontFamily: fonts.display, fontSize: 17 },
-          headerShadowVisible: false,
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        {/* The first run draws its own full-bleed compositions — a native
-            header over the sign-in screen would put a back chevron on the
-            app's front door, pointing at nothing. */}
-        <Stack.Screen name="sign-in" options={{ title: 'Sign in', headerShown: false }} />
-        {/* The quiz draws its own StepperHeader, the same call the three build
-            flows make — a native header on top is two back buttons. */}
-        <Stack.Screen
-          name="onboarding/quiz"
-          options={{ title: 'Preferences', headerShown: false }}
-        />
-        <Stack.Screen
-          name="create"
-          options={{ presentation: 'modal', title: 'Create', headerShown: false }}
-        />
-        {/* The three build flows each draw their own nav row + stepper. A native
-            header on top of that is two back buttons and two titles stacked —
-            the flow chrome wins because it carries the step state. */}
-        <Stack.Screen name="import" options={{ title: 'Import inventory', headerShown: false }} />
-        <Stack.Screen name="news" options={{ title: 'Gaming updates' }} />
-        <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
-        <Stack.Screen name="following" options={{ title: 'Following' }} />
-        <Stack.Screen name="link-account" options={{ title: 'Connect account' }} />
-        {/* Header matches the "Reports" link that leads here — a viewer should
-            not have to learn that "queue" and "reports" are the same place. */}
-        <Stack.Screen name="moderation" options={{ title: 'Reports' }} />
-        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-        <Stack.Screen name="connections" options={{ title: 'Connections' }} />
-        <Stack.Screen name="inventory" options={{ title: 'Inventory' }} />
-        <Stack.Screen name="diagnostics" options={{ title: 'Foundation checks' }} />
+          <TourAnchorsProvider>
+            <View style={styles.appShell}>
+              <AppBackground />
+              <ThemedChrome />
+              <FirstRunGate />
+              <Stack
+                screenOptions={{
+                  headerStyle: { backgroundColor: 'transparent' },
+                  headerTintColor: colors.textPrimary,
+                  headerTitleStyle: { fontFamily: fonts.display, fontSize: 17 },
+                  headerShadowVisible: false,
+                  contentStyle: { backgroundColor: 'transparent' },
+                }}
+              >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                {/* The first run draws its own full-bleed compositions — a native
+                    header over the sign-in screen would put a back chevron on the
+                    app's front door, pointing at nothing. */}
+                <Stack.Screen name="sign-in" options={{ title: 'Sign in', headerShown: false }} />
+                {/* The quiz draws its own StepperHeader, the same call the three build
+                    flows make — a native header on top is two back buttons. */}
+                <Stack.Screen
+                  name="onboarding/quiz"
+                  options={{ title: 'Preferences', headerShown: false }}
+                />
+                <Stack.Screen
+                  name="create"
+                  options={{ presentation: 'modal', title: 'Create', headerShown: false }}
+                />
+                {/* The three build flows each draw their own nav row + stepper. A native
+                    header on top of that is two back buttons and two titles stacked —
+                    the flow chrome wins because it carries the step state. */}
+                <Stack.Screen
+                  name="import"
+                  options={{ title: 'Import inventory', headerShown: false }}
+                />
+                <Stack.Screen name="news" options={{ title: 'Gaming updates' }} />
+                <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+                <Stack.Screen name="following" options={{ title: 'Following' }} />
+                <Stack.Screen name="link-account" options={{ title: 'Connect account' }} />
+                {/* Header matches the "Reports" link that leads here — a viewer should
+                    not have to learn that "queue" and "reports" are the same place. */}
+                <Stack.Screen name="moderation" options={{ title: 'Reports' }} />
+                <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+                <Stack.Screen name="connections" options={{ title: 'Connections' }} />
+                <Stack.Screen name="inventory" options={{ title: 'Inventory' }} />
+                <Stack.Screen name="diagnostics" options={{ title: 'Foundation checks' }} />
 
-        {/* Dynamic routes need an explicit title or the header prints "room/[id]". */}
-        <Stack.Screen
-          name="collection/new"
-          options={{ title: 'New collection', headerShown: false }}
-        />
-        <Stack.Screen name="collection/[id]" options={{ title: 'Collection' }} />
-        <Stack.Screen name="room/intro" options={{ title: 'Create Showroom' }} />
-        <Stack.Screen name="room/new" options={{ title: 'New room', headerShown: false }} />
-        <Stack.Screen name="room/[id]" options={{ title: 'Room' }} />
-        {/* The immersive room draws its own overlay controls edge to edge, so a
-            stack header would sit on top of the scene. */}
-        <Stack.Screen
-          name="room/immersive/[id]"
-          options={{ title: 'Room', headerShown: false }}
-        />
-        <Stack.Screen name="collector/[id]" options={{ title: 'Collector' }} />
-        <Stack.Screen name="community/[id]" options={{ title: 'Community' }} />
-        <Stack.Screen name="thread/[id]" options={{ title: 'Thread' }} />
-        <Stack.Screen name="article/[id]" options={{ title: 'Article' }} />
-        </Stack>
-        {/* One instance for the whole app: the launcher and the panel it
-            opens, fixed to the viewport rather than duplicated into each
-            header. It hides itself on the immersive showroom, which owns its
-            full viewport. */}
-        <AssistantButton />
-        {/* Last in the tree so it draws over the assistant launcher too — the
-            fifth stop is about that button, and a tour card underneath the
-            thing it is describing is worse than no card. */}
-        <FirstRunTour />
-        </TourAnchorsProvider>
+                {/* Dynamic routes need an explicit title or the header prints "room/[id]". */}
+                <Stack.Screen
+                  name="collection/new"
+                  options={{ title: 'New collection', headerShown: false }}
+                />
+                <Stack.Screen name="collection/[id]" options={{ title: 'Collection' }} />
+                <Stack.Screen name="room/intro" options={{ title: 'Create Showroom' }} />
+                <Stack.Screen name="room/new" options={{ title: 'New room', headerShown: false }} />
+                <Stack.Screen name="room/[id]" options={{ title: 'Room' }} />
+                {/* The immersive room draws its own overlay controls edge to edge, so a
+                    stack header would sit on top of the scene. */}
+                <Stack.Screen
+                  name="room/immersive/[id]"
+                  options={{ title: 'Room', headerShown: false }}
+                />
+                <Stack.Screen name="collector/[id]" options={{ title: 'Collector' }} />
+                <Stack.Screen name="community/[id]" options={{ title: 'Community' }} />
+                <Stack.Screen name="thread/[id]" options={{ title: 'Thread' }} />
+                <Stack.Screen name="article/[id]" options={{ title: 'Article' }} />
+              </Stack>
+              {/* One instance for the whole app: the launcher and the panel it
+                  opens, fixed to the viewport rather than duplicated into each
+                  header. It hides itself on the immersive showroom, which owns its
+                  full viewport. */}
+              <AssistantButton />
+              {/* Last in the tree so it draws over the assistant launcher too — the
+                  fifth stop is about that button, and a tour card underneath the
+                  thing it is describing is worse than no card. */}
+              <FirstRunTour />
+            </View>
+          </TourAnchorsProvider>
         </AssistantDockProvider>
       </AppProvider>
     </ThemeModeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  appShell: { flex: 1 },
+});
 
 /**
  * Keeps the route in step with `firstRunStage` — the §16 Q8 flow, in one place.

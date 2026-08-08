@@ -410,7 +410,7 @@ export default function CollectionsScreen() {
           {collectionIdeas.length > 0 ? (
             <View style={styles.ideaGroup}>
               <View style={styles.ideaGroupHeader}>
-                <SectionHeader title="Ready for a collection" />
+                <SectionHeader title="Ready for a Collection" />
                 <Text style={styles.muted}>
                   Good groupings, but short on verified items — these list in 2D until you
                   connect a game account.
@@ -554,7 +554,7 @@ function RoomCta({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.lg },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, justifyContent: 'space-between' },

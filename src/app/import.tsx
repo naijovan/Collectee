@@ -85,7 +85,7 @@ import {
 } from '@/services';
 import type { PickedImage } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import { colors, radius, spacing, typography, accentLink } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { GameTitle, Item, ScanDetection, ScanResolution, ScanResult } from '@/types';
 
@@ -1298,7 +1298,7 @@ export default function ImportScreen() {
           ) : null}
 
           {/* The import → collection link in the never-cut chain (§14). */}
-          <Text style={styles.label}>Start organising your items</Text>
+          <Text style={styles.label}>Start Organising Your Items</Text>
           <Text style={styles.footnote}>
             Based on what you just imported. Each one is a collection you could make right now —
             the art below is what it would look like.
@@ -2017,7 +2017,7 @@ function NeedsReviewCard({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.md },
   stageBody: { gap: spacing.md },
   block: { gap: spacing.md },
@@ -2057,7 +2057,7 @@ const styles = StyleSheet.create({
   footnote: { ...typography.meta, color: colors.textTertiary },
   warn: { ...typography.meta, color: colors.warning },
   sectionTitle: { ...typography.cardTitle, color: colors.textPrimary },
-  seeAll: { ...typography.meta, color: colors.accent },
+  seeAll: { ...typography.meta, color: accentLink },
   seeAllRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 
   // Upload
@@ -2217,7 +2217,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
   },
-  change: { ...typography.meta, color: colors.accent },
+  change: { ...typography.meta, color: accentLink },
 
   // Scan
   /**

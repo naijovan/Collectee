@@ -156,7 +156,7 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.sm },
 
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

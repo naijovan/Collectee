@@ -230,7 +230,7 @@ export default function ExploreScreen() {
 
       {!busy && tab === 'Collectors' && matchState !== 'unverified-only' ? (
         <View style={styles.list}>
-          <SectionHeader title="Collectors you may like" />
+          <SectionHeader title="Collectors You May Like" />
           {collectors.length === 0 ? (
             <Text style={styles.muted}>
               No collectors share a verified item with you yet.
@@ -270,7 +270,7 @@ export default function ExploreScreen() {
 
       {!busy && tab === 'Communities' && mine.length > 0 ? (
         <View style={styles.list}>
-          <SectionHeader title="Your communities" />
+          <SectionHeader title="Your Communities" />
           {/* Two across, like the collection grid — communities and collections
               are both browsable tiles and should not be two tiers of content. */}
           <View style={styles.communityGrid}>
@@ -292,7 +292,7 @@ export default function ExploreScreen() {
 
       {!busy && tab === 'Communities' ? (
         <View style={styles.list}>
-          <SectionHeader title="Communities for you" />
+          <SectionHeader title="Communities for You" />
           <View style={styles.communityGrid}>
           {communities.map(({ community, reason }) => {
             const isMember = joined.has(community.id);
@@ -347,7 +347,7 @@ export default function ExploreScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.lg },
   title: { ...typography.screenTitle, color: colors.textPrimary },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

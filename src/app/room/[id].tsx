@@ -350,7 +350,7 @@ export default function RoomScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: {
     width: '100%',
     maxWidth: 552,

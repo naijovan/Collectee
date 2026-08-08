@@ -145,6 +145,7 @@ export const VISIBILITY_LABELS: Record<Visibility, string> = {
   private: 'Private',
 };
 
+
 export const VISIBILITY_DESCRIPTIONS: Record<Visibility, string> = {
   public: 'Anyone can find and view this collection',
   unlisted: 'Only people with the link can view it',

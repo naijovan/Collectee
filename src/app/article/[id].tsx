@@ -150,7 +150,7 @@ export default function ArticleScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.md },
 
   overline: { ...typography.meta, color: colors.accent },

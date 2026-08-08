@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import {
@@ -48,6 +48,7 @@ import type { Collection, FlagReason, Item, User } from '@/types';
 
 export default function CollectorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { width: viewportWidth } = useWindowDimensions();
   const router = useRouter();
   const { viewerId } = useApp();
 
@@ -245,7 +246,10 @@ export default function CollectorScreen() {
       ) : (
         <View style={styles.cardGrid}>
           {collections.map((entry) => (
-            <View key={entry.collection.id} style={styles.collectionCell}>
+            <View
+              key={entry.collection.id}
+              style={[styles.collectionCell, viewportWidth < 600 && styles.collectionCellPhone]}
+            >
               <CollectionCard
                 collection={entry.collection}
                 owner={user}
@@ -278,7 +282,7 @@ export default function CollectorScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.md },
 
   identity: { alignItems: 'center', gap: spacing.xs },
@@ -301,6 +305,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
   collectionCell: { width: '48%', gap: spacing.xs },
+  collectionCellPhone: { width: '100%' },
   underReview: { ...typography.meta, color: colors.warning, paddingLeft: spacing.xs },
 
   modRow: { flexDirection: 'row', gap: spacing.xl, justifyContent: 'center' },

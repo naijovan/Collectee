@@ -23,6 +23,7 @@ export {
   timeAgo,
 } from './cards';
 export { AvatarPicker } from './AvatarPicker';
+export { AppBackground } from './AppBackground';
 export { CollectionCoverMosaic } from './CollectionCoverMosaic';
 export {
   Avatar,

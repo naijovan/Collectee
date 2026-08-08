@@ -222,7 +222,7 @@ export default function ImmersiveRoomScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
 
   /** Drags fall through to the scene; only the controls themselves take touches.
       Without this the whole room becomes unlookable. */
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   missingText: { ...typography.body, color: colors.textSecondary },
   link: { ...typography.meta, color: colors.accent },

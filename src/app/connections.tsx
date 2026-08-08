@@ -95,7 +95,7 @@ export default function ConnectionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.md },
 
   list: { gap: spacing.sm },
