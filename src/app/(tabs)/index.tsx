@@ -830,8 +830,27 @@ function RoomThumb({ themeId, style }: { themeId: string; style?: StyleProp<View
   );
 }
 
+/**
+ * Singapore time, not the device's.
+ *
+ * `new Date().getHours()` reads whatever timezone the machine is set to, which
+ * is right only by luck. This is judged in Singapore, may well be demoed from a
+ * laptop that never left another timezone, and is hosted on Vercel — so the
+ * greeting could have said "Good evening" over morning coffee. Pinning it to
+ * `Asia/Singapore` makes it correct wherever it runs.
+ *
+ * `hourCycle: 'h23'` rather than `hour12: false`: the latter renders midnight
+ * as "24" in several locales, and 24 is not less than 12, so the small hours
+ * would have greeted you with "Good evening".
+ */
+const SG_HOUR = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Singapore',
+  hour: 'numeric',
+  hourCycle: 'h23',
+});
+
 function greeting(): string {
-  const hour = new Date().getHours();
+  const hour = Number(SG_HOUR.format(new Date()));
   if (hour < 12) return 'Good morning';
   if (hour < 18) return 'Good afternoon';
   return 'Good evening';

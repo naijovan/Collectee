@@ -26,6 +26,7 @@ import {
   AvatarPicker,
   CollectionCard,
   EmptyState,
+  PinnedHeader,
   useHoverLift,
   ItemArt,
   ItemCard,
@@ -36,6 +37,7 @@ import {
 import { headlineItem } from '@/domain/collections';
 import { intensityOption } from '@/domain/onboarding';
 import { useDragScroll } from '@/hooks/useDragScroll';
+import { useScrolledPast } from '@/components/PinnedHeader';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, inventoryService, roomService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
@@ -68,6 +70,7 @@ export default function ProfileScreen() {
     inventory,
     intensity,
     mode,
+    accountDetails,
     chooseAvatar,
     createAccount,
     refreshInventory,
@@ -88,6 +91,9 @@ export default function ProfileScreen() {
   }
 
   const scrollRef = useTopOnFocus();
+  /* Drives the header's frosted backdrop — transparent at the top of the page,
+     fading in once it has something to sit over. Same as the other tabs. */
+  const { scrolled, scrollProps } = useScrolledPast();
   /* Click-and-drag panning for the inventory rail. Web-only; native pans on
      touch already. */
   const inventoryRail = useDragScroll<FlatList>();
@@ -164,10 +170,37 @@ export default function ProfileScreen() {
   }, [viewerId, inventory.length]);
 
   return (
+    <View style={styles.screen}>
+      {/*
+        Profile was the one tab with no header — it opened straight onto a face,
+        which left it as the only screen where the brand mark and the page title
+        were missing.
+
+        Settings moves up here with it. It was floating top-right of the
+        identity block, absolutely positioned over the content, which is exactly
+        the corner a real header occupies — so the two were competing for the
+        same spot and the loser was whichever rendered second.
+      */}
+      <PinnedHeader scrolled={scrolled}>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>Your Profile</Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            hitSlop={10}
+            onPress={() => router.push('/settings')}
+            style={({ pressed }) => [styles.settings, pressed && { opacity: 0.7 }]}
+          >
+            <Text style={styles.settingsGlyph}>⚙</Text>
+          </Pressable>
+        </View>
+      </PinnedHeader>
+
     <ScrollView
       ref={scrollRef}
       style={styles.screen}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      contentContainerStyle={styles.content}
+      {...scrollProps}
     >
       <View style={styles.identity}>
         <Avatar
@@ -178,6 +211,18 @@ export default function ProfileScreen() {
         />
         <Text style={styles.name}>{viewer?.displayName ?? '—'}</Text>
         <Text style={styles.muted}>@{viewer?.handle ?? '—'}</Text>
+        {/* What sign-up collected and `User` has no room for — age and email
+            are session state, not schema (§12.3). Only rendered when they were
+            actually given: both are optional at sign-up, and printing an empty
+            row would look like the account failed to save rather than like the
+            question was skipped. */}
+        {accountDetails?.email || accountDetails?.age ? (
+          <Text style={styles.muted}>
+            {[accountDetails.email, accountDetails.age ? `Age ${accountDetails.age}` : '']
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+        ) : null}
         {/* Quiz step 3, and the only place it surfaces. It is self-reported
             flavour — nothing is gated on it — but if it appeared nowhere the
             quiz would be asking a question with no answer, which is exactly
@@ -194,6 +239,12 @@ export default function ProfileScreen() {
             {pickerOpen ? 'Done' : 'Change avatar'}
           </Text>
         </Pressable>
+        {/* Under the avatar control, which is where the identity block ends and
+            the account's own words begin. Absent rather than placeholdered when
+            empty — a bio is optional at sign-up, and an empty quote mark would
+            read as a field that failed to load. */}
+        {viewer?.bio ? <Text style={styles.bio}>{viewer.bio}</Text> : null}
+
         {intensity ? (
           <View style={styles.intensityPill}>
             <Text style={styles.intensityText}>{intensityOption(intensity).profileFlavour}</Text>
@@ -246,17 +297,6 @@ export default function ProfileScreen() {
       */}
       {mode === 'guest' ? null : (
         <>
-        {/* Top-right of the identity block: settings changes who you are, so it
-            belongs on the screen that shows it rather than floating app-wide. */}
-        <Pressable
-          accessibilityLabel="Settings"
-          hitSlop={10}
-          onPress={() => router.push('/settings')}
-          style={({ pressed }) => [styles.settings, pressed && { opacity: 0.7 }]}
-        >
-          <Text style={styles.settingsGlyph}>⚙</Text>
-        </Pressable>
-
         <View style={styles.stats}>
           <Stat
             label="Items"
@@ -476,6 +516,7 @@ export default function ProfileScreen() {
 
       <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
+    </View>
   );
 }
 
@@ -595,6 +636,8 @@ const styles = StyleSheet.create({
   },
   devLabel: { ...typography.cardTitle, color: colors.textPrimary },
 
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTitle: { ...typography.screenTitle, color: colors.textPrimary },
   settings: {
     position: 'absolute',
     top: spacing.md,

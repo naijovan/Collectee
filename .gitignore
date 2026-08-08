@@ -93,3 +93,9 @@ assets/collectee/display-sources/
 # 51MB that already exists one directory over in assets/collectee/, so it is
 # generated rather than committed. Rebuild with `npm run build:demo`.
 demo/
+
+# Model reference frames — the multi-angle stills the character meshes were
+# built from. 20MB of INPUT: nothing in src/ requires them, the .glb outputs
+# are what ships, and the repo already keeps other bake sources out for the
+# same reason. Re-add them here only if a bake ever needs to run in CI.
+assets/collectee/character-references/

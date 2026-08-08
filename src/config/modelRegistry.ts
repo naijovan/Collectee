@@ -41,8 +41,13 @@ export const ITEM_MODELS: Record<string, number> = {
   'codm-dlq33-lightbringer': require('../../assets/collectee/models/weapons/codm-dlq33-lightbringer.glb'),
   'codm-drh-cerberus': require('../../assets/collectee/models/weapons/codm-drh-cerberus.glb'),
   'codm-fennec-ascended': require('../../assets/collectee/models/weapons/codm-fennec-ascended.glb'),
+  'codm-ghost-nightfall': require('../../assets/collectee/models/characters/codm-ghost-nightfall.glb'),
   'codm-qq9-diavolo': require('../../assets/collectee/models/weapons/codm-qq9-diavolo.glb'),
   'mlbb-gusion-cyber-faust': require('../../assets/collectee/models/characters/mlbb-gusion-cyber-faust.glb'),
+  'mlbb-lightborn-defender': require('../../assets/collectee/models/characters/mlbb-lightborn-defender.glb'),
+  'mlbb-neon-ronin': require('../../assets/collectee/models/characters/mlbb-neon-ronin.glb'),
+  'mlbb-radiant-huntress': require('../../assets/collectee/models/characters/mlbb-radiant-huntress.glb'),
+  'mlbb-slipstream-pilot': require('../../assets/collectee/models/characters/mlbb-slipstream-pilot.glb'),
   'val-elderflame-dagger': require('../../assets/collectee/models/weapons/val-elderflame-dagger.glb'),
   'val-elderflame-operator': require('../../assets/collectee/models/weapons/val-elderflame-operator.glb'),
   'val-elderflame-vandal': require('../../assets/collectee/models/weapons/val-elderflame-vandal.glb'),
@@ -77,16 +82,30 @@ const ITEM_MODEL_TEXTURES: Record<string, number> = {
   'val-voidglass-blade': require('../../assets/collectee/model-inputs/verified-weapons/val-voidglass-blade.png'),
 };
 
+const CHARACTER_MODEL_IDS = new Set<string>([
+  'codm-ghost-nightfall',
+  'mlbb-gusion-cyber-faust',
+  'mlbb-lightborn-defender',
+  'mlbb-neon-ronin',
+  'mlbb-radiant-huntress',
+  'mlbb-slipstream-pilot',
+]);
+
 /**
  * Generated PBR models own their complete material. Legacy depth-baked models
  * only contain geometry/UVs and still need the 2D item render projected onto
  * them by `CollectibleGLTF`.
  */
-const EMBEDDED_MATERIAL_MODELS = new Set<string>(['mlbb-gusion-cyber-faust']);
+const EMBEDDED_MATERIAL_MODELS = new Set<string>(CHARACTER_MODEL_IDS);
 
 /** The bundled mesh for an item, or null when it has none yet. */
 export function modelFor(itemId: string): number | null {
   return ITEM_MODELS[itemId] ?? null;
+}
+
+/** Whether a real model should use character/hero framing rather than weapon framing. */
+export function modelIsCharacter(itemId: string): boolean {
+  return CHARACTER_MODEL_IDS.has(itemId);
 }
 
 /** Whether the model should retain the textures and PBR maps inside its GLB. */

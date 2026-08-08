@@ -27,7 +27,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarPicker, PrimaryButton, StepperHeader } from '@/components';
@@ -35,11 +35,12 @@ import { FEATURES } from '@/config/features';
 import { INTENSITY_OPTIONS, deriveTasteChips } from '@/domain/onboarding';
 import type { CollectorIntensity, TasteChip } from '@/domain/onboarding';
 import * as haptics from '@/lib/haptics';
-import { catalogueService, newsService } from '@/services';
+import { catalogueService, newsService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
+import type { AccountDetails } from '@/state/AppContext';
 import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
 import type { GameTitle } from '@/types';
-import { colors, interaction, radius, spacing, typography } from '@/theme/theme';
+import { colors, fonts, interaction, radius, spacing, typography } from '@/theme/theme';
 
 /**
  * The one-line pitch under each game card. Not from the catalogue — these are
@@ -53,7 +54,7 @@ const GAME_BLURBS: Record<GameTitle, string> = {
 
 export default function QuizScreen() {
   const insets = useSafeAreaInsets();
-  const { viewerId, completeQuiz, chooseAvatar } = useApp();
+  const { viewerId, completeQuiz, chooseAvatar, setAccountDetails } = useApp();
 
   /* Step 2 only exists when the feed it feeds exists. Building the list here
      rather than branching at render keeps the stepper honest — it says "2 of 2"
@@ -67,13 +68,8 @@ export default function QuizScreen() {
   const steps = useMemo(
     () =>
       FEATURES.news
-        ? ([
-            'Games you play',
-            'Pick a face',
-            'What you collect',
-            'How you collect',
-          ] as const)
-        : (['Games you play', 'Pick a face', 'How you collect'] as const),
+        ? (['Your details', 'Games you play', 'What you collect', 'How you collect'] as const)
+        : (['Your details', 'Games you play', 'How you collect'] as const),
     [],
   );
 
@@ -83,6 +79,23 @@ export default function QuizScreen() {
   const [picked, setPicked] = useState<string[]>([]);
   const [intensity, setIntensity] = useState<CollectorIntensity | null>(null);
   const [avatarId, setAvatarId] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [handle, setHandle] = useState('');
+  /**
+   * Whether the typed handle belongs to someone already.
+   *
+   * `VIEWER_ID` is excluded: a member is overlaying the demo account, so its
+   * own seeded handle is not a collision — without that exception the very
+   * first suggestion a user is likely to try would be reported as taken by
+   * themselves.
+   */
+  const handleTaken = useMemo(
+    () => socialService.isHandleTaken(handle, viewerId),
+    [handle, viewerId],
+  );
+  const [age, setAge] = useState('');
+  const [email, setEmail] = useState('');
+  const [bio, setBio] = useState('');
 
   useEffect(() => {
     if (!FEATURES.news) return;
@@ -118,6 +131,7 @@ export default function QuizScreen() {
       picked: string[];
       intensity: CollectorIntensity | null;
       avatarId: string | null;
+      details: AccountDetails;
     }) => {
       /* An empty games answer is "no preference", not "unfollow everything".
          Someone who skips step 1 keeps the seeded three; writing an empty set
@@ -138,10 +152,15 @@ export default function QuizScreen() {
          alone rather than write a default over it. */
       if (keep.avatarId !== null) await chooseAvatar(keep.avatarId);
 
+      /* Name and handle overlay the seeded user; age and email stay in context.
+         Blank fields clear rather than write empties, so a half-filled form
+         leaves the seeded values alone. */
+      await setAccountDetails(keep.details);
+
       haptics.success();
       completeQuiz(keep.intensity);
     },
-    [chips, chooseAvatar, completeQuiz, viewerId],
+    [chips, chooseAvatar, setAccountDetails, completeQuiz, viewerId],
   );
 
   const isLast = step === steps.length - 1;
@@ -166,18 +185,32 @@ export default function QuizScreen() {
    */
   const { answered, requirement } = useMemo(() => {
     switch (steps[step]) {
+      case 'Your details':
+        return {
+          /* Name and handle only. Age and email are asked for because a real
+             sign-up asks, but neither drives anything in the app, and blocking
+             the front door on an email nobody sends to would be theatre. */
+          answered:
+            displayName.trim().length > 0 &&
+            handle.trim().length > 0 &&
+            handleTaken === false &&
+            age.length > 0 &&
+            avatarId !== null,
+          requirement:
+            handleTaken === true
+              ? `@${socialService.normaliseHandle(handle)} is taken — try another.`
+              : 'A name, a handle, an age and a face are needed to continue.',
+        };
       case 'Games you play':
         return {
           answered: games.length > 0,
           requirement: 'Pick at least one game to continue.',
         };
-      case 'Pick a face':
-        return { answered: avatarId !== null, requirement: 'Choose a face to continue.' };
       /* Optional by design — see above. */
       default:
         return { answered: true, requirement: '' };
     }
-  }, [steps, step, games, avatarId]);
+  }, [steps, step, games, avatarId, displayName, handle, handleTaken, age]);
 
   const advance = useCallback(
     (keep: {
@@ -185,6 +218,7 @@ export default function QuizScreen() {
       picked: string[];
       intensity: CollectorIntensity | null;
       avatarId: string | null;
+      details: AccountDetails;
     }) => {
       if (isLast) {
         void finish(keep);
@@ -196,7 +230,7 @@ export default function QuizScreen() {
     [finish, isLast],
   );
 
-  const answers = { games, picked, intensity, avatarId };
+  const answers = { games, picked, intensity, avatarId, details: { displayName, handle, age, email, bio } };
   const label = steps[step];
 
   return (
@@ -212,12 +246,26 @@ export default function QuizScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {label === 'Games you play' ? (
-          <GamesStep selected={games} onToggle={setGames} />
+        {label === 'Your details' ? (
+          <DetailsStep
+            displayName={displayName}
+            onDisplayName={setDisplayName}
+            handle={handle}
+            onHandle={setHandle}
+            age={age}
+            onAge={setAge}
+            email={email}
+            onEmail={setEmail}
+            avatarId={avatarId}
+            onAvatar={setAvatarId}
+            handleTaken={handleTaken}
+            bio={bio}
+            onBio={setBio}
+          />
         ) : null}
 
-        {label === 'Pick a face' ? (
-          <AvatarStep value={avatarId} onPick={setAvatarId} games={games} />
+        {label === 'Games you play' ? (
+          <GamesStep selected={games} onToggle={setGames} />
         ) : null}
 
         {label === 'What you collect' ? (
@@ -298,34 +346,215 @@ function GamesStep({
   );
 }
 
-function AvatarStep({
-  value,
-  onPick,
-  games,
+/**
+ * Sign-up's first question: who is this account.
+ *
+ * ── Why it is step one ───────────────────────────────────────────────────
+ * Everything after it is preference — which games, which face, what you
+ * collect. This is identity, and it is what the rest of the app then shows: the
+ * Home greeting, the profile header, the name on a comment. Asking for it last
+ * would mean the first thing a new user sees after signing up is somebody
+ * else's name.
+ *
+ * ── What is stored, and where ────────────────────────────────────────────
+ * Name and handle overlay the seeded user, so they reach every screen through
+ * `viewer` with no screen knowing sign-up exists. Age and email are kept in
+ * `AppContext` instead of on `User` — that type is the team's merge contract
+ * (§12.3), and widening it for two fields only this screen writes would be a
+ * schema change for a session detail.
+ *
+ * Nothing here leaves the device. There is no backend in this build (§12.1),
+ * so "your details" means a few strings in memory that a reload clears.
+ */
+/**
+ * 18 is the floor, and the list simply starts there.
+ *
+ * Offering younger ages and then refusing them is the interaction this avoids:
+ * the rule is not a validation failure the user caused, it is a fact about who
+ * the app is for. The last entry is a bucket rather than a birthday — nothing
+ * in the product does arithmetic on age, so a precise number past a point is
+ * data collected for its own sake.
+ */
+const MIN_AGE = 18;
+const MAX_AGE_OPTION = '65';
+const AGE_OPTIONS: readonly string[] = Array.from({ length: 65 - MIN_AGE + 1 }, (_, i) =>
+  String(MIN_AGE + i),
+);
+
+function DetailsStep({
+  displayName,
+  onDisplayName,
+  handle,
+  onHandle,
+  age,
+  onAge,
+  email,
+  onEmail,
+  avatarId,
+  onAvatar,
+  handleTaken,
+  bio,
+  onBio,
 }: {
-  value: string | null;
-  onPick: (next: string) => void;
-  games: GameTitle[];
+  displayName: string;
+  onDisplayName: (next: string) => void;
+  handle: string;
+  onHandle: (next: string) => void;
+  age: string;
+  onAge: (next: string) => void;
+  email: string;
+  onEmail: (next: string) => void;
+  avatarId: string | null;
+  onAvatar: (next: string) => void;
+  handleTaken: boolean;
+  bio: string;
+  onBio: (next: string) => void;
 }) {
   return (
     <View style={styles.step}>
-      <Text style={styles.question}>Pick a face</Text>
+      <Text style={styles.question}>Tell us who you are</Text>
       <Text style={styles.hint}>
-        {games.length > 0
-          ? 'Your games first — but all fifteen are here, scroll for the rest.'
-          : 'Fifteen to choose from. You can change it any time from your profile.'}
+        This is what other collectors see. Nothing here leaves your device.
       </Text>
 
-      {/* Horizontal: a full grid of fifteen pushes the Continue button off a
-          phone screen, and this step is optional — it must not be the one that
-          makes the quiz feel long. */}
-      <AvatarPicker
-        value={value}
-        onChange={onPick}
-        preferredGames={games}
-        horizontal
-        size={72}
-      />
+      {/*
+        The face sits with the name because they are one answer — "who am I
+        here" — and it used to be a page of its own that asked nothing else.
+
+        Its roster was previously ordered by the games answer, which is why it
+        came after that step. It cannot be any more, since this is now step one.
+        No real loss: the picker is horizontal and all fifteen scroll past, so
+        the ordering only ever changed which four you saw first.
+      */}
+      <AvatarPicker value={avatarId} onChange={onAvatar} horizontal size={72} />
+
+      <View style={styles.fields}>
+        <Field
+          label="Display name"
+          value={displayName}
+          onChange={onDisplayName}
+          placeholder="Jane Tan"
+          autoCapitalize="words"
+          maxLength={24}
+        />
+        {/* Prefixed rather than validated with a message: showing the "@" the
+            app will print means the shape of the answer is obvious before it
+            is typed, and `setIdentity` strips anything that would not survive
+            being rendered after it. */}
+        <Field
+          label="Handle"
+          value={handle}
+          onChange={onHandle}
+          placeholder="janetan"
+          prefix="@"
+          autoCapitalize="none"
+          maxLength={20}
+          /* Reported on the field rather than only under the button: the
+             conflict is with THIS input, and making someone look elsewhere to
+             find out which of four fields is wrong is the slow way to say it. */
+          error={handleTaken ? 'That handle is taken. Try another.' : undefined}
+        />
+        {/*
+          A picker, not a free-text box, because the answer is constrained: the
+          app is 18+, so an under-18 entry has only one outcome and typing it
+          only to be refused is a worse way to learn that than never being
+          offered it. The list starts at the minimum for the same reason.
+        */}
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Age</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.ageRow}
+          >
+            {AGE_OPTIONS.map((option) => {
+              const active = age === option;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => onAge(option)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={option === MAX_AGE_OPTION ? `${option} or older` : option}
+                  style={[styles.agePill, active && styles.agePillActive]}
+                >
+                  <Text style={[styles.ageText, active && styles.ageTextActive]}>
+                    {option === MAX_AGE_OPTION ? `${option}+` : option}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+        <Field
+          label="Email"
+          value={email}
+          onChange={onEmail}
+          placeholder="Optional"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          maxLength={64}
+        />
+        {/* Optional, and last: it is the one field with nothing to check and
+            the one most people will leave alone. Multiline because a bio that
+            scrolls sideways in a single line is unreadable while writing it. */}
+        <Field
+          label="Bio"
+          value={bio}
+          onChange={onBio}
+          placeholder="Optional — what you collect, in a line"
+          maxLength={140}
+          multiline
+        />
+      </View>
+    </View>
+  );
+}
+
+/** One labelled input. A component so the four cannot drift apart. */
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  prefix,
+  autoCapitalize = 'sentences',
+  keyboardType = 'default',
+  maxLength,
+  error,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+  prefix?: string;
+  autoCapitalize?: 'none' | 'sentences' | 'words';
+  keyboardType?: 'default' | 'email-address' | 'number-pad';
+  maxLength?: number;
+  error?: string;
+  multiline?: boolean;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={[styles.fieldBox, error ? styles.fieldBoxError : null]}>
+        {prefix ? <Text style={styles.fieldPrefix}>{prefix}</Text> : null}
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textTertiary}
+          autoCapitalize={autoCapitalize}
+          autoCorrect={false}
+          keyboardType={keyboardType}
+          maxLength={maxLength}
+          multiline={multiline}
+          style={[styles.fieldInput, multiline && styles.fieldInputMultiline]}
+          accessibilityLabel={label}
+        />
+      </View>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
 }
@@ -343,7 +572,8 @@ function TasteStep({
     <View style={styles.step}>
       <Text style={styles.question}>Anything you collect in particular?</Text>
       <Text style={styles.hint}>
-        Skins and heroes our news actually covers — following one moves it up your feed.
+        Skins and heroes our news actually covers — following one moves it up your feed.{' '}
+        <Text style={styles.optional}>(Optional)</Text>
       </Text>
 
       {/* The list is derived at runtime, so an empty result is possible rather
@@ -397,7 +627,10 @@ function IntensityStep({
   return (
     <View style={styles.step}>
       <Text style={styles.question}>What kind of collector are you?</Text>
-      <Text style={styles.hint}>Goes on your profile. Nothing is gated on it.</Text>
+      <Text style={styles.hint}>
+        Goes on your profile. Nothing is gated on it.{' '}
+        <Text style={styles.optional}>(Optional)</Text>
+      </Text>
 
       <View style={styles.cards}>
         {INTENSITY_OPTIONS.map((option) => {
@@ -508,9 +741,54 @@ const styles = StyleSheet.create({
   /* Matches the step column above it, so the CTA lines up with the content
      rather than stretching across a desktop browser window. */
   footerColumn: { width: '100%', maxWidth: 460, gap: spacing.md },
+  /**
+   * Marks the two steps `answered` lets through empty.
+   *
+   * Inline in the hint rather than a badge beside the question: it qualifies
+   * the ask, and a user who has read the question has already read past the
+   * point a corner badge would have helped. Weighted, not coloured — it is a
+   * note about the question, not a warning about the answer.
+   */
+  optional: { fontFamily: fonts.bodySemiBold, color: colors.textSecondary },
   /* Centred under the button it explains, in the muted tone the rest of the
      first run uses for guidance rather than for errors — the step is not
      wrong, it is simply not finished. */
+  fields: { gap: spacing.md, alignSelf: 'stretch' },
+  field: { gap: spacing.xs },
+  fieldLabel: { ...typography.meta, color: colors.textSecondary },
+  fieldBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    paddingHorizontal: spacing.md,
+    /* Tall enough to hit on a phone without the browser zooming the field. */
+    minHeight: 46,
+  },
+  fieldPrefix: { ...typography.body, color: colors.textTertiary },
+  /* `flex: 1` so the input, not the box, owns the remaining width — otherwise
+     the caret sits at the prefix and the text runs under it. */
+  fieldInput: { ...typography.body, color: colors.textPrimary, flex: 1, paddingVertical: spacing.sm },
+  fieldInputMultiline: { minHeight: 72, textAlignVertical: 'top', paddingTop: spacing.sm },
+  fieldBoxError: { borderColor: colors.danger },
+  fieldError: { ...typography.meta, color: colors.danger },
+  ageRow: { gap: spacing.xs, paddingVertical: 2 },
+  agePill: {
+    minWidth: 46,
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  agePillActive: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
+  ageText: { ...typography.body, color: colors.textSecondary },
+  ageTextActive: { color: colors.textPrimary },
   requirement: {
     ...typography.meta,
     color: colors.textTertiary,

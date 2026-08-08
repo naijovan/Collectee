@@ -55,6 +55,16 @@ export type FirstRunStage = 'sign-in' | 'quiz' | 'tour' | 'done';
  */
 export type ViewerMode = 'member' | 'guest';
 
+/** What the first onboarding step asks for. Session-only, like every write here. */
+export interface AccountDetails {
+  displayName: string;
+  handle: string;
+  /** A string, not a number: the picker offers "65" as "65 or older". */
+  age: string;
+  email: string;
+  bio: string;
+}
+
 interface AppState {
   /** The signed-in user. Never null — the demo opens logged-in (§16 Q8). */
   viewer: User | null;
@@ -105,6 +115,31 @@ interface AppState {
    * a schema change (§12.1, §12.3).
    */
   chooseAvatar: (avatarId: string) => Promise<void>;
+
+  /**
+   * Set the name this account shows, chosen at sign-up.
+   *
+   * A signed-in user inherits the demo account's inventory, collections and
+   * showrooms — that is what makes first run worth looking at — but being told
+   * they are Jovan undoes it. Same session lifetime as the face.
+   */
+  chooseDisplayName: (displayName: string) => Promise<void>;
+
+  /**
+   * Everything sign-up asks for, in one call.
+   *
+   * Name and handle overlay the seeded user, so they reach every screen that
+   * already reads `viewer` — the Home greeting, the profile header, comment
+   * authorship — without any of those screens learning about sign-up.
+   *
+   * Age and email do NOT go on `User`. That type is the team's merge contract
+   * (§12.3) and widening it for two fields only this screen writes and only
+   * Profile reads would be a schema change for a session detail. They live
+   * here instead, with the same session lifetime as the rest.
+   */
+  setAccountDetails: (details: AccountDetails) => Promise<void>;
+  /** What sign-up collected. Null until it runs, and for guests always. */
+  accountDetails: AccountDetails | null;
 
   /** Sign-in succeeded. Mocked: nothing authenticates, any input gets here. */
   signIn: () => void;
@@ -286,6 +321,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     firstRunWrite('tourDone', tourDone);
   }, [tourDone]);
   const [intensity, setIntensity] = useState<CollectorIntensity | null>(null);
+  const [accountDetails, setDetails] = useState<AccountDetails | null>(null);
 
   const mode: ViewerMode = isGuest ? 'guest' : 'member';
   /**
@@ -317,6 +353,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
        and cannot drift from it. */
     setViewer(await socialService.getUser(VIEWER_ID));
   }, [isGuest]);
+
+  const chooseDisplayName = useCallback(
+    async (displayName: string) => {
+      /* Nothing to name — a guest's identity is thrown away on sign-out. */
+      if (isGuest) return;
+      await socialService.setDisplayName(VIEWER_ID, displayName);
+      setViewer(await socialService.getUser(VIEWER_ID));
+    },
+    [isGuest],
+  );
+
+  const setAccountDetails = useCallback(
+    async (details: AccountDetails) => {
+      if (isGuest) return;
+      setDetails(details);
+      await socialService.setIdentity(VIEWER_ID, {
+        displayName: details.displayName,
+        handle: details.handle,
+        bio: details.bio,
+      });
+      /* Re-read rather than patching: the overlay is applied on the way out of
+         the service, so this is the same path every other screen uses. */
+      setViewer(await socialService.getUser(VIEWER_ID));
+    },
+    [isGuest],
+  );
 
   const markNotificationsRead = useCallback(async () => {
     if (isGuest) return;
@@ -437,6 +499,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setQuizDone(false);
     setTourDone(false);
     setIntensity(null);
+    setDetails(null);
     setGateOverride(false);
     /* The quiz's answers live in newsService's session overlays, not here, so
        resetting only this component's state would leave the previous run's
@@ -463,6 +526,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       firstRunStage,
       intensity,
       chooseAvatar,
+      chooseDisplayName,
+      setAccountDetails,
+      accountDetails,
       signIn,
       continueAsGuest,
       createAccount,
@@ -486,6 +552,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       firstRunStage,
       intensity,
       chooseAvatar,
+      chooseDisplayName,
+      setAccountDetails,
+      accountDetails,
       signIn,
       continueAsGuest,
       createAccount,

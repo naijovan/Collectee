@@ -247,7 +247,13 @@ export const COLLECTIONS = [
     description: 'Every Land of Dawn skin I can prove is mine. Linked, not scanned.',
     coverUrl: '',
     themeTags: ['mlbb', 'collector'],
-    itemIds: ['mlbb-lightborn-defender', 'mlbb-manifold-rift', 'mlbb-kagura-cherry-witch'],
+    itemIds: [
+      'mlbb-lightborn-defender',
+      'mlbb-radiant-huntress',
+      'mlbb-slipstream-pilot',
+      'mlbb-manifold-rift',
+      'mlbb-kagura-cherry-witch',
+    ],
     visibility: 'public',
     allowComments: true,
     showOnProfile: true,
@@ -725,16 +731,14 @@ const collectorsStudy = ROOM_THEMES[5];
  * rule the app enforces, which is the exact "seeded data looks fake" tell §15
  * warns about and the first thing a judge who reads the gate goes looking for.
  *
- * ⚠️ SECOND GATE, and the reason this list is short: a room renders its items
- * as real 3D meshes, so a placement is only possible for an item with an entry
- * in `config/modelRegistry`. Fourteen items have one — thirteen weapons and
- * blades plus a single character, Gusion. Placing anything else would put a
- * flat card on a pedestal next to real geometry, which looks like a bug rather
- * than like missing art.
+ * ⚠️ SECOND GATE, and the reason this list stays intentional: seeded rooms
+ * should prefer items with an entry in `config/modelRegistry`. Placing too many
+ * flat fallback cards on pedestals next to real geometry looks like a bug
+ * rather than like missing art.
  *
- * That gate removed five otherwise-valid rooms (syafiq, priya, tarek, bo, and
- * zennx's second). Their collections stay — a collection has never needed a
- * model — and each becomes a room the moment its items get one.
+ * Collections stay broader than rooms — a collection has never needed a model —
+ * and new generated meshes can light up existing collections without changing
+ * this seeded showroom roster.
  *
  * The check to repeat after any edit here: every `ownedItemId` below must be a
  * real row in `owned-items.ts`, owned by the collection's owner, verified,
@@ -927,6 +931,8 @@ export const ROOMS: readonly Room[] = [
       { slotId: 'dojo-pedestal-hero', ownedItemId: 'own-nova-val-prime-karambit', rotation: 0 },
       { slotId: 'dojo-case-left', ownedItemId: 'own-nova-val-voidglass-blade', rotation: 0 },
       { slotId: 'dojo-case-right', ownedItemId: 'own-nova-val-elderflame-vandal', rotation: 0 },
+      /* Restored: Ren Kage got a mesh, which is the only reason it was cut. */
+      { slotId: 'dojo-wall-1', ownedItemId: 'own-nova-mlbb-neon-ronin', rotation: 0 },
     ],
     settings: {
       parallaxEnabled: true,
@@ -971,6 +977,9 @@ export const ROOMS: readonly Room[] = [
       { slotId: 'shrine-wall-1', ownedItemId: 'own-zennx-codm-dlq33-lightbringer', rotation: 0 },
       { slotId: 'shrine-wall-2', ownedItemId: 'own-zennx-codm-drh-cerberus', rotation: 0 },
       { slotId: 'shrine-wall-3', ownedItemId: 'own-zennx-mlbb-gusion-cyber-faust', rotation: 0 },
+      /* Ditto — and it fills the shrine's last free slot, so this room now
+         shows two character meshes beside four weapons. */
+      { slotId: 'shrine-wall-4', ownedItemId: 'own-zennx-mlbb-neon-ronin', rotation: 0 },
     ],
     settings: {
       parallaxEnabled: true,
@@ -987,6 +996,94 @@ export const ROOMS: readonly Room[] = [
     visitorCount: 11407,
     publishedAt: '2026-06-02T10:00:00.000Z',
     createdAt: '2026-06-01T18:20:00.000Z',
+  },
+  {
+    /* Three CHARACTERS and no weapons — the only seeded room that is, because
+       Priya is the one collector whose verified inventory is MLBB end to end.
+       Worth having as its own case: `modelIsCharacter` frames a hero mesh
+       differently from a rifle, and nothing else exercises three at once. */
+    id: 'room-priya-dawn',
+    collectionId: 'col-priya-dawn-verified',
+    themeId: 'theme-collectors-study',
+    title: 'The Reading Room',
+    description: 'Quiet shelf, loud heroes.',
+    coverUrl: '',
+    backdropUrl: 'room-backdrops/collectors-study.png',
+    slots: [
+      { id: 'study-pedestal-hero', kind: 'pedestal', x: 0.38, y: 0.44, w: 0.24, h: 0.34, depth: 2 },
+      { id: 'study-case-left', kind: 'case', x: 0.08, y: 0.5, w: 0.18, h: 0.26, depth: 1 },
+      { id: 'study-case-right', kind: 'case', x: 0.74, y: 0.5, w: 0.18, h: 0.26, depth: 1 },
+      { id: 'study-wall-1', kind: 'wall', x: 0.12, y: 0.14, w: 0.16, h: 0.22, depth: 0 },
+      { id: 'study-wall-2', kind: 'wall', x: 0.32, y: 0.1, w: 0.16, h: 0.22, depth: 0 },
+      { id: 'study-wall-3', kind: 'wall', x: 0.52, y: 0.1, w: 0.16, h: 0.22, depth: 0 },
+      { id: 'study-wall-4', kind: 'wall', x: 0.72, y: 0.14, w: 0.16, h: 0.22, depth: 0 },
+    ],
+    placements: [
+      { slotId: 'study-pedestal-hero', ownedItemId: 'own-priya-mlbb-lightborn-defender', rotation: 0 },
+      { slotId: 'study-case-left', ownedItemId: 'own-priya-mlbb-radiant-huntress', rotation: 0 },
+      { slotId: 'study-case-right', ownedItemId: 'own-priya-mlbb-slipstream-pilot', rotation: 0 },
+    ],
+    settings: {
+      parallaxEnabled: true,
+      focusedSlotId: null,
+      lightingPreset: 'warm-gold',
+      brightness: 0.74,
+      animatedLighting: true,
+      displayStyle: 'framed',
+    },
+    visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 2611,
+    visitorCount: 6120,
+    publishedAt: '2026-07-22T14:05:00.000Z',
+    createdAt: '2026-07-21T10:33:00.000Z',
+  },
+  {
+    /* Back, now that Ghost — Nightfall has a mesh. It was cut when the model
+       gate landed and its third item was a flat card; nothing else about it
+       changed. A character on the hero pedestal with two weapons flanking is
+       the mixed case the other rooms do not cover. */
+    id: 'room-syafiq-blueprints',
+    collectionId: 'col-syafiq-blueprints',
+    themeId: 'theme-weapon-vault',
+    title: 'The Armoury Floor',
+    description: 'Three verified blueprints. The rest of the vault is still scans.',
+    coverUrl: '',
+    backdropUrl: 'room-backdrops/weapon-vault.png',
+    slots: [
+      { id: 'vault-wall-1', kind: 'wall', x: 0.05, y: 0.1, w: 0.19, h: 0.24, depth: 0 },
+      { id: 'vault-wall-2', kind: 'wall', x: 0.28, y: 0.08, w: 0.19, h: 0.24, depth: 0 },
+      { id: 'vault-wall-3', kind: 'wall', x: 0.52, y: 0.08, w: 0.19, h: 0.24, depth: 0 },
+      { id: 'vault-wall-4', kind: 'wall', x: 0.75, y: 0.1, w: 0.19, h: 0.24, depth: 0 },
+      { id: 'vault-case-1', kind: 'case', x: 0.05, y: 0.38, w: 0.17, h: 0.13, depth: 1 },
+      { id: 'vault-case-2', kind: 'case', x: 0.24, y: 0.4, w: 0.15, h: 0.12, depth: 1 },
+      { id: 'vault-case-3', kind: 'case', x: 0.6, y: 0.4, w: 0.15, h: 0.12, depth: 1 },
+      { id: 'vault-case-4', kind: 'case', x: 0.77, y: 0.38, w: 0.17, h: 0.13, depth: 1 },
+      { id: 'vault-pedestal-hero', kind: 'pedestal', x: 0.4, y: 0.42, w: 0.2, h: 0.32, depth: 2 },
+      { id: 'vault-pedestal-left', kind: 'pedestal', x: 0.15, y: 0.58, w: 0.16, h: 0.26, depth: 2 },
+      { id: 'vault-pedestal-right', kind: 'pedestal', x: 0.68, y: 0.58, w: 0.16, h: 0.26, depth: 2 },
+    ],
+    placements: [
+      { slotId: 'vault-pedestal-hero', ownedItemId: 'own-syafiq-codm-ghost-nightfall', rotation: 0 },
+      { slotId: 'vault-pedestal-left', ownedItemId: 'own-syafiq-codm-drh-cerberus', rotation: 0 },
+      { slotId: 'vault-pedestal-right', ownedItemId: 'own-syafiq-codm-qq9-diavolo', rotation: 0 },
+    ],
+    settings: {
+      parallaxEnabled: true,
+      focusedSlotId: null,
+      lightingPreset: 'dark-cinematic',
+      brightness: 0.6,
+      animatedLighting: true,
+      displayStyle: 'framed',
+    },
+    visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 2074,
+    visitorCount: 5566,
+    publishedAt: '2026-06-14T11:12:00.000Z',
+    createdAt: '2026-06-13T16:48:00.000Z',
   },
 ];
 

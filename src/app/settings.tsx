@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SectionHeader } from '@/components';
 import { FEATURES } from '@/config/features';
+import { socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useThemeMode } from '@/theme/ThemeMode';
 import { colors, radius, spacing, typography } from '@/theme/theme';
@@ -28,13 +29,26 @@ const BIO_LIMIT = 140;
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { viewer, replayTour } = useApp();
+  const { viewer, viewerId, accountDetails, setAccountDetails, replayTour } = useApp();
   const { mode, toggle, supported } = useThemeMode();
 
   const [displayName, setDisplayName] = useState(viewer?.displayName ?? '');
   const [handle, setHandle] = useState(viewer?.handle ?? '');
   const [bio, setBio] = useState(viewer?.bio ?? '');
+  /* Seeded from what sign-up collected, since neither lives on `User` — see
+     `AccountDetails`. Empty when sign-up was skipped, which is fine: both are
+     optional here too. */
+  const [age, setAge] = useState(accountDetails?.age ?? '');
+  const [email, setEmail] = useState(accountDetails?.email ?? '');
   const [saved, setSaved] = useState(false);
+
+  /**
+   * The same uniqueness rule sign-up enforces, from the same service — so the
+   * two screens cannot disagree about whether a handle is free. `viewerId` is
+   * excluded, or leaving your own handle untouched would report it as taken.
+   */
+  const handleTaken = socialService.isHandleTaken(handle, viewerId);
+  const canSave = displayName.trim().length > 0 && handle.trim().length > 0 && !handleTaken;
 
   return (
     <ScrollView
@@ -63,6 +77,7 @@ export default function SettingsScreen() {
           }}
           limit={NAME_LIMIT}
           prefix="@"
+          error={handleTaken ? 'That handle belongs to another collector.' : undefined}
         />
         <Field
           label="Bio"
@@ -74,10 +89,44 @@ export default function SettingsScreen() {
           limit={BIO_LIMIT}
           multiline
         />
+        {/* Age sits here rather than as a picker like sign-up's: this is an
+            edit, not a gate, and someone changing one field should not have to
+            scroll a list of forty-eight to leave the rest alone. */}
+        <Field
+          label="Age"
+          value={age}
+          onChange={(next) => {
+            setAge(next.replace(/[^0-9]/g, ''));
+            setSaved(false);
+          }}
+          limit={3}
+        />
+        <Field
+          label="Email"
+          value={email}
+          onChange={(next) => {
+            setEmail(next.trim());
+            setSaved(false);
+          }}
+          limit={64}
+        />
         <PrimaryButton
           label={saved ? '✓ Saved for this session' : 'Save details'}
-          onPress={() => setSaved(true)}
+          disabled={!canSave}
+          onPress={() => {
+            /*
+              This used to set a flag and nothing else — the form looked like it
+              saved and the profile never changed. It now writes through the
+              same `setAccountDetails` the sign-up step uses, so there is one
+              path that can change an identity and the two screens cannot drift.
+            */
+            void setAccountDetails({ displayName, handle, age, email, bio });
+            setSaved(true);
+          }}
         />
+        {handleTaken ? (
+          <Text style={styles.footnote}>Pick a free handle to save.</Text>
+        ) : null}
         <Text style={styles.footnote}>
           Saved in the app for this session. There is no backend in the demo build (§12.1), so
           nothing leaves the device and a reload restores the seeded profile.
@@ -157,6 +206,7 @@ function Field({
   limit,
   prefix,
   multiline,
+  error,
 }: {
   label: string;
   value: string;
@@ -164,6 +214,8 @@ function Field({
   limit: number;
   prefix?: string;
   multiline?: boolean;
+  /** Shown under the field, and the box borders red. */
+  error?: string;
 }) {
   return (
     <View style={styles.field}>
@@ -175,7 +227,7 @@ function Field({
           {value.length}/{limit}
         </Text>
       </View>
-      <View style={[styles.inputWrap, multiline && styles.inputWrapTall]}>
+      <View style={[styles.inputWrap, multiline && styles.inputWrapTall, error ? styles.inputWrapError : null]}>
         {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
         <TextInput
           value={value}
@@ -186,6 +238,7 @@ function Field({
           placeholderTextColor={colors.textTertiary}
         />
       </View>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
 }
@@ -203,6 +256,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
 
+  inputWrapError: { borderColor: colors.danger },
+  fieldError: { ...typography.meta, color: colors.danger },
   field: { gap: spacing.xs },
   fieldHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   fieldLabel: { ...typography.meta, color: colors.textTertiary },

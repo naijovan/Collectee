@@ -272,7 +272,14 @@ const TAREK = ownAll('user-tarek', [
 
 /** LOWER-MID — MLBB collector, two shared verified items. */
 const PRIYA = ownAll('user-priya', [
+  /* The three MLBB heroes with real meshes, all linked. Priya is the only
+     collector whose verified inventory is MLBB end to end, which makes hers the
+     one showroom that can stand up three CHARACTERS rather than a rack of
+     weapons — worth having, since characters and weapons frame differently in
+     the room (`modelIsCharacter`). */
   { itemId: 'mlbb-lightborn-defender', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-22T10:00:00.000Z' },
+  { itemId: 'mlbb-radiant-huntress', trust: 'verified', source: 'linked-account', acquiredAt: '2026-06-11T15:30:00.000Z' },
+  { itemId: 'mlbb-slipstream-pilot', trust: 'verified', source: 'linked-account', acquiredAt: '2026-06-11T15:30:00.000Z' },
   { itemId: 'mlbb-manifold-rift', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-22T10:00:00.000Z' },
   { itemId: 'mlbb-kagura-cherry-witch', trust: 'verified', source: 'linked-account', acquiredAt: '2026-05-22T10:00:00.000Z' },
   { itemId: 'mlbb-selena-virulent-nightmare', confidence: 0.9, acquiredAt: '2026-07-14T10:00:00.000Z' },

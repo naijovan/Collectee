@@ -85,10 +85,61 @@ const DEFAULT_NOTIFICATION_PREF: CommunityNotificationPref = 'all';
  */
 const avatarOverrides = new Map<string, string>();
 
-/** A user with this session's avatar choice applied. Never mutates the fixture. */
-function withAvatar(user: User): User {
-  const chosen = avatarOverrides.get(user.id);
-  return chosen ? { ...user, avatar: chosen } : user;
+/**
+ * The display name chosen at sign-up, by the same session-overlay rule.
+ *
+ * A signed-in user gets the demo account's inventory, collections and
+ * showrooms — that is what makes the app worth looking at on first run — but
+ * they should not be told they are Jovan. Overlaying the name lets one seeded
+ * dataset carry any identity, without a second copy of every fixture.
+ *
+ * The handle is overlaid too, since sign-up asks for one. It is only ever a
+ * display string here — `USERS_BY_ID` is keyed by id, and nothing looks a user
+ * up by handle — so this cannot break a lookup. It IS normalised on the way in
+ * (see `setIdentity`), because "@jane doe" would otherwise reach a screen that
+ * renders it after an "@".
+ */
+const nameOverrides = new Map<string, string>();
+const handleOverrides = new Map<string, string>();
+const bioOverrides = new Map<string, string>();
+
+/** A user with this session's choices applied. Never mutates the fixture. */
+function withOverrides(user: User): User {
+  const avatar = avatarOverrides.get(user.id);
+  const displayName = nameOverrides.get(user.id);
+  const handle = handleOverrides.get(user.id);
+  const bio = bioOverrides.get(user.id);
+  if (
+    avatar === undefined &&
+    displayName === undefined &&
+    handle === undefined &&
+    bio === undefined
+  ) {
+    return user;
+  }
+  return {
+    ...user,
+    ...(avatar === undefined ? null : { avatar }),
+    ...(displayName === undefined ? null : { displayName }),
+    ...(handle === undefined ? null : { handle }),
+    ...(bio === undefined ? null : { bio }),
+  };
+}
+
+/**
+ * A handle the app can print after an "@".
+ *
+ * Lowercased, spaces collapsed to nothing, and anything that is not a letter,
+ * digit, underscore or dot dropped. Someone typing their real name into a
+ * handle field is the common case, and "@Jane Doe!" rendered next to seeded
+ * handles reads as a rendering bug rather than as their choice.
+ */
+function normaliseHandle(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, '')
+    .replace(/[^a-z0-9_.]/g, '');
 }
 
 function prefKey(userId: string, communityId: string): string {
@@ -194,7 +245,7 @@ export const socialService = {
   async getFollowing(userId: string): Promise<User[]> {
     const ids = follows.filter((f) => f.followerId === userId).map((f) => f.followeeId);
     return delay(
-      ids.map((id) => USERS_BY_ID.get(id)).filter((u): u is User => !!u).map(withAvatar),
+      ids.map((id) => USERS_BY_ID.get(id)).filter((u): u is User => !!u).map(withOverrides),
       LATENCY_FETCH,
     );
   },
@@ -202,7 +253,7 @@ export const socialService = {
   async getFollowers(userId: string): Promise<User[]> {
     const ids = follows.filter((f) => f.followeeId === userId).map((f) => f.followerId);
     return delay(
-      ids.map((id) => USERS_BY_ID.get(id)).filter((u): u is User => !!u).map(withAvatar),
+      ids.map((id) => USERS_BY_ID.get(id)).filter((u): u is User => !!u).map(withOverrides),
       LATENCY_FETCH,
     );
   },
@@ -225,7 +276,7 @@ export const socialService = {
 
   async getUser(id: string): Promise<User | null> {
     const user = USERS_BY_ID.get(id);
-    return delay(user ? withAvatar(user) : null, LATENCY_INSTANT);
+    return delay(user ? withOverrides(user) : null, LATENCY_INSTANT);
   },
 
   /**
@@ -241,6 +292,76 @@ export const socialService = {
   },
 
   /**
+   * Choose a display name for this session. Same lifetime as the avatar: in
+   * memory, cleared by the first-run reset, gone on reload.
+   *
+   * An empty or whitespace-only name CLEARS the override rather than setting
+   * one, so a user who deletes what they typed gets the seeded name back
+   * instead of a nameless account.
+   */
+  async setDisplayName(userId: string, displayName: string): Promise<void> {
+    const trimmed = displayName.trim();
+    if (trimmed.length === 0) nameOverrides.delete(userId);
+    else nameOverrides.set(userId, trimmed);
+    return delay(undefined, LATENCY_INSTANT);
+  },
+
+  /**
+   * Name and handle together, as sign-up collects them.
+   *
+   * Either being blank CLEARS its override rather than writing an empty one, so
+   * a half-filled form leaves the seeded value in place instead of producing a
+   * nameless account.
+   */
+  /**
+   * Whether a handle is already somebody's.
+   *
+   * Checked against the seeded roster AND this session's overrides, normalised
+   * both sides — "@Rei" and "rei" are the same handle to anyone reading the
+   * screen, so treating them as different would let two accounts render
+   * identically.
+   *
+   * Synchronous, like `avatarFor` and `isMember`: it reads two in-memory
+   * collections and is called on every keystroke.
+   */
+  isHandleTaken(handle: string, exceptUserId?: string): boolean {
+    const wanted = normaliseHandle(handle);
+    if (wanted.length === 0) return false;
+    for (const user of USERS) {
+      if (user.id === exceptUserId) continue;
+      if (normaliseHandle(handleOverrides.get(user.id) ?? user.handle) === wanted) return true;
+    }
+    return false;
+  },
+
+  /** The normalised form a handle will actually be stored and printed as. */
+  normaliseHandle(handle: string): string {
+    return normaliseHandle(handle);
+  },
+
+  async setIdentity(
+    userId: string,
+    identity: { displayName?: string; handle?: string; bio?: string },
+  ): Promise<void> {
+    if (identity.displayName !== undefined) {
+      const trimmed = identity.displayName.trim();
+      if (trimmed.length === 0) nameOverrides.delete(userId);
+      else nameOverrides.set(userId, trimmed);
+    }
+    if (identity.handle !== undefined) {
+      const handle = normaliseHandle(identity.handle);
+      if (handle.length === 0) handleOverrides.delete(userId);
+      else handleOverrides.set(userId, handle);
+    }
+    if (identity.bio !== undefined) {
+      const bio = identity.bio.trim();
+      if (bio.length === 0) bioOverrides.delete(userId);
+      else bioOverrides.set(userId, bio);
+    }
+    return delay(undefined, LATENCY_INSTANT);
+  },
+
+  /**
    * The avatar a user is currently showing. Synchronous, like `memberCountFor`
    * and `isFollowing` — it reads two in-memory maps and is called during render.
    */
@@ -251,11 +372,14 @@ export const socialService = {
   /** Drop this session's avatar choices. Part of the first-run reset. */
   async resetSessionAvatars(): Promise<void> {
     avatarOverrides.clear();
+    nameOverrides.clear();
+    handleOverrides.clear();
+    bioOverrides.clear();
     return delay(undefined, LATENCY_INSTANT);
   },
 
   async getUsers(): Promise<User[]> {
-    return delay(USERS.map(withAvatar), LATENCY_FETCH);
+    return delay(USERS.map(withOverrides), LATENCY_FETCH);
   },
 
   // ── Communities ──────────────────────────────────────────────────────

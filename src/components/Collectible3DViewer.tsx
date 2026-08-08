@@ -25,6 +25,7 @@ import type { Item } from '@/types';
 
 import {
   modelFor,
+  modelIsCharacter,
   modelTextureFor,
   modelUsesEmbeddedMaterials,
 } from '@/config/modelRegistry';
@@ -516,6 +517,7 @@ function kindFor(item: Item | null): ModelKind {
   if (!item) return 'rifle';
   const name = item.name.toLowerCase();
   if (name.includes('karambit') || name.includes('blade') || name.includes('knife')) return 'blade';
+  if (modelIsCharacter(item.id)) return 'hero';
   if (item.title === 'mlbb') return 'hero';
   return 'rifle';
 }

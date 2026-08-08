@@ -12,6 +12,7 @@ import type { Item, Room, RoomTheme, Slot } from '@/types';
 import { backdropFor } from '@/config/artRegistry';
 import {
   modelFor,
+  modelIsCharacter,
   modelTextureFor,
   modelUsesEmbeddedMaterials,
 } from '@/config/modelRegistry';
@@ -866,6 +867,7 @@ function modelKind(item: Item): 'rifle' | 'blade' | 'hero' {
   if (name.includes('karambit') || name.includes('blade') || name.includes('knife')) {
     return 'blade';
   }
+  if (modelIsCharacter(item.id)) return 'hero';
   return item.title === 'mlbb' ? 'hero' : 'rifle';
 }
 
