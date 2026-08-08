@@ -48,6 +48,7 @@ import {
 import type { StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   Avatar,
@@ -83,7 +84,7 @@ import {
 } from '@/services';
 import type { PickedImage } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, scrim, spacing, typography, accentLink } from '@/theme/theme';
+import { colors, gameAccents, radius, scrim, spacing, typography, accentLink } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { GameTitle, Item, ScanDetection, ScanResolution, ScanResult } from '@/types';
 
@@ -591,6 +592,7 @@ export default function ImportScreen() {
           </Text>
 
           {/* Titles come from the service — the catalogue decides, not this screen. */}
+          <View style={styles.gameRow}>
           {scanService.availableTitles().map((option) => (
             <Pressable
               key={option}
@@ -602,33 +604,49 @@ export default function ImportScreen() {
             >
               {/* The game's own cover, not an item render: this card is asking
                   which title you are importing FROM, so it has to read as the
-                  game rather than as something in your inventory. */}
-              <View style={styles.gameArt}>
-                {/*
-                  Explicit 100%/100%, not absoluteFill. absoluteFill only sets
-                  the four edges; a renderer that sizes an image from its
-                  intrinsic pixels then draws a 1200px cover at full size and
-                  lets the parent clip it, so the tile showed the top-left
-                  corner instead of the whole cover.
+                  game rather than as something in your inventory.
 
-                  `contain` so nothing is ever cut. The covers are square and so
-                  is the tile, so today it fills edge to edge regardless — but a
-                  future cover that is not square still arrives whole.
+                  `cover`, not `contain`. The art fills the whole card now
+                  rather than sitting in a 64px thumbnail, and letterboxing a
+                  square cover into a 16:10 card would put bars back exactly
+                  where the display-art work took them out. */}
+              <Image
+                source={GAME_COVERS[option]}
+                style={styles.gameArtImage}
+                resizeMode="cover"
+                accessibilityIgnoresInvertColors
+              />
+
+              {/* Same construction as the collection and showroom cards: a
+                  clear-to-heavy fade with the meta sitting on it. */}
+              <LinearGradient
+                colors={[scrim.clear, scrim.medium, scrim.heavy]}
+                locations={[0, 0.45, 1]}
+                style={styles.gameCardScrim}
+                pointerEvents="none"
+              />
+
+              <View style={styles.gameCardMeta} pointerEvents="none">
+                {/*
+                  The title carries the game's own accent, matching the hero's
+                  row and every GameBadge in the app — so "amber = CODM" holds
+                  here too.
+
+                  "✓ Scanner supported" is gone. All three are supported, so it
+                  was the same line on every card saying nothing that
+                  distinguished them — and the screen is asking which game you
+                  are importing from, not whether it works.
                 */}
-                <Image
-                  source={GAME_COVERS[option]}
-                  style={styles.gameArtImage}
-                  resizeMode="contain"
-                  accessibilityIgnoresInvertColors
-                />
+                <Text
+                  style={[styles.gameCardName, { color: gameAccents[option].secondary }]}
+                  numberOfLines={2}
+                >
+                  {GAME_LABELS[option]}
+                </Text>
               </View>
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle}>{GAME_LABELS[option]}</Text>
-                <Text style={styles.supported}>✓ Scanner supported</Text>
-              </View>
-              <Text style={styles.chevron}>›</Text>
             </Pressable>
           ))}
+          </View>
         </View>
       ) : null}
 
@@ -2328,26 +2346,39 @@ const styles = StyleSheet.create({
   },
   dropPreview: { width: 64, height: 64, borderRadius: radius.sm },
 
+  /**
+   * A card, not a row.
+   *
+   * Three full-width rows with a 64px thumbnail spent the screen on empty
+   * space and made the art incidental — this is the first choice in the import
+   * flow, and the covers are the thing that says which game you are picking.
+   * Same shape as the Gaming updates cards on Home.
+   */
   gameCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
+    /* One row, three cards. Stacked, the picker was three full-width bands
+       that pushed the CTA below the fold; side by side the whole choice is
+       visible at once, which is what a three-option picker should be. */
+    flex: 1,
+    /* With `flexWrap`, `flex: 1` alone lets all three squeeze onto one line at
+       any width. A floor forces the wrap instead of producing three slivers. */
+    minWidth: 150,
+    height: 168,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.md,
-  },
-  gameCardActive: { borderColor: colors.accent },
-  gameArt: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.card,
     overflow: 'hidden',
     backgroundColor: colors.surfaceSunken,
+    justifyContent: 'flex-end',
   },
+  /* Two-pixel accent ring, not one — at card size a hairline is easy to miss,
+     and this is a selection the whole flow depends on. */
+  gameCardActive: { borderColor: colors.accent, borderWidth: 2 },
+  /** Three across, wrapping on a narrow window rather than squeezing to slivers. */
+  gameRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  gameCardScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
+  gameCardMeta: { padding: spacing.md, gap: 2 },
+  gameCardName: { ...typography.overlayTitle, color: colors.textOnAccent },
   gameArtImage: { width: '100%', height: '100%' },
-  supported: { ...typography.meta, color: colors.accent },
   selectedGame: {
     flexDirection: 'row',
     alignItems: 'center',
