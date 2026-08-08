@@ -9,9 +9,20 @@
  * rather than an icon font or an image library.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ImageSourcePropType, StyleProp, ViewStyle } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  Image,
+  PixelRatio,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import type { ImageSourcePropType, LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { avatarArtFor } from '@/config/avatarRegistry';
 import { resolveItemArt } from './item-art';
@@ -24,7 +35,9 @@ import { GAME_SHORT_LABELS } from '@/types';
 import type { GameTitle, RarityTier } from '@/types';
 import * as haptics from '@/lib/haptics';
 import {
+  accentGradient,
   colors,
+  gameAccents,
   interaction,
   letterSpacing,
   motion,
@@ -41,37 +54,20 @@ function ResolvedItemImage({
   source,
   fit,
   alt,
-  tint,
 }: {
   source: ImageSourcePropType;
   fit: 'cover' | 'contain';
   alt?: string;
-  tint: string;
 }) {
   return (
-    <>
-      {/* Build the missing canvas from the artwork itself. The sharp foreground
-          remains untouched and fully contained; only this enlarged copy is
-          allowed to crop, blur and tint into the otherwise empty edges. */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: tint, opacity: 0.28 }]} />
-      <Image
-        source={source}
-        style={[styles.artFill, styles.artSurroundings]}
-        resizeMode="cover"
-        blurRadius={8}
-        accessible={false}
-        accessibilityIgnoresInvertColors
-      />
-      <View style={[StyleSheet.absoluteFill, styles.artSurroundingsShade]} />
-      <Image
-        source={source}
-        style={styles.artFill}
-        resizeMode={fit}
-        accessible={alt !== undefined}
-        accessibilityLabel={alt}
-        accessibilityIgnoresInvertColors
-      />
-    </>
+    <Image
+      source={source}
+      style={styles.artFill}
+      resizeMode={fit}
+      accessible={alt !== undefined}
+      accessibilityLabel={alt}
+      accessibilityIgnoresInvertColors
+    />
   );
 }
 
@@ -93,9 +89,8 @@ function hash(seed: string): number {
  * game title; those miss both and get the colour block, so no caller has to
  * know whether art exists.
  *
- * The fallback stays. It is what lets the app run with a partly-populated art
- * pack instead of showing broken images, and 73 catalogue items will not all
- * have renders for a while.
+ * The fallback stays so future catalogue entries do not become broken images
+ * before their artwork lands.
  */
 export function ItemArt({
   seed,
@@ -112,23 +107,62 @@ export function ItemArt({
   fit?: 'cover' | 'contain';
   style?: StyleProp<ViewStyle>;
 }) {
+  const { width: viewportWidth } = useWindowDimensions();
+  const [frame, setFrame] = useState({ width: 0, height: 0 });
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setFrame((current) =>
+      Math.abs(current.width - width) < 1 && Math.abs(current.height - height) < 1
+        ? current
+        : { width, height },
+    );
+  }, []);
   const art = artFor(seed);
   if (art !== null) {
+    /* Select by the rendered box, not by the window. A 180px phone card only
+       needs the 600px texture, while a full-width hero on that same 3x phone
+       needs the 1200px one. This also handles tablets, split windows and large
+       desktop monitors without hard-coding another viewport breakpoint. */
+    const density = PixelRatio.get();
+    const aspectRatio = frame.height > 0 ? frame.width / frame.height : 3 / 2;
+    const useSquareRendition = aspectRatio < 1.34;
+    const fullSource = useSquareRendition
+      ? art.displaySource?.squareWide
+      : art.displaySource?.wide;
+    const compactSource = useSquareRendition
+      ? art.displaySource?.squareCompact
+      : art.displaySource?.compact;
+    const compactWidth = useSquareRendition ? 400 : 600;
+    const compactIsSharpEnough =
+      frame.width > 0 &&
+      frame.height > 0 &&
+      frame.width * density <= compactWidth &&
+      frame.height * density <= 400;
+    const displaySource = art.displaySource
+      ? frame.width === 0
+        ? viewportWidth < 600
+          ? compactSource
+          : fullSource
+        : compactIsSharpEnough
+        ? compactSource
+        : fullSource
+      : null;
     // The image sits inside the same container the colour block uses, so the
     // caller's ViewStyle (size, radius) still applies and `overflow: hidden`
     // does the clipping. Styling the Image directly does not typecheck —
     // callers pass ViewStyle, and ImageStyle has no `overflow: 'scroll'`.
     //
-    // The registry owns the fit. The image always receives the full box so
-    // `contain` can preserve the complete subject without an extra inset making
-    // weapons needlessly small.
+    // The generated display asset is one continuous picture with no blurred
+    // duplicate panels. Originals still use the registry's safe fit.
     return (
-      <View style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}>
+      <View
+        onLayout={onLayout}
+        style={[styles.art, { backgroundColor: colors.surfaceSunken }, style]}
+      >
         <ResolvedItemImage
-          source={art.source}
-          fit={fit ?? art.fit}
+          source={displaySource ?? art.source}
+          fit={displaySource ? 'cover' : (fit ?? art.fit)}
           alt={art.alt}
-          tint={rarityColors[tier]}
         />
       </View>
     );
@@ -141,7 +175,6 @@ export function ItemArt({
         <ResolvedItemImage
           source={bundled}
           fit={fit ?? 'contain'}
-          tint={rarityColors[tier]}
         />
       </View>
     );
@@ -210,10 +243,30 @@ export function RarityBadge({
   );
 }
 
+/**
+ * The game chip on a cover. Carries its title's accent, not a neutral scrim.
+ *
+ * The same three colours the Gaming updates cards use (`gameAccents`, applied
+ * in news.tsx) — CODM ember, Valorant red, MLBB blue. A collection card and a
+ * news card both answer "which game is this?" and were answering it in two
+ * different visual languages: one coloured, one grey.
+ *
+ * The accent lands on the BORDER and the TEXT, over the existing dark scrim —
+ * not as a fill. A solid block of pure colour in the corner of a picture fights
+ * the artwork, and tinting the background instead would mean replacing the
+ * scrim that makes the chip legible on a busy crop in the first place.
+ *
+ * `secondary` rather than `base` for the label: the lighter end of each pair,
+ * which is what keeps 10px type readable on a dark chip. Valorant red at `base`
+ * is the one that fails that test.
+ */
 export function GameBadge({ title }: { title: GameTitle }) {
+  const accent = gameAccents[title];
   return (
-    <View style={styles.gameBadge}>
-      <Text style={styles.gameBadgeText}>{GAME_SHORT_LABELS[title]}</Text>
+    <View style={[styles.gameBadge, { borderColor: accent.base }]}>
+      <Text style={[styles.gameBadgeText, { color: accent.secondary }]}>
+        {GAME_SHORT_LABELS[title]}
+      </Text>
     </View>
   );
 }
@@ -470,11 +523,38 @@ export function PrimaryButton({
       style={({ pressed }) => [
         styles.button,
         styles.buttonPrimary,
-        pressed && { backgroundColor: colors.accentPressed, transform: [{ scale: interaction.pressedScale }] },
+        pressed && { transform: [{ scale: interaction.pressedScale }] },
         disabled && styles.buttonDisabled,
       ]}
     >
-      <Text style={styles.buttonPrimaryText}>{label}</Text>
+      {({ pressed }) => (
+        <>
+          {/*
+            The fill is a gradient rather than a flat colour. `accent` is still
+            the midpoint of the ramp, so this is the same blue with a light
+            source on it, not a new colour — see `accentGradient` for why it is
+            deliberately narrow.
+
+            Skipped entirely when disabled: a lit surface on a control that
+            cannot be pressed is the wrong signal, and the flat disabled style
+            underneath already says so.
+          */}
+          {!disabled ? (
+            <LinearGradient
+              colors={
+                pressed
+                  ? [accentGradient.to, accentGradient.from]
+                  : [accentGradient.from, accentGradient.to]
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.buttonFill}
+              pointerEvents="none"
+            />
+          ) : null}
+          <Text style={styles.buttonPrimaryText}>{label}</Text>
+        </>
+      )}
     </Pressable>
   );
 }
@@ -650,14 +730,6 @@ const styles = StyleSheet.create({
    * see its top-left corner at 8x zoom instead of the picture.
    */
   artFill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
-  artSurroundings: {
-    opacity: 0.88,
-    transform: [{ scale: 1.06 }],
-  },
-  artSurroundingsShade: {
-    backgroundColor: colors.surfaceSunken,
-    opacity: 0.08,
-  },
   artStripe: { position: 'absolute', width: '160%', height: 26, left: '-30%', top: '42%' },
   artGlow: {
     position: 'absolute',
@@ -687,12 +759,16 @@ const styles = StyleSheet.create({
 
   gameBadge: {
     alignSelf: 'flex-start',
+    /* Colour comes from `gameAccents` at the call site. The scrim underneath
+       stays so the chip still separates from a busy crop — `soft` is only 14%
+       opaque and cannot carry the label on its own. */
     backgroundColor: scrim.medium,
+    borderWidth: 1,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
   },
-  gameBadgeText: { ...typography.meta, fontSize: 10, color: colors.textPrimary, letterSpacing: 0.5 },
+  gameBadgeText: { ...typography.meta, fontSize: 10, letterSpacing: 0.5 },
 
   avatar: {
     overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
@@ -770,8 +846,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    /* Clips the gradient fill to the pill. Without it the ramp draws a square
+       behind the rounded button. */
+    overflow: 'hidden',
   },
+  /* `accent` stays as the base colour underneath. The gradient covers it when
+     enabled; when disabled the gradient is skipped and this is what shows, so
+     a disabled CTA is still recognisably the primary button. */
   buttonPrimary: { backgroundColor: colors.accent },
+  buttonFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   buttonSecondary: { borderWidth: 1, borderColor: colors.border, backgroundColor: 'transparent' },
   buttonDisabled: { opacity: interaction.disabledOpacity },
   buttonPrimaryText: { ...typography.cardTitle, color: colors.textOnAccent },

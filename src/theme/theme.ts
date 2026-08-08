@@ -130,6 +130,46 @@ export const rarityColors = {
 } as const;
 
 /**
+ * Who can see this — one colour per visibility, so the three are told apart at
+ * a glance instead of being three identical grey words across a grid of cards.
+ *
+ * Here rather than in `domain/collections.ts` beside `VISIBILITY_LABELS`, for
+ * the same reason `rarityColors` is here: colour decisions live in this file,
+ * and `src/domain` is pure logic that should not grow a dependency on the theme.
+ *
+ * Semantic, and the ladder runs the way exposure does — open, link-only, shut.
+ * Private is the QUIETEST of the three rather than the loudest: a private
+ * collection is a normal thing to have, and red would read as an error on a
+ * state the user deliberately chose.
+ */
+/**
+ * The primary button's fill, as a two-stop gradient.
+ *
+ * A flat `accent` rectangle repeated on thirty screens is the flattest surface
+ * in the app, and the one the eye is meant to go to. A short ramp gives it a
+ * light source without changing what colour it is — `accent` is still the
+ * midpoint, so the button reads as the same blue, just lit.
+ *
+ * Deliberately NARROW. A wide two-hue gradient (blue to purple, say) is the
+ * thing that dates a UI fastest, and it would put a second colour into a
+ * palette §13.2 defines as "a single blue accent". These two stops are one
+ * shade either side of the token.
+ *
+ * `pressed` inverts the direction rather than darkening a flat fill, which
+ * reads as the surface tilting under the finger.
+ */
+export const accentGradient = {
+  from: '#4E85FF',
+  to: '#2454CC',
+} as const;
+
+export const visibilityColors = {
+  public: '#22C55E',
+  unlisted: '#F5A524',
+  private: '#8B94A6',
+} as const;
+
+/**
  * Rarity as a value ladder, not five hues (§12.2).
  *
  * A tier is not just a colour — it is how loud the item is allowed to be.
