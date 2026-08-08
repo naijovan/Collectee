@@ -308,6 +308,35 @@ export default function ImportScreen() {
     [fullCatalogue],
   );
 
+  /**
+   * Low-confidence reads, offered only when the scan produced NOTHING else.
+   *
+   * A detection below the floor is discarded, and that is the right default: it
+   * keeps a guess out of someone's inventory, and the measured behaviour is
+   * that the floor separates correct identifications from incorrect ones.
+   *
+   * But when EVERY detection was discarded, the screen becomes a dead end —
+   * "0 items detected", a disabled CTA, and a footnote saying something was
+   * read but withheld. The user can see we found something and has no way to
+   * act on it, which reads as broken rather than as cautious. That is the
+   * common outcome for a single-item photo, where one render carries less
+   * evidence than a labelled tile.
+   *
+   * So they are surfaced here, clearly labelled as uncertain and confirmed one
+   * at a time. The floor is untouched — nothing auto-accepts, nothing is
+   * pre-selected, and the user is told the confidence. Rescuing these by
+   * lowering the threshold instead would also let the wrong reads through.
+   */
+  const rescuable = useMemo(() => {
+    const somethingElseSurvived =
+      counts.matched > 0 || counts.needsReview > 0 || counts.unmatched > 0;
+    if (somethingElseSurvived) return [];
+
+    return detections
+      .filter((d) => d.outcome === 'discarded' && d.itemId !== null && items.has(d.itemId))
+      .map((d) => ({ detection: d, item: items.get(d.itemId!)! }));
+  }, [detections, items, counts]);
+
   const wrongGame = useMemo(() => {
     if (fullCatalogue.length === 0) return null;
     const readings = unmatchedEntries.map((d) => d.reading!.name);
@@ -783,8 +812,8 @@ export default function ImportScreen() {
 
             {counts.discarded > 0 ? (
               <Text style={styles.warn}>
-                {counts.discarded} items we couldn&apos;t read — below the {CONFIDENCE_REVIEW_FLOOR}{' '}
-                floor, so not in the total
+                {counts.discarded} {counts.discarded === 1 ? 'item' : 'items'} we couldn&apos;t read
+                — below the {CONFIDENCE_REVIEW_FLOOR} floor, so not in the total
               </Text>
             ) : null}
             {/*
@@ -843,6 +872,67 @@ export default function ImportScreen() {
                   setStage('upload');
                 }}
               />
+            </View>
+          ) : null}
+
+          {/*
+            ── Rescued low-confidence reads ────────────────────────────────
+            Only when the scan produced nothing else. Above the filter chips
+            because at this point it is the entire content of the screen —
+            everything below it is empty, and burying the one actionable thing
+            under five empty sections is how the dead end happened.
+          */}
+          {rescuable.length > 0 ? (
+            <View style={styles.rescue}>
+              <Text style={styles.rescueTitle}>
+                We think we saw {rescuable.length === 1 ? 'this' : 'these'} — not sure enough to
+                import {rescuable.length === 1 ? 'it' : 'them'} for you
+              </Text>
+              <Text style={styles.body}>
+                A single photo gives less to go on than a full inventory screenshot, so this read
+                scored below the {CONFIDENCE_REVIEW_FLOOR} floor. Confirm it if it&apos;s right.
+              </Text>
+              {rescuable.map(({ detection, item }) => {
+                const confirmed = resolutions.some(
+                  (r) => r.detectionId === detection.id && r.itemId !== null,
+                );
+                return (
+                  <Pressable
+                    key={detection.id}
+                    style={[styles.pendingRow, confirmed && styles.rescueRowOn]}
+                    onPress={() =>
+                      confirmed
+                        ? setResolutions((prev) =>
+                            prev.filter((r) => r.detectionId !== detection.id),
+                          )
+                        : resolve(detection.id, item.id)
+                    }
+                  >
+                    <ItemArt
+                      seed={item.id}
+                      tier={item.rarityTier}
+                      renderUrl={item.renderUrl}
+                      style={styles.dupeThumb}
+                    />
+                    <View style={styles.rowBody}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <RarityBadge tier={item.rarityTier} title={item.title} />
+                      {/* The number, not a word for it. "Low confidence" hides
+                          the difference between 0.58 and 0.12, and the user is
+                          being asked to make exactly that judgement. */}
+                      <Text style={styles.muted}>
+                        {Math.round(detection.confidence * 100)}% confident ·{' '}
+                        {detection.reading?.name ?? 'read from your image'}
+                      </Text>
+                    </View>
+                    <Text style={confirmed ? styles.create : styles.chevron}>
+                      {confirmed ? '✓' : '+'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           ) : null}
 
@@ -1986,6 +2076,22 @@ const styles = StyleSheet.create({
    * file here" affordance, and wearing it on a panel with no file dialog is
    * what made the video source read as a broken upload.
    */
+  /**
+   * The rescued-read block. Accent border rather than warning: this is an
+   * invitation to decide, not a problem report — the scan worked, it just is
+   * not sure, and the user is the one who can settle it.
+   */
+  rescue: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.surface,
+  },
+  rescueTitle: { ...typography.cardTitle, color: colors.textPrimary },
+  rescueRowOn: { borderColor: colors.accent },
+
   /* ── Complete: suggestion previews ──────────────────────────────────────
      A card, not a row. It is showing what the collection would look like, so
      it is shaped like the collection card it would become. */

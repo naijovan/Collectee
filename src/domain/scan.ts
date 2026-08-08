@@ -129,9 +129,22 @@ export function countScan(
       case 'duplicate':
         duplicates += 1;
         break;
-      case 'discarded':
+      case 'discarded': {
         discarded += 1;
+        /**
+         * A discarded detection contributes nothing UNLESS the user explicitly
+         * confirmed it. The Review screen offers that only when the whole scan
+         * was discarded — otherwise the screen is a dead end that says it read
+         * something and gives no way to act on it.
+         *
+         * Counted here rather than only in `resolvedItemIds` because the CTA
+         * reads `confirmed`, and a total that disagrees with what actually
+         * imports is the §11 F1 reconciliation bug all over again.
+         */
+        const resolution = resolvedById.get(d.id);
+        if (resolution && resolution.itemId !== null) resolvedConfirmed += 1;
         break;
+      }
       case 'unmatched':
         unmatched += 1;
         break;
@@ -180,7 +193,14 @@ export function resolvedItemIds(
     if (d.outcome === 'matched' && d.itemId !== null) {
       if (isRemoved(resolvedById, d.id)) continue;
       ids.push(d.itemId);
-    } else if (d.outcome === 'needs_review') {
+    } else if (d.outcome === 'needs_review' || d.outcome === 'discarded') {
+      /**
+       * Both import ONLY on an explicit confirmation, so a discarded detection
+       * with no resolution still contributes nothing — the floor is untouched.
+       * The difference is that a user who was shown a low-confidence read and
+       * said "yes, that one" now gets it, instead of the app reading their
+       * upload correctly and refusing to act on it.
+       */
       const resolution = resolvedById.get(d.id);
       if (resolution?.itemId != null) ids.push(resolution.itemId);
     }
