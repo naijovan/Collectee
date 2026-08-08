@@ -69,7 +69,7 @@ import {
 import type { CollectorRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useAssistantDock } from '@/state/AssistantDock';
-import { colors, fonts, interaction, radius, scrim, spacing, typography } from '@/theme/theme';
+import { colors, fonts, interaction, radius, rarityColors, scrim, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS, GAME_TITLES } from '@/types';
 import type { Article, Collection, Item, Room, User } from '@/types';
 
@@ -367,10 +367,15 @@ export default function HomeScreen() {
               because these three are the games the catalogue actually has.
             */}
             <View style={styles.heroGames}>
-              {GAME_TITLES.map((title) => (
-                <Text key={title} style={styles.heroGame}>
-                  {GAME_LABELS[title]}
-                </Text>
+              {GAME_TITLES.map((title, index) => (
+                <View key={title} style={styles.heroGames}>
+                  {/* A rule between titles, not just a gap. Three long game
+                      names set in the same weight ran together as one string —
+                      "MOBILE" reads as the end of VALORANT's name before the
+                      eye finds the break. */}
+                  {index > 0 ? <Text style={styles.heroGameRule}>|</Text> : null}
+                  <Text style={styles.heroGame}>{GAME_LABELS[title]}</Text>
+                </View>
               ))}
             </View>
           </View>
@@ -671,7 +676,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     flexWrap: 'wrap',
   },
-  heroGames: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  heroGames: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap' },
+  heroGameRule: { ...typography.meta, color: colors.textOnAccent, opacity: 0.4 },
   heroGame: {
     ...typography.meta,
     color: colors.textOnAccent,
@@ -679,7 +685,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     opacity: 0.85,
   },
-  eyebrow: { ...typography.meta, color: colors.accent, letterSpacing: 0.5 },
+  /* Not `accent`. The accent blue is tuned to sit on `background`, and on this
+     banner it lands over dark navy and violet artwork where it has almost no
+     separation from what is behind it — the one line on the hero that was hard
+     to read. `legendary` gold is the furthest token from every colour in these
+     crops, and it reads as a flourish above the headline rather than as a
+     second button. */
+  eyebrow: { ...typography.meta, color: rarityColors.legendary, letterSpacing: 0.5 },
   /* Bigger than the old 20, and sitting on artwork now, so it has to hold its
      own against it. The line break is authored rather than left to wrapping —
      the two halves are a pair and should break in the same place at any width. */

@@ -229,21 +229,56 @@ export function CollectionCard({
             <GameBadge title={headline.title} />
           </View>
         ) : null}
-        {/* Attribution sits on the cover, opposite the game badge, so the body
-            below belongs entirely to the collection itself. */}
-        {owner ? (
-          <View style={styles.ownerOverlay}>
-            <Avatar
-              name={owner.displayName}
-              avatarId={owner.avatar}
-              verified={owner.isAccountVerified}
-              size={18}
-            />
-            <Text style={styles.ownerOverlayName} numberOfLines={1}>
-              {owner.displayName}
+        {/* Attribution moved to the bottom overlay, beside the title it belongs
+            with. Top-right left the avatar floating alone in the artwork. */}
+        {/*
+          ── Everything below sits ON the cover ─────────────────────────────
+          The meta used to be a body panel underneath, which meant the card
+          spent its height twice — once on art, once on a strip of surface — and
+          the art had to stay short to keep the card compact. Overlaid, the
+          cover gets the whole card and the card gets taller art at the same
+          overall size.
+
+          Nothing is cropped by this. The mosaic still cover-fits its own box;
+          the only change is what is drawn over its lower band, and the fade
+          below guarantees that band is dark enough to read on.
+        */}
+        <LinearGradient
+          colors={[scrim.clear, scrim.medium, scrim.heavy]}
+          locations={[0, 0.45, 1]}
+          style={styles.metaScrim}
+          pointerEvents="none"
+        />
+
+        <View style={styles.metaOverlay} pointerEvents="none">
+          {/* Attribution above the title: it is the smaller line, and putting it
+              first keeps the collection's own name closest to the counts it
+              belongs with. */}
+          {owner ? (
+            <View style={styles.metaOwner}>
+              <Avatar
+                name={owner.displayName}
+                avatarId={owner.avatar}
+                verified={owner.isAccountVerified}
+                size={22}
+              />
+              <Text style={styles.metaOwnerName} numberOfLines={1}>
+                {owner.displayName}
+              </Text>
+            </View>
+          ) : null}
+          <View style={styles.metaTitleRow}>
+            <Text style={styles.metaName} numberOfLines={1}>
+              {collection.name}
             </Text>
+            {/* Likes sit opposite the title on the same line, as in the
+                reference — a count is a number you glance at, not something to
+                read in sequence with the name. */}
+            <Text style={styles.metaLike}>♥ {collection.likeCount.toLocaleString()}</Text>
           </View>
-        ) : null}
+          <Text style={styles.metaItems}>{collection.itemIds.length} items</Text>
+        </View>
+
         {hovered ? (
           <View style={styles.hoverVeil} pointerEvents="none">
             <View style={styles.hoverPill}>
@@ -251,21 +286,6 @@ export function CollectionCard({
             </View>
           </View>
         ) : null}
-      </View>
-
-      <View style={styles.collectionBody}>
-        {/* Title first. The collection is what the card is about; the creator is
-            attribution, and attribution reads better under the thing it
-            attributes than above it. */}
-        <Text style={styles.collectionName} numberOfLines={1}>
-          {collection.name}
-        </Text>
-
-
-        <View style={styles.likeRow}>
-          <Text style={styles.like}>♥ {collection.likeCount.toLocaleString()}</Text>
-          <Text style={styles.itemMeta}>{collection.itemIds.length} items</Text>
-        </View>
       </View>
     </Pressable>
   );
@@ -537,16 +557,23 @@ function ArticleThumb({
         : styles.articleThumb;
 
   if (art) {
+    /* Hero thumbnails can span a phone or a desktop card and therefore use the
+       full rendition. The 88px and 56px thumbnails remain sharp at high pixel
+       density with the compact rendition, regardless of viewport width. */
+    const source = art.displaySource
+      ? variant === 'hero'
+        ? art.displaySource.wide
+        : art.displaySource.squareCompact
+      : art.source;
+    const fit = art.displaySource ? 'cover' : art.fit;
     return (
       <View style={box}>
         <Image
-          source={art.source}
-          /* Objects ship on empty backgrounds and are inset so they are not
-             cropped; portraits fill. Same split `ItemArt` makes, for the same
-             reason — one rule for both either letterboxes every face or slices
-             the ends off every blade. */
-          style={art.fit === 'contain' ? styles.articleThumbInset : styles.articleThumbFill}
-          resizeMode={art.fit}
+          source={source}
+          /* Generated display art carries crop-safe scenery around the sharp
+             collectible. Legacy originals keep their inset, safe-fit rule. */
+          style={fit === 'contain' ? styles.articleThumbInset : styles.articleThumbFill}
+          resizeMode={fit}
           accessible
           accessibilityLabel={art.alt}
           accessibilityIgnoresInvertColors
@@ -886,7 +913,11 @@ const styles = StyleSheet.create({
   // Taller than the 104 it was: three panels across a half-width card make each
   // one narrow, and at 104 they were wider than they were tall — weapons read
   // as slivers. 148 gives each panel a near-square crop.
-  collectionArt: { height: 148, borderRadius: 0 },
+  /* 210, up from 148. The meta band moved on top of the cover, so the card no
+     longer spends height on a body panel underneath — the art absorbs it and
+     the card is about the same size overall. The band needs roughly 90 of this
+     for three lines of type, which is why it is not simply 148 + a little. */
+  collectionArt: { height: 210, borderRadius: 0 },
   communityArt: {
     height: 148,
     overflow: 'hidden',
@@ -923,15 +954,46 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: scrim.medium,
   },
-  ownerOverlayName: { ...typography.meta, color: colors.textPrimary, maxWidth: 96 },
   /** Only the top third — a full-height scrim would grey out the artwork. */
   coverScrim: { position: 'absolute', top: 0, left: 0, right: 0, height: '38%' },
-  collectionBody: { padding: spacing.md, gap: spacing.sm },
-  ownerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  ownerName: { ...typography.meta, color: colors.textSecondary, flexShrink: 1 },
+
+  /* ── The overlaid meta band ────────────────────────────────────────────
+     Bottom 62%, fading in rather than starting hard, so the artwork is only
+     obscured where text actually sits. Reaching `heavy` at the very bottom is
+     what lets a light cover carry white type — the pale mosaics were the ones
+     that failed a lighter scrim. */
+  metaScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
+  metaOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: spacing.md,
+    gap: 2,
+  },
+  metaOwner: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  metaOwnerName: { ...typography.meta, color: colors.textOnAccent, flexShrink: 1 },
+  metaTitleRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.sm },
   // Bigger and heavier than cardTitle: on a browse grid the collection name is
-  // the thing being chosen between, so it should win the card outright rather
-  // than tie with the counts underneath it.
+  // the thing being chosen between, so it should win the card outright.
+  metaName: {
+    ...typography.sectionHeader,
+    fontSize: 21,
+    lineHeight: 27,
+    fontFamily: fonts.display,
+    color: colors.textOnAccent,
+    flex: 1,
+  },
+  /* `danger` red is not legible on dark artwork and, more to the point, a like
+     count is not an error. The heart carries the meaning; the number stays
+     white like everything else on the band. */
+  metaLike: { ...typography.meta, color: colors.textOnAccent },
+  metaItems: { ...typography.meta, color: colors.textOnAccent, opacity: 0.75 },
+
+  /* Still used by CommunityCard, which keeps a body panel: it carries a reason
+     line that would not survive being overlaid on artwork. Named for the
+     collection card only because that is where they started. */
+  collectionBody: { padding: spacing.md, gap: spacing.sm },
   collectionName: {
     ...typography.sectionHeader,
     fontSize: 21,
@@ -939,8 +1001,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     color: colors.textPrimary,
   },
-  likeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  like: { ...typography.meta, color: colors.danger },
+
+  ownerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  ownerName: { ...typography.meta, color: colors.textSecondary, flexShrink: 1 },
 
   collectorCard: {
     backgroundColor: colors.surface,
