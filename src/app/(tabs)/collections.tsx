@@ -351,6 +351,26 @@ export default function CollectionsScreen() {
                 />
               </FadeInView>
             ))}
+          {/*
+            An invisible second column when the count is odd.
+
+            `flexGrow` fills the row, which is what removes the ragged margin —
+            but it also stretches a LONE card in the final row to full width.
+            A spacer takes the empty column instead, so the last card keeps the
+            same width as the ones above it and stays left-aligned.
+
+            Only when two columns are actually rendered: below the phone
+            breakpoint the grid is one column, and a spacer there would add an
+            empty row at the bottom.
+          */}
+          {viewportWidth >= 600 &&
+          plainCollections.filter((entry) =>
+            matchesFilter(entry.collection, rooms.get(entry.collection.id), filter),
+          ).length %
+            2 ===
+            1 ? (
+            <View style={styles.gridItem} pointerEvents="none" />
+          ) : null}
         </View>
       )}
 
@@ -409,6 +429,9 @@ export default function CollectionsScreen() {
                 />
               </View>
             ))}
+            {viewportWidth >= 600 && builtRooms.length % 2 === 1 ? (
+              <View style={styles.gridItem} pointerEvents="none" />
+            ) : null}
           </View>
         )}
       </View>
@@ -635,9 +658,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     columnGap: spacing.md,
     rowGap: spacing.sm,
-    justifyContent: 'center',
   },
-  gridItem: { flexGrow: 0, flexBasis: '48%', minWidth: 260, gap: 2 },
+  gridItem: { flexGrow: 1, flexBasis: '46%', minWidth: 260, gap: 2 },
   gridItemPhone: { flexBasis: '100%', minWidth: 0 },
 
   suggestionsSection: { gap: spacing.xl },
@@ -646,7 +668,19 @@ const styles = StyleSheet.create({
      row, so "what this makes" is one comparison instead of a scroll. */
   ideaColumns: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
   ideaGroup: { flexGrow: 1, flexBasis: '46%', minWidth: 300, gap: spacing.md },
-  ideaGroupHeader: { gap: spacing.xs },
+  /**
+   * A floor, so the two columns' cards start at the same height.
+   *
+   * The blurbs are different lengths — "Enough verified items to build an
+   * interactive room in one step" wraps to one line where "Good groupings, but
+   * short on verified items — these list in 2D until you connect a game
+   * account" takes two. The taller header pushed its cards down, and the two
+   * columns read as misaligned when it was the text above them that differed.
+   *
+   * 62 is a SectionHeader plus two lines of `meta` plus the gap, so the longer
+   * blurb sets the height and the shorter one pads to match.
+   */
+  ideaGroupHeader: { gap: spacing.xs, minHeight: 62 },
   ideaList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   ideaPreview: {
     flexDirection: 'row',

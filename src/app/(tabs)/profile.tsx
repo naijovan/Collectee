@@ -294,6 +294,9 @@ export default function ProfileScreen() {
                 />
               </View>
             ))}
+            {viewportWidth >= 600 && roomEntries.length % 2 === 1 ? (
+              <View style={styles.collectionCell} pointerEvents="none" />
+            ) : null}
           </View>
         </View>
       ) : null}
@@ -324,6 +327,9 @@ export default function ProfileScreen() {
                 />
               </View>
             ))}
+            {viewportWidth >= 600 && plainCollections.length % 2 === 1 ? (
+              <View style={styles.collectionCell} pointerEvents="none" />
+            ) : null}
           </View>
         )}
       </View>
@@ -591,9 +597,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.md,
-    justifyContent: 'center',
   },
-  collectionCell: { flexGrow: 0, flexBasis: '48%', minWidth: 260 },
+  collectionCell: { flexGrow: 1, flexBasis: '46%', minWidth: 260 },
   collectionCellPhone: { flexBasis: '100%', minWidth: 0 },
 
   roomEmpty: {

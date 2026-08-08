@@ -495,6 +495,13 @@ export default function HomeScreen() {
                   />
                 </FadeInView>
               ))}
+              {/* Invisible second column on an odd count — see the same spacer
+                  on the Collections tab. Keeps a lone final card the width of
+                  the ones above rather than letting flexGrow stretch it. */}
+              {viewportWidth >= 600 &&
+              explore.slice(0, filter === 'All' ? 4 : explore.length).length % 2 === 1 ? (
+                <View style={styles.gridCell} pointerEvents="none" />
+              ) : null}
             </View>
           )}
         </View>
@@ -615,6 +622,9 @@ export default function HomeScreen() {
                   </Hoverable>
                 </FadeInView>
               ))}
+              {viewportWidth >= 600 && rooms.length % 2 === 1 ? (
+                <View style={styles.gridCell} pointerEvents="none" />
+              ) : null}
             </View>
           )}
         </View>
@@ -803,7 +813,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     /* Centred, so the leftover after two fixed-width cards splits evenly
        instead of piling up as one wide margin on the right. */
-    justifyContent: 'center',
   },
   /**
    * `flexGrow: 0` is load-bearing.
@@ -815,7 +824,7 @@ const styles = StyleSheet.create({
    * slack at the right edge instead, which is the correct trade: an aligned
    * grid with a small margin beats a ragged one without.
    */
-  gridCell: { flexGrow: 0, flexBasis: '48%', minWidth: 260 },
+  gridCell: { flexGrow: 1, flexBasis: '46%', minWidth: 260 },
   gridCellPhone: { flexBasis: '100%', minWidth: 0 },
 
 
