@@ -115,7 +115,7 @@ function TabIcon({ icon, active, colour }: { icon: TabIcon; active: boolean; col
     <View style={styles.iconIndicator}>
       <SymbolView
         name={active ? icon.active : icon.inactive}
-        size={22}
+        size={23}
         tintColor={colour}
         weight={{ ios: active ? 'semibold' : 'medium', android: medium }}
       />
@@ -174,7 +174,18 @@ export function TabBar() {
           active={active}
           colour={locked ? colors.border : active ? colors.accent : colors.textSecondary}
         />
-        <Text style={[styles.label, active && styles.active, locked && styles.locked]}>
+        {/*
+          Every tab keeps its label.
+
+          Hiding all but the selected one was tried and reverted: it buys width
+          that is only ever scarce at ~390px, and the app is demoed in a desktop
+          browser where all five have room. A destination you cannot name until
+          you have already tapped it is a worse trade than a tight phone layout.
+        */}
+        <Text
+          style={[styles.label, active && styles.active, locked && styles.locked]}
+          numberOfLines={1}
+        >
           {tab.label}
         </Text>
       </Pressable>
@@ -317,6 +328,10 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.meta,
+    /* 11, not 12. At 390px each of the five cells is ~68px, and "Collections"
+       sets to roughly 66 at 11pt and ~72 at 12 — the extra point is what pushed
+       it into truncating. On a desktop window either fits; this is sized for
+       the tightest case so the bar never has to hide anything. */
     fontSize: 11,
     lineHeight: 14,
     color: colors.textTertiary,
