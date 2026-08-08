@@ -691,13 +691,20 @@ function ArticleThumb({
   const box =
     variant === 'hero'
       ? styles.articleThumbHero
-      : variant === 'micro'
-        ? styles.articleThumbMicro
-        : styles.articleThumb;
+      : variant === 'feature'
+        ? styles.articleThumbFeature
+        : variant === 'micro'
+          ? styles.articleThumbMicro
+          : styles.articleThumb;
 
   if (art) {
+    /* `feature` takes the WIDE rendition like `hero` does. The compact square is
+       a 400px crop built for an 88pt row thumbnail; stretched across a full-width
+       card it is visibly soft, and it has already lost the sides of a 3:2
+       render. */
+    const wideBox = variant === 'hero' || variant === 'feature';
     const source = art.displaySource
-      ? variant === 'hero'
+      ? wideBox
         ? art.displaySource.wide
         : art.displaySource.squareCompact
       : art.source;
@@ -731,11 +738,17 @@ function ArticleThumb({
      read as unfinished next to a row of real renders.
      First tag wins for a multi-game article: arbitrary between equals, but
      deterministic, and the chips beside it show the full set. */
+  /* Every fallback below draws into `box`, not into `styles.articleThumb`.
+     They used to hardcode the 88pt square, which was invisible while the only
+     item-less article rendered as a `media` row — the square WAS the box there.
+     On a full-width `feature` card it would have put an 88pt tile where the
+     image belongs, so the one article exercising this path would have been the
+     one broken card in the list. */
   if (title) {
     const generic = newsThumbFor(title);
     if (generic) {
       return (
-        <View style={styles.articleThumb}>
+        <View style={box}>
           <Image
             source={generic}
             style={styles.articleThumbFill}
@@ -757,12 +770,12 @@ function ArticleThumb({
         colors={[accent.base, accent.secondary]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.articleThumb}
+        style={box}
       />
     );
   }
 
-  return <View style={[styles.articleThumb, styles.articleThumbEmpty]} />;
+  return <View style={[box, styles.articleThumbEmpty]} />;
 }
 
 /**
@@ -793,7 +806,17 @@ function ArticleThumb({
  * do the first job, which is why a rail of them read as a list of links rather
  * than as content.
  */
-export type ThumbVariant = 'media' | 'micro' | 'hero';
+/**
+ * ── Why `feature` is a fourth variant and not a bigger `hero` ──────────────
+ * `hero` is Home's rail: a fixed-width card in a horizontal row whose height is
+ * shared with its neighbours. `feature` is the News list: full width, one per
+ * row, and the tallest thing on the screen. They want different image
+ * proportions and different text density, and Home's rail must not change
+ * appearance, so widening `hero` was not an option — every value it carries is
+ * load-bearing for the row it sits in. Two variants means Home cannot regress
+ * by construction rather than by care.
+ */
+export type ThumbVariant = 'media' | 'micro' | 'hero' | 'feature';
 
 export function ArticleCard({
   article,
@@ -843,17 +866,27 @@ export function ArticleCard({
      layout: no item render means no thumbnail and no row, just the text card.
      `media` always shows a thumbnail, so for it this only picks the picture. */
   const hasItemArt = articleItemArt(article, thumbItemId) !== null;
-  // `hero` always shows its image: the layout is built around it, and falling
-  // back to a text card mid-rail would break the row's shared height.
-  const showThumb = thumb === 'media' || thumb === 'hero' || (thumb === 'micro' && hasItemArt);
+  /* `hero` and `feature` always show their image: both layouts are built around
+     it. Falling back to a text card mid-rail would break the row's shared
+     height, and in the News list it would put a bare paragraph between two
+     full-width pictures — which is exactly what the item-less articles would
+     have done, since their picture comes from the emblem fallback rather than
+     from `hasItemArt`. */
+  const showThumb =
+    thumb === 'media' ||
+    thumb === 'hero' ||
+    thumb === 'feature' ||
+    (thumb === 'micro' && hasItemArt);
 
   const edgeGame = accentEdge ? article.relatedGames[0] : undefined;
   const edge = edgeGame ? gameAccents[edgeGame] : null;
 
-  /* Only the media variant trades the second summary line for density. Micro
-     keeps the full text stack deliberately: the rail's card height is set by
-     that stack, and shortening it here would resize every card on Home. */
-  const tight = thumb === 'media';
+  /* `media` trades the second summary line for density; `feature` trades it for
+     the opposite reason — the picture is doing the work, so the words under it
+     are a label rather than a précis. Micro keeps the full text stack
+     deliberately: the rail's card height is set by that stack, and shortening it
+     here would resize every card on Home. */
+  const tight = thumb === 'media' || thumb === 'feature';
 
   const body = (
     <>
@@ -890,6 +923,29 @@ export function ArticleCard({
       </Text>
     </>
   );
+
+  if (showThumb && thumb === 'feature') {
+    return (
+      <Pressable
+        onPress={onPress}
+        {...hover.hoverProps}
+        style={({ pressed }) => [
+          styles.articleCard,
+          styles.articleCardFeature,
+          width ? { width } : null,
+          hover.hoverStyle,
+          edge ? null : hover.hoverBorder,
+          pressed && styles.pressed,
+        ]}
+      >
+        <ArticleThumb article={article} itemId={thumbItemId} variant="feature" />
+        {/* Same accent rule as `hero`, same reason: a left border on a stacked
+            card runs the full height and reads as a quote block. */}
+        {edge ? <View style={[styles.articleHeroRule, { backgroundColor: edge.base }]} /> : null}
+        <View style={styles.articleFeatureBody}>{body}</View>
+      </Pressable>
+    );
+  }
 
   if (showThumb && thumb === 'hero') {
     return (
@@ -1169,8 +1225,16 @@ const styles = StyleSheet.create({
      between stacked text lines, which would be far too tight beside an 88px
      thumbnail. */
   articleCardHero: { flexDirection: 'column', gap: 0, padding: 0, overflow: 'hidden' },
+
+  /* Same shape as hero — stacked, unpadded, clipped so the image corners follow
+     the card's. Separate style so a change to Home's rail cannot reach the News
+     list and the other way round. */
+  articleCardFeature: { flexDirection: 'column', gap: 0, padding: 0, overflow: 'hidden' },
   articleHeroRule: { height: 3, width: '100%' },
   articleHeroBody: { gap: spacing.xs, padding: spacing.md },
+  /* More breathing room under a much larger picture: `md` looked like a caption
+     crammed against the frame once the image was 239pt tall rather than 90. */
+  articleFeatureBody: { gap: spacing.xs, padding: spacing.lg },
 
   articleCardMedia: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
   /* minWidth 0 lets the text truncate rather than stretch the card. A flex
@@ -1180,6 +1244,30 @@ const styles = StyleSheet.create({
   articleThumbHero: {
     width: '100%',
     aspectRatio: 16 / 9,
+    borderTopLeftRadius: radius.card,
+    borderTopRightRadius: radius.card,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSunken,
+  },
+
+  /**
+   * 3:2, and that number is not a taste call.
+   *
+   * `bake-display-art.ts` writes the wide rendition at 1200×800, which is 3:2,
+   * from source art that is 660×440 — also 3:2. So a 3:2 box shows the whole
+   * composed frame and crops nothing. Home's `hero` uses 16/9 with `cover`,
+   * which quietly discards about 16% of the height; that is survivable on a
+   * small rail card and would not be on the largest image in the app, where the
+   * missing band is the top of a weapon or the top of a character's head.
+   *
+   * Full width, so at a 390pt phone (358 of content) the image is ~239pt tall
+   * and roughly two cards fill the screen — which is the "image-led, fewer
+   * words" brief. It also matches the digest card above it edge to edge, so the
+   * page reads as one column rather than as a box followed by a list.
+   */
+  articleThumbFeature: {
+    width: '100%',
+    aspectRatio: 3 / 2,
     borderTopLeftRadius: radius.card,
     borderTopRightRadius: radius.card,
     overflow: 'hidden',

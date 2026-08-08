@@ -322,7 +322,7 @@ export default function NewsScreen() {
               key={entry.article.id}
               article={entry.article}
               reason={entry.reason}
-              thumb="media"
+              thumb="feature"
               thumbItemId={feedThumbs[index]}
               onPress={() => open(entry.article.id)}
             />
@@ -344,7 +344,7 @@ export default function NewsScreen() {
               <ArticleCard
                 key={article.id}
                 article={article}
-                thumb="media"
+                thumb="feature"
                 thumbItemId={savedThumbs[index]}
                 onPress={() => open(article.id)}
               />
@@ -368,7 +368,35 @@ export default function NewsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: 'transparent' },
-  content: { padding: spacing.lg, gap: spacing.lg },
+  /**
+   * A capped, centred column — the one place in the app that has one.
+   *
+   * The article cards are now full-width 3:2 images, which is right on a phone
+   * (a 390pt screen gives a 358pt card and a 239pt image, so two cards fill the
+   * screen). With no max-width shell anywhere in the app, the same rule on a
+   * 1280pt browser gives a 1248pt card and an 832pt image — one card taller than
+   * the viewport, with its own title below the fold.
+   *
+   * 720 is capped rather than the cards alone because the digest box and the
+   * cards must stay the same width: they are the two things this page is made
+   * of, and matching their edges is what makes it read as one column instead of
+   * a box followed by a list. Capping the container narrows both together and
+   * keeps that true at every width. At 1280 that is a 688pt card and a 459pt
+   * image — a card and a bit per screen.
+   *
+   * 720 is already a house value; `room/new` uses it for the same reason.
+   *
+   * ⚠️ This shifts what the tour's stop 4 measures — `news-digest` is now
+   * narrower and centred on wide screens. Re-measured after the change; see the
+   * commit.
+   */
+  content: {
+    padding: spacing.lg,
+    gap: spacing.lg,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+  },
   list: { gap: spacing.md },
   footnote: { ...typography.meta, color: colors.textTertiary },
   utilityRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.lg },
