@@ -23,7 +23,7 @@ import { RARITY_LABELS } from '../src/domain/rarity';
 import { CONTENT_REPORT_THRESHOLD } from '../src/domain/trust';
 import { THREADS, THREAD_REPLIES } from '../src/fixtures/threads';
 import { BURY_AT } from '../src/domain/threads';
-import type { Flag, Placement, Slot } from '../src/types';
+import type { Article, Flag, Placement, Slot } from '../src/types';
 import { GAME_TITLES } from '../src/types';
 import { GAME_DIGESTS } from '../src/fixtures/digests';
 import { ALL_ITEMS, ALL_SETS, ITEMS_BY_ID } from '../src/fixtures/catalogue';
@@ -334,6 +334,32 @@ for (const thread of THREADS) {
   check(communityIds.has(thread.communityId), `Thread ${thread.id}: unknown community`);
   check(userIds.has(thread.userId), `Thread ${thread.id}: unknown author`);
   check(thread.title.trim().length > 0, `Thread ${thread.id}: empty title`);
+}
+
+/*
+ * Inline article figures.
+ *
+ * `ArticleBlock` image blocks reference the catalogue by id, and the screen
+ * renders nothing when the lookup misses — so a typo here is a paragraph that
+ * silently loses its picture rather than an error anyone would notice. Captions
+ * are required to be non-empty for the same reason: a figure with no caption
+ * reads as a decorative image, and these are illustrating a claim.
+ */
+/* Widened to `Article`: ARTICLES is `as const`, so entries without a `body`
+   have no such property and the union cannot be read through. */
+for (const article of ARTICLES as readonly Article[]) {
+  if (!article.body) continue;
+  for (const block of article.body) {
+    if (block.kind !== 'image') continue;
+    check(
+      itemIds.has(block.itemId),
+      `Article ${article.id}: inline figure references unknown item "${block.itemId}"`,
+    );
+    check(
+      block.caption.trim().length > 0,
+      `Article ${article.id}: inline figure for "${block.itemId}" has no caption`,
+    );
+  }
 }
 
 const replyIds = new Set<string>(THREAD_REPLIES.map((r) => r.id));

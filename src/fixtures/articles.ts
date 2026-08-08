@@ -2,10 +2,15 @@
  * News fixtures — PRD §11 F6.
  *
  * ⚠️ SOURCING RULE, not a preference: official publisher channels and permitted
- * RSS only. Summaries link out; Collectee NEVER reproduces article bodies.
- * This is both a legal requirement and the difference between a partner and a
- * scraper. Every entry therefore carries a real outbound `url` and a short
- * original summary — never pasted copy.
+ * RSS only. Collectee NEVER reproduces a PUBLISHER'S article body. This is both
+ * a legal requirement and the difference between a partner and a scraper. Every
+ * entry carries a real outbound `url` and original prose — never pasted copy.
+ *
+ * Three entries now carry a `body` as well: a multi-paragraph write-up with
+ * inline figures, so the detail screen has something real to render. Those are
+ * OUR words about a real happening, written the same way `summary` always was,
+ * and they do not weaken the rule above — the rule is about whose text it is,
+ * not how much of it there is. Never paste a publisher's prose into `body`.
  *
  * `relatedItemIds` is what makes FYP more than a game filter: a player who owns
  * a skin for a weapon being reworked should see that patch note first.
@@ -220,6 +225,46 @@ export const ARTICLES = [
     relatedGames: ['codm'],
     relatedItemIds: ['codm-fennec-ascended'],
     publishedAt: '2026-08-05T09:30:00.000Z',
+    /* One of three articles written out in full — see `ArticleBlock`. Our own
+       words about a real release, not the publisher's copy. */
+    body: [
+      {
+        kind: 'paragraph',
+        text:
+          'The FSS Hurricane arrived with Season 6 as a straightforward submachine gun, and it is ' +
+          'leaving its first month with a Mythic. Shadow Skyline is the weapon’s first entry at ' +
+          'that tier, which means the usual thing: it is not in the store, and it will not be.',
+      },
+      {
+        kind: 'paragraph',
+        text:
+          'That distinction matters more than the finish does. A Mythic blueprint is a draw item, ' +
+          'and a draw item is the one kind of cosmetic whose price is set by how long you are ' +
+          'willing to keep pulling rather than by a number on a shelf. Owners talk about them in ' +
+          'crates, not currency.',
+      },
+      { kind: 'heading', text: 'What it sits alongside' },
+      {
+        kind: 'image',
+        itemId: 'codm-fennec-ascended',
+        caption: 'Fennec — Ascended, the SMG the Hurricane is measured against.',
+      },
+      {
+        kind: 'paragraph',
+        text:
+          'The comparison every CODM collector will make is the Ascended Fennec. Same class, same ' +
+          'tier, and a similar promise — an SMG you keep on the loadout because of how it looks ' +
+          'rather than because the numbers demand it. Ascended has held its standing for a while, ' +
+          'and Shadow Skyline is the first thing in a season to be pitched at it directly.',
+      },
+      {
+        kind: 'paragraph',
+        text:
+          'Whether it lands there is a question of restraint. Ascended works because the ivory and ' +
+          'gold read at a glance and stop; the sci-fi treatment on the Hurricane has more going on, ' +
+          'and more going on is not always more.',
+      },
+    ],
   },
   {
     id: 'art-codm-hollow-regent',
@@ -283,6 +328,37 @@ export const ARTICLES = [
     relatedGames: ['valorant'],
     relatedItemIds: ['val-champions-2022-phantom'],
     publishedAt: '2026-08-07T11:20:00.000Z',
+    body: [
+      {
+        kind: 'paragraph',
+        text:
+          'Champions goes back to Shanghai, running from late September into the middle of ' +
+          'October. It is the first time the season finale has returned to China since Masters ' +
+          'in 2024, and the venue is most of the story — Shanghai crowds have a reputation that ' +
+          'precedes the bracket.',
+      },
+      { kind: 'heading', text: 'Why collectors watch the calendar' },
+      {
+        kind: 'image',
+        itemId: 'val-champions-2022-phantom',
+        caption: 'The 2022 Champions Phantom — the line collectors track year on year.',
+      },
+      {
+        kind: 'paragraph',
+        text:
+          'Champions skins are the only line in the game tied to a date rather than a theme. They ' +
+          'arrive with the tournament, they leave with it, and half of what they take goes to the ' +
+          'competing teams — which is why owning an older one reads as "I was there for that ' +
+          'year" in a way no store bundle manages.',
+      },
+      {
+        kind: 'paragraph',
+        text:
+          'That also makes them the clearest case for the thing a collection app is for. A Phantom ' +
+          'from 2022 is not rarer than one from last season in any mechanical sense. It is older, ' +
+          'and the only place that difference shows up is on a shelf next to the rest.',
+      },
+    ],
   },
   {
     id: 'art-val-outlaw-pass',
@@ -313,6 +389,44 @@ export const ARTICLES = [
     relatedGames: ['mlbb'],
     relatedItemIds: ['mlbb-akai-panda-warrior', 'mlbb-eudora-royal-sorcerer'],
     publishedAt: '2026-07-08T08:30:00.000Z',
+    body: [
+      {
+        kind: 'paragraph',
+        text:
+          'Seven buffs, four nerfs, and one clear intention: the tank jungle is finished. Baxia ' +
+          'and Fredrinn both lose clear speed, Fredrinn some early durability with it, and the ' +
+          'gold changes early in the jungle make the lane a worse place to farm a tank than it ' +
+          'was a fortnight ago.',
+      },
+      { kind: 'heading', text: 'Akai pays for it, and gets something back' },
+      {
+        kind: 'image',
+        itemId: 'mlbb-akai-panda-warrior',
+        caption: 'Akai — Panda Warrior. The jungle build is the one that changed.',
+      },
+      {
+        kind: 'paragraph',
+        text:
+          'Akai’s clear speed is cut, which takes him out of the jungle, but his burst goes up in ' +
+          'compensation. That is a rework by another name: the hero is not weaker so much as ' +
+          'pointed somewhere else, and the roam build people had already been running quietly is ' +
+          'now the one the numbers agree with.',
+      },
+      { kind: 'heading', text: 'Seven lifted' },
+      {
+        kind: 'image',
+        itemId: 'mlbb-eudora-royal-sorcerer',
+        caption: 'Eudora — Royal Sorcerer, among the seven buffed this patch.',
+      },
+      {
+        kind: 'paragraph',
+        text:
+          'Esmeralda, Nolan, Aulus, Minsitthar, Argus, Eudora and Melissa all come up, and the ' +
+          'through-line is exp lane and jungle picks that had drifted out of use rather than ' +
+          'anything that was struggling on paper. Kaja’s revamp lands separately and is the change ' +
+          'most likely to be felt in draft.',
+      },
+    ],
   },
   {
     id: 'art-mlbb-anniversary-resale',

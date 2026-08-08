@@ -209,6 +209,26 @@ export interface Flag {
   createdAt: IsoDateString;
 }
 
+/**
+ * One block of an article's own write-up.
+ *
+ * ── This is NOT the publisher's article text ──────────────────────────────
+ * §11 F6's sourcing rule is that Collectee never reproduces an article body,
+ * and that rule is intact. These blocks are Collectee's OWN coverage of a real
+ * happening, written by us for the seed, the same way `summary` always was —
+ * `summary` is one sentence of it and this is the rest. Every article still
+ * carries a real outbound `url` to the publisher, and the detail screen still
+ * sends the reader there for the original.
+ *
+ * If a future phase ingests real feeds, this field takes the FEED's own
+ * excerpt or nothing at all. It must never be filled with scraped copy.
+ */
+export type ArticleBlock =
+  | { kind: 'paragraph'; text: string }
+  | { kind: 'heading'; text: string }
+  /** Inline art, by catalogue item id — never a remote URL (§12.1, no network). */
+  | { kind: 'image'; itemId: string; caption: string };
+
 export interface Article {
   id: string;
   source: string;
@@ -218,6 +238,16 @@ export interface Article {
   imageUrl: string;
   /** AI summary — the one place a real model call may run (§12.1). */
   summary: string;
+  /**
+   * Collectee's own multi-paragraph write-up, when there is one.
+   *
+   * Optional on purpose. Most seeded articles are a headline and a summary,
+   * which is what an aggregated feed entry looks like; a handful are written
+   * out in full so the detail screen has something real to render. The screen
+   * handles both — absent means it shows the summary and the source card, as it
+   * always did.
+   */
+  body?: readonly ArticleBlock[];
   tags: string[];
   /** Games this article is about — drives FYP relevance against owned items (§11 F6). */
   relatedGames: GameTitle[];

@@ -3,10 +3,23 @@
  *
  * Two constraints, both non-negotiable:
  *
- * 1. **Collectee never reproduces an article body.** The summary links out.
- *    This is a legal requirement and, per §11 F6, "the difference between a
- *    partner and a scraper". There is deliberately no full-text view here — do
- *    not add one.
+ * 1. **Collectee never reproduces THE PUBLISHER'S article body.** This is a
+ *    legal requirement and, per §11 F6, "the difference between a partner and a
+ *    scraper".
+ *
+ *    This note used to end "there is deliberately no full-text view here — do
+ *    not add one", and the screen now renders one, so the distinction has to be
+ *    stated precisely rather than left as a blanket ban.
+ *
+ *    What is rendered is `Article.body`: COLLECTEE'S OWN write-up of a real
+ *    happening, written for the seed, of which `summary` was always the first
+ *    sentence. It is the same authorship as everything else in the fixture. The
+ *    rule that must not be broken is about whose words they are, not about how
+ *    many of them there are — and the source card below still sends the reader
+ *    to the publisher for the original.
+ *
+ *    So: never paste a publisher's text into `body`. If a future phase ingests
+ *    real feeds, `body` takes the feed's own excerpt or stays empty.
  *
  * 2. **Do not imply a model ran when it did not.** `newsService.summarise()` is
  *    the single place §12.1 proposed a real call (~2 hours, decide by 5 Aug).
@@ -18,16 +31,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import { ASSISTANT_CLEARANCE, LoadingState, SecondaryButton } from '@/components';
+import { ASSISTANT_CLEARANCE, ItemArt, LoadingState, SecondaryButton } from '@/components';
 import { timeAgo } from '@/components';
 import { FEATURES } from '@/config/features';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
-import { newsService } from '@/services';
+import { catalogueService, newsService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { SummaryResult } from '@/services';
-import type { Article } from '@/types';
+import type { Article, Item } from '@/types';
 
 export default function ArticleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,14 +52,19 @@ export default function ArticleScreen() {
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [summarising, setSummarising] = useState(false);
   const [saved, setSaved] = useState(false);
+  /* Items referenced by inline figures, resolved through the service like
+     everything else — the screen never reaches into the catalogue fixture. */
+  const [items, setItems] = useState<ReadonlyMap<string, Item>>(new Map());
   const [busy, setBusy] = useState(true);
 
   const load = useCallback(async () => {
-    const [found, bookmarks] = await Promise.all([
+    const [found, bookmarks, catalogue] = await Promise.all([
       newsService.getArticle(id),
       newsService.getSaved(viewerId),
+      catalogueService.getCatalogueMap(),
     ]);
     setArticle(found);
+    setItems(catalogue);
     setSaved(bookmarks.some((entry) => entry.id === id));
     setBusy(false);
   }, [id, viewerId]);
@@ -96,7 +114,50 @@ export default function ArticleScreen() {
         ))}
       </View>
 
-      <Text style={styles.body}>{article.summary}</Text>
+      {/* The standfirst. With a full write-up below it this is the lede; on a
+          summary-only article it is still the whole thing. */}
+      <Text style={[styles.body, article.body ? styles.lede : null]}>{article.summary}</Text>
+
+      {/*
+        Collectee's own write-up, when the article has one. See `ArticleBlock`:
+        these are our words about a real happening, not the publisher's copy,
+        which is what keeps §11 F6's sourcing rule intact. Articles without a
+        body render exactly as they did before.
+      */}
+      {article.body?.map((block, index) => {
+        /* Index keys are safe here and only here: a fixture body is static, so
+           the list never reorders, filters or grows. */
+        if (block.kind === 'heading') {
+          return (
+            <Text key={index} style={styles.bodyHeading}>
+              {block.text}
+            </Text>
+          );
+        }
+        if (block.kind === 'image') {
+          const item = items.get(block.itemId);
+          /* No item, no figure. The id is guarded by validate-fixtures, so this
+             is the loading frame rather than a real absence — and a caption
+             floating under nothing reads worse than a missing picture. */
+          if (!item) return null;
+          return (
+            <View key={index} style={styles.figure}>
+              <ItemArt
+                seed={item.id}
+                tier={item.rarityTier}
+                renderUrl={item.renderUrl}
+                style={styles.figureImage}
+              />
+              <Text style={styles.figureCaption}>{block.caption}</Text>
+            </View>
+          );
+        }
+        return (
+          <Text key={index} style={styles.body}>
+            {block.text}
+          </Text>
+        );
+      })}
 
       <Pressable onPress={() => void summarise()} style={styles.summaryButton}>
         <Text style={styles.summaryButtonText}>
@@ -138,9 +199,13 @@ export default function ArticleScreen() {
       <View style={styles.sourceCard}>
         <Text style={styles.rowTitle}>Read the full article at the source</Text>
         <Text style={styles.muted}>{article.url}</Text>
+        {/* Reworded when full write-ups landed. The old line said Collectee
+            does not reproduce "the body", which stopped being precise the
+            moment this screen rendered one of our own. What has not changed is
+            the rule it was protecting. */}
         <Text style={styles.footnote}>
-          Collectee links out rather than reproducing the body — official channels and permitted RSS
-          only.
+          The write-up above is Collectee&apos;s own. We link out rather than reproducing the
+          publisher&apos;s article — official channels and permitted RSS only.
         </Text>
       </View>
 
@@ -163,6 +228,24 @@ const styles = StyleSheet.create({
   muted: { ...typography.meta, color: colors.textSecondary },
   footnote: { ...typography.meta, color: colors.textTertiary },
   rowTitle: { ...typography.cardTitle, color: colors.textPrimary },
+
+  /* The standfirst, on articles that have a body under it: brighter and a step
+     larger, so the first paragraph reads as the lede rather than as the first
+     of many equal ones. */
+  lede: { ...typography.cardTitle, fontSize: 16, lineHeight: 24, color: colors.textPrimary },
+  bodyHeading: { ...typography.sectionHeader, color: colors.textPrimary, marginTop: spacing.sm },
+
+  figure: { gap: spacing.xs },
+  /* 3:2 to match the baked wide rendition, so an inline figure crops no more
+     than the cards in the list do. */
+  figureImage: {
+    width: '100%',
+    aspectRatio: 3 / 2,
+    borderRadius: radius.card,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSunken,
+  },
+  figureCaption: { ...typography.meta, color: colors.textTertiary },
 
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tag: {
