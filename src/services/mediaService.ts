@@ -148,13 +148,37 @@ export const mediaService = {
 export type MediaService = typeof mediaService;
 
 /**
+ * How long to wait after the window regains focus before deciding the dialog
+ * closed with nothing selected. `change` fires just after `focus` on several
+ * browsers, so settling immediately would discard a real selection.
+ */
+const DIALOG_SETTLE_MS = 500;
+
+/**
+ * Longest we will wait for the blur that means "the dialog is open" before
+ * arming the focus fallback anyway. Some browsers present the picker as a
+ * sheet and never blur the window at all; without this backstop a dismissed
+ * dialog would leave the promise pending forever.
+ */
+const DIALOG_OPEN_MS = 1000;
+
+/**
  * A dialog per call, removed on settle.
  *
- * `change` is the only reliable signal: `cancel` is not in every browser yet,
- * and a dialog that was dismissed fires nothing at all. So the input is also
- * dropped on the next window focus, which is what actually happens when the
- * dialog closes either way — otherwise a cancelled pick would leave the promise
- * pending forever and the button dead until reload.
+ * `change` is the primary signal. `cancel` is now widely supported and handles
+ * an explicit dismissal, but a dialog closed by other means can still fire
+ * nothing at all — so a window `focus` is used as the last-resort fallback.
+ *
+ * ── Why the fallback is armed late, and not at click time ──────────────────
+ * This is the bug that made picking a valid PNG do nothing. Arming `focus`
+ * before `input.click()` means any focus event that lands while the dialog is
+ * still open settles the promise as cancelled — and `settle` removes the input
+ * from the DOM, so the user's real selection then has no live listener to fire
+ * `change` at. The pick vanished silently and the only way back was a reload.
+ *
+ * So the fallback is armed only once the dialog is definitely open: on the
+ * blur that opening it causes, or after `DIALOG_OPEN_MS` if this browser never
+ * blurs. After that point a focus event genuinely does mean the dialog closed.
  */
 function openFileDialog(accept: string): Promise<File | null> {
   return new Promise((resolve) => {
@@ -165,21 +189,34 @@ function openFileDialog(accept: string): Promise<File | null> {
     document.body.appendChild(input);
 
     let settled = false;
+    let armTimer: ReturnType<typeof setTimeout> | undefined;
+
     const settle = (file: File | null) => {
       if (settled) return;
       settled = true;
+      clearTimeout(armTimer);
+      window.removeEventListener('blur', arm);
       window.removeEventListener('focus', onFocus);
       input.remove();
       resolve(file);
     };
 
-    // A frame of slack: focus returns before `change` fires on some browsers,
-    // so settling immediately here would discard a real selection.
-    const onFocus = () => setTimeout(() => settle(input.files?.[0] ?? null), 250);
+    const onFocus = () => {
+      setTimeout(() => settle(input.files?.[0] ?? null), DIALOG_SETTLE_MS);
+    };
+
+    /** Idempotent: whichever of blur or the timer happens first wins. */
+    const arm = () => {
+      if (settled) return;
+      clearTimeout(armTimer);
+      window.removeEventListener('blur', arm);
+      window.addEventListener('focus', onFocus, { once: true });
+    };
 
     input.addEventListener('change', () => settle(input.files?.[0] ?? null), { once: true });
     input.addEventListener('cancel', () => settle(null), { once: true });
-    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', arm, { once: true });
+    armTimer = setTimeout(arm, DIALOG_OPEN_MS);
 
     input.click();
   });

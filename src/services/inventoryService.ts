@@ -195,6 +195,20 @@ export const inventoryService = {
    * the last read stay unverified until the account is read again, which is
    * exactly the seeded state of the viewer's CODM account.
    *
+   * ── `onlyItemIds` ────────────────────────────────────────────────────────
+   * Narrows the promotion to specific items without changing what linking
+   * means. The Import flow's Verify step passes the items that import just
+   * wrote, so confirming a batch of new skins does not silently sweep up every
+   * other unverified item on the account — a user who imports three skins
+   * expects three to change, and watching their whole inventory flip is both
+   * surprising and impossible to undo per item.
+   *
+   * The account still ends up `linked`, which is not a contradiction: this
+   * model already separates the link from what it has confirmed, which is the
+   * same reason re-sync exists at all. Omit it and the behaviour is unchanged —
+   * the link-account screen still promotes everything, because there the user
+   * asked about the account rather than about a handful of items.
+   *
    * Everything here is mocked (§12.1). It is a timed loading state over a local
    * map, and the screen says so.
    */
@@ -202,9 +216,12 @@ export const inventoryService = {
     userId: string,
     title: GameTitle,
     onProgress?: (fraction: number) => void,
+    onlyItemIds?: readonly string[],
   ): Promise<{ verified: OwnedItem[]; alreadyVerified: number }> {
     const mine = this.itemsForTitle(userId, title);
-    const toPromote = mine.filter((owned) => owned.trustLevel !== 'verified');
+    const scope = onlyItemIds === undefined ? null : new Set(onlyItemIds);
+    const inScope = scope === null ? mine : mine.filter((owned) => scope.has(owned.itemId));
+    const toPromote = inScope.filter((owned) => owned.trustLevel !== 'verified');
 
     for (const owned of toPromote) {
       promoted.set(owned.id, {
@@ -219,7 +236,11 @@ export const inventoryService = {
     linkStatuses.set(linkKey(userId, title), 'linked');
 
     return delayWithProgress(
-      { verified: toPromote, alreadyVerified: mine.length - toPromote.length },
+      // Counted against what was in scope, not the whole account — otherwise a
+      // three-item import would report every other verified item on the
+      // account as "already verified" and the two numbers would not add up to
+      // anything the user recognises.
+      { verified: toPromote, alreadyVerified: inScope.length - toPromote.length },
       LATENCY_GENERATE,
       onProgress,
     );

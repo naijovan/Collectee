@@ -65,7 +65,12 @@ import { ART_PLACEMENTS, GAME_COVERS } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import type { CollectionSuggestion } from '@/domain/collections';
 import { groupByRarity, rarityLabelFor } from '@/domain/rarity';
-import { CONFIDENCE_AUTO_ACCEPT, CONFIDENCE_REVIEW_FLOOR, isMatchIncluded } from '@/domain/scan';
+import {
+  CONFIDENCE_AUTO_ACCEPT,
+  CONFIDENCE_REVIEW_FLOOR,
+  foreignTitleMatches,
+  isMatchIncluded,
+} from '@/domain/scan';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import * as haptics from '@/lib/haptics';
@@ -84,15 +89,30 @@ import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { GameTitle, Item, ScanDetection, ScanResolution, ScanResult } from '@/types';
 
-/** The Figma's four labels. §11 F3's stepper arrays are J2's and J3's. */
-const IMPORT_STEPS = ['Upload', 'Scan', 'Review', 'Complete'] as const;
+/**
+ * The Figma's four labels, plus Verify. §11 F3's stepper arrays are J2's and J3's.
+ *
+ * Verify sits AFTER the items are written, not before, and that ordering is
+ * forced rather than chosen: `linkAccount` promotes items the inventory already
+ * holds (§9.3), so there has to be something to promote. The step is skippable
+ * by design — verification needs a linked game account, and a user who has not
+ * linked one still gets their import.
+ */
+const IMPORT_STEPS = ['Upload', 'Scan', 'Review', 'Verify', 'Complete'] as const;
 
 /**
  * `landing` sits on step 0 alongside `upload`: picking a title is part of
  * choosing what to upload, not a numbered step of its own. The Figma draws it
  * as a separate screen under the same highlighted "Upload" circle.
  */
-type Stage = 'landing' | 'upload' | 'scanning' | 'review' | 'needs-review' | 'complete';
+type Stage =
+  | 'landing'
+  | 'upload'
+  | 'scanning'
+  | 'review'
+  | 'needs-review'
+  | 'verify'
+  | 'complete';
 
 const STAGE_STEP: Record<Stage, number> = {
   landing: 0,
@@ -100,7 +120,8 @@ const STAGE_STEP: Record<Stage, number> = {
   scanning: 1,
   review: 2,
   'needs-review': 2,
-  complete: 3,
+  verify: 3,
+  complete: 4,
 };
 
 /** Each frame's own header, rather than one title for the whole flow. */
@@ -110,6 +131,7 @@ const STAGE_TITLE: Record<Stage, string> = {
   scanning: 'Scanning inventory',
   review: 'Review items',
   'needs-review': 'Confirm a match',
+  verify: 'Verify ownership',
   complete: 'Import complete',
 };
 
@@ -138,7 +160,17 @@ export default function ImportScreen() {
   const scrollRef = useTopOnFocus(stage);
 
   const [title, setTitle] = useState<GameTitle>('codm');
-  const [kind, setKind] = useState<'image' | 'video'>(FEATURES.scanVideoInput ? 'video' : 'image');
+  /**
+   * Always `image`, even when video input is available.
+   *
+   * Video defaulted here until it was watched in use: the first thing the
+   * screen showed was a large upload box that ignores taps, because the video
+   * path has no file to pick (§14 rung 4 — frame sampling is not built). People
+   * tapped it, nothing happened, and they concluded upload was broken. The
+   * source that accepts a file is the one worth landing on; video is still one
+   * chip away.
+   */
+  const [kind, setKind] = useState<'image' | 'video'>('image');
   const [upload, setUpload] = useState<PickedImage | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -152,6 +184,13 @@ export default function ImportScreen() {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [nextUp, setNextUp] = useState<CollectionSuggestion[]>([]);
   const [suggesting, setSuggesting] = useState(false);
+
+  /** Verify step. `linkResult` is null until an account link has actually run. */
+  const [linking, setLinking] = useState(false);
+  const [linkProgress, setLinkProgress] = useState(0);
+  const [linkResult, setLinkResult] = useState<{ verified: number } | null>(null);
+  /** Exactly what this import asked for — the scope Verify confirms. */
+  const [importedItemIds, setImportedItemIds] = useState<readonly string[]>([]);
 
   /**
    * Incremented by "Cancel scan". The scan is a timer, not a request, so it
@@ -167,6 +206,14 @@ export default function ImportScreen() {
    * re-derived here — the flag, the endpoint and the video rule all live in
    * one place and this screen must not grow a second opinion about them.
    */
+  /**
+   * §14 rung 5: with the third title cut, MLBB has no account to connect, so
+   * the Verify step must not offer a button that cannot do anything. Same
+   * predicate as `link-account.tsx` — if that screen grows a real rule, this
+   * follows it rather than keeping a second opinion.
+   */
+  const canLinkTitle = FEATURES.thirdTitle || title !== 'mlbb';
+
   const scanMode = scanService.modeFor({
     kind,
     uri: upload?.uri ?? `demo://${title}-inventory`,
@@ -229,6 +276,72 @@ export default function ImportScreen() {
         .filter((entry): entry is { detection: ScanDetection; item: Item } => entry.item !== undefined),
     [detections, items],
   );
+
+  /**
+   * Every title's catalogue, for the wrong-game check below. Loaded once on
+   * mount rather than per scan: it is the same static catalogue every time, and
+   * fetching it while the Review screen is already on screen would make the
+   * warning appear a beat after the list it is about.
+   */
+  const [fullCatalogue, setFullCatalogue] = useState<readonly Item[]>([]);
+  useEffect(() => {
+    let live = true;
+    void catalogueService.getAllItems().then((all) => {
+      if (live) setFullCatalogue(all);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  /**
+   * "You read Valorant skins but picked CODM."
+   *
+   * The scan cannot mis-assign a game — it only ever sees the selected title's
+   * catalogue — so a wrong-game upload surfaces as a pile of unreadable items
+   * with no explanation. This finds the explanation locally (`domain/scan.ts`),
+   * with no model call.
+   */
+  /** Catalogue by id, for the Complete step's suggestion previews. */
+  const catalogueById = useMemo(
+    () => new Map(fullCatalogue.map((item) => [item.id, item])),
+    [fullCatalogue],
+  );
+
+  /**
+   * Low-confidence reads, offered only when the scan produced NOTHING else.
+   *
+   * A detection below the floor is discarded, and that is the right default: it
+   * keeps a guess out of someone's inventory, and the measured behaviour is
+   * that the floor separates correct identifications from incorrect ones.
+   *
+   * But when EVERY detection was discarded, the screen becomes a dead end —
+   * "0 items detected", a disabled CTA, and a footnote saying something was
+   * read but withheld. The user can see we found something and has no way to
+   * act on it, which reads as broken rather than as cautious. That is the
+   * common outcome for a single-item photo, where one render carries less
+   * evidence than a labelled tile.
+   *
+   * So they are surfaced here, clearly labelled as uncertain and confirmed one
+   * at a time. The floor is untouched — nothing auto-accepts, nothing is
+   * pre-selected, and the user is told the confidence. Rescuing these by
+   * lowering the threshold instead would also let the wrong reads through.
+   */
+  const rescuable = useMemo(() => {
+    const somethingElseSurvived =
+      counts.matched > 0 || counts.needsReview > 0 || counts.unmatched > 0;
+    if (somethingElseSurvived) return [];
+
+    return detections
+      .filter((d) => d.outcome === 'discarded' && d.itemId !== null && items.has(d.itemId))
+      .map((d) => ({ detection: d, item: items.get(d.itemId!)! }));
+  }, [detections, items, counts]);
+
+  const wrongGame = useMemo(() => {
+    if (fullCatalogue.length === 0) return null;
+    const readings = unmatchedEntries.map((d) => d.reading!.name);
+    return foreignTitleMatches(readings, fullCatalogue, title)[0] ?? null;
+  }, [unmatchedEntries, fullCatalogue, title]);
 
   /** Pick the screenshot to scan. The file is real even though the read is not. */
   async function chooseUpload() {
@@ -316,10 +429,28 @@ export default function ImportScreen() {
     const imported = await inventoryService.importFromScan(viewerId, itemIds, confidence);
     await refreshInventory();
     setImportedCount(imported.length);
+    /**
+     * Kept so Verify can scope the account link to this import.
+     *
+     * `itemIds` rather than `imported`, deliberately: `importFromScan` writes
+     * nothing for items the inventory already held, so re-scanning the same
+     * screenshot returns an empty array. Those items are still exactly what the
+     * user just asked to import and still the ones they expect Verify to
+     * confirm — scoping to `imported` would make the button do nothing on a
+     * second run, which is the case most likely to be hit while rehearsing.
+     */
+    setImportedItemIds(itemIds);
     // One of exactly three success haptics in the app — the three rungs of the
     // never-cut chain (§14). Firing it anywhere else dilutes what it means.
     haptics.success();
-    setStage('complete');
+    /**
+     * Verify, not complete. The items are written and unverified at this point,
+     * which is precisely what makes the offer meaningful — `linkAccount`
+     * promotes items that already exist, so this is the first moment the step
+     * can do anything, and the last moment the user is still thinking about
+     * these particular items.
+     */
+    setStage('verify');
 
     // The bridge into J2. Suggestions are computed from what the user now owns,
     // so this reflects the import that just happened, not a canned list.
@@ -329,10 +460,46 @@ export default function ImportScreen() {
     setSuggesting(false);
   }
 
+  /**
+   * Link the game account the items were just imported from — the ONLY path to
+   * a verified item (§9.3). Mocked, and the step says so on screen.
+   *
+   * Scoped to `importedItemIds`. Connecting an account here confirms THIS
+   * import, not the whole account: someone who imports three skins expects
+   * three to turn verified, and having the rest of their library flip at the
+   * same time is both surprising and not undoable item by item. The full-account
+   * sweep still lives on the link-account screen, where that is what was asked
+   * for.
+   */
+  async function verifyNow() {
+    setLinking(true);
+    setLinkProgress(0);
+    const outcome = await inventoryService.linkAccount(
+      viewerId,
+      title,
+      setLinkProgress,
+      importedItemIds,
+    );
+    // Every screen reading the viewer's inventory has to see the new trust
+    // levels, not just this one.
+    await refreshInventory();
+    setLinkResult({ verified: outcome.verified.length });
+    setLinking(false);
+  }
+
   function goBack() {
     if (stage === 'needs-review') return setStage('review');
     if (stage === 'upload') return setStage('landing');
     if (stage === 'scanning') return cancelScan();
+    /**
+     * Verify has no "back". The import is already committed by the time it
+     * renders, so Review is no longer a place that can be returned to — going
+     * there would offer to re-decide items that are already in the inventory.
+     * Back therefore means the same thing the skip button means: carry on
+     * unverified. Sending it forward rather than out of the flow keeps the
+     * import → collection bridge (§14) that Complete carries.
+     */
+    if (stage === 'verify') return setStage('complete');
     return router.back();
   }
 
@@ -466,17 +633,26 @@ export default function ImportScreen() {
               <Text style={styles.change}>Change</Text>
             </Pressable>
           ) : (
+            /*
+              Video is not an upload target and must not look like one. It has
+              no file dialog (§14 rung 4), so when it wore the same dashed drop
+              zone with the same ⇪ glyph, tapping it did nothing and read as a
+              broken upload. It keeps a distinct style, a glyph that is not an
+              upload arrow, and copy that says the recording is already
+              supplied — so there is nothing to press and nothing looks pressed.
+            */
             <Pressable
-              style={styles.dropZone}
+              style={kind === 'video' ? styles.dropStatic : styles.dropZone}
               onPress={kind === 'image' ? () => void chooseUpload() : undefined}
+              disabled={kind === 'video'}
             >
-              <Text style={styles.dropGlyph}>⇪</Text>
+              <Text style={styles.dropGlyph}>{kind === 'video' ? '▶' : '⇪'}</Text>
               <Text style={styles.body}>
                 {kind === 'video' ? 'inventory-scroll.mp4' : 'Choose a screenshot'}
               </Text>
               <Text style={styles.muted}>
                 {kind === 'video'
-                  ? 'Sampled at ~2 fps with a frame-difference filter'
+                  ? 'Prepared recording · no file needed — press Start scan'
                   : 'PNG or JPG, up to 8 MB · grid segmented into tiles'}
               </Text>
             </Pressable>
@@ -636,8 +812,8 @@ export default function ImportScreen() {
 
             {counts.discarded > 0 ? (
               <Text style={styles.warn}>
-                {counts.discarded} items we couldn&apos;t read — below the {CONFIDENCE_REVIEW_FLOOR}{' '}
-                floor, so not in the total
+                {counts.discarded} {counts.discarded === 1 ? 'item' : 'items'} we couldn&apos;t read
+                — below the {CONFIDENCE_REVIEW_FLOOR} floor, so not in the total
               </Text>
             ) : null}
             {/*
@@ -655,6 +831,110 @@ export default function ImportScreen() {
               </Text>
             ) : null}
           </View>
+
+          {/*
+            ── Wrong game ──────────────────────────────────────────────────
+            Placed directly under the counts, because it is the explanation for
+            the "not in our catalogue" line immediately above it. Read in the
+            other order it looks like two unrelated problems.
+
+            Only rendered when the readings actually matched another title's
+            catalogue (see `foreignTitleMatches` — exact name or two shared
+            significant tokens). A vaguer rule would offer to throw away a good
+            scan on a coincidence, which is worse than saying nothing.
+          */}
+          {wrongGame ? (
+            <View style={styles.wrongGame}>
+              <Text style={styles.wrongGameTitle}>
+                These look like {GAME_LABELS[wrongGame.title]} items
+              </Text>
+              <Text style={styles.body}>
+                {wrongGame.matches.length} of the {counts.unmatched} we couldn&apos;t place are in
+                the {GAME_LABELS[wrongGame.title]} catalogue — including{' '}
+                {wrongGame.matches
+                  .slice(0, 2)
+                  .map((m) => m.itemName)
+                  .join(' and ')}
+                . You picked {GAME_LABELS[title]}, and a scan only ever matches against the game you
+                chose.
+              </Text>
+              <Text style={styles.footnote}>
+                Switching re-runs the scan against {GAME_LABELS[wrongGame.title]}. Nothing has been
+                imported yet, so nothing is lost.
+              </Text>
+              <SecondaryButton
+                label={`Switch to ${GAME_LABELS[wrongGame.title]} and scan again`}
+                onPress={() => {
+                  setTitle(wrongGame.title);
+                  setResult(null);
+                  setResolutions([]);
+                  setReviewFilter('All');
+                  setStage('upload');
+                }}
+              />
+            </View>
+          ) : null}
+
+          {/*
+            ── Rescued low-confidence reads ────────────────────────────────
+            Only when the scan produced nothing else. Above the filter chips
+            because at this point it is the entire content of the screen —
+            everything below it is empty, and burying the one actionable thing
+            under five empty sections is how the dead end happened.
+          */}
+          {rescuable.length > 0 ? (
+            <View style={styles.rescue}>
+              <Text style={styles.rescueTitle}>
+                We think we saw {rescuable.length === 1 ? 'this' : 'these'} — not sure enough to
+                import {rescuable.length === 1 ? 'it' : 'them'} for you
+              </Text>
+              <Text style={styles.body}>
+                A single photo gives less to go on than a full inventory screenshot, so this read
+                scored below the {CONFIDENCE_REVIEW_FLOOR} floor. Confirm it if it&apos;s right.
+              </Text>
+              {rescuable.map(({ detection, item }) => {
+                const confirmed = resolutions.some(
+                  (r) => r.detectionId === detection.id && r.itemId !== null,
+                );
+                return (
+                  <Pressable
+                    key={detection.id}
+                    style={[styles.pendingRow, confirmed && styles.rescueRowOn]}
+                    onPress={() =>
+                      confirmed
+                        ? setResolutions((prev) =>
+                            prev.filter((r) => r.detectionId !== detection.id),
+                          )
+                        : resolve(detection.id, item.id)
+                    }
+                  >
+                    <ItemArt
+                      seed={item.id}
+                      tier={item.rarityTier}
+                      renderUrl={item.renderUrl}
+                      style={styles.dupeThumb}
+                    />
+                    <View style={styles.rowBody}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <RarityBadge tier={item.rarityTier} title={item.title} />
+                      {/* The number, not a word for it. "Low confidence" hides
+                          the difference between 0.58 and 0.12, and the user is
+                          being asked to make exactly that judgement. */}
+                      <Text style={styles.muted}>
+                        {Math.round(detection.confidence * 100)}% confident ·{' '}
+                        {detection.reading?.name ?? 'read from your image'}
+                      </Text>
+                    </View>
+                    <Text style={confirmed ? styles.create : styles.chevron}>
+                      {confirmed ? '✓' : '+'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
 
           <FilterChips options={REVIEW_FILTERS} value={reviewFilter} onChange={setReviewFilter} />
 
@@ -866,6 +1146,111 @@ export default function ImportScreen() {
         </View>
       ) : null}
 
+      {/* ── Verify ─────────────────────────────────────────────────────────
+          Step 4 of 5. Everything here is an OFFER: the items are already in the
+          inventory, and skipping is a supported outcome rather than a failure
+          state. What it must not do is let someone skip without knowing what
+          they gave up — hence the consequences below, which are the four real
+          ones and not a generic "verify for the best experience".
+       */}
+      {stage === 'verify' ? (
+        <View style={styles.block}>
+          {linkResult ? (
+            <>
+              <Text style={styles.done}>✓</Text>
+              <Text style={styles.title}>
+                {linkResult.verified} {linkResult.verified === 1 ? 'item' : 'items'} verified
+              </Text>
+              <Text style={styles.body}>
+                {linkResult.verified > 0
+                  ? `Your ${GAME_LABELS[title]} account is connected. These items can go in a showroom, and they now count towards how other collectors match with you.`
+                  : 'Everything on this account was already verified, so nothing changed.'}
+              </Text>
+              <PrimaryButton label="Continue" onPress={() => setStage('complete')} />
+            </>
+          ) : (
+            <>
+              <Text style={styles.title}>
+                {importedCount > 0
+                  ? `${importedCount} ${importedCount === 1 ? 'item is' : 'items are'} unverified`
+                  : 'Verify your inventory'}
+              </Text>
+              <Text style={styles.body}>
+                A scan proves what an item looks like, not who owns it — so everything imported
+                lands unverified. Connecting your {GAME_LABELS[title]} account reads the inventory
+                back and confirms which of these are actually yours.
+              </Text>
+              {/* Says what will and will not change. Without this the step reads
+                  as an offer to verify the whole account, and the number that
+                  comes back looks wrong. */}
+              <Text style={styles.footnote}>
+                This confirms the {importedItemIds.length}{' '}
+                {importedItemIds.length === 1 ? 'item' : 'items'} from this import only. Anything
+                else in your {GAME_LABELS[title]} inventory stays as it is — verify it from Profile
+                when you want to.
+              </Text>
+
+              {/* The four consequences of skipping. Each one is enforced in code. */}
+              <View style={styles.consequences}>
+                <Text style={styles.consequenceHead}>If you skip this</Text>
+                <Text style={styles.consequence}>
+                  ✗ Unverified items cannot be placed in a 3D showroom (§9.4)
+                </Text>
+                <Text style={styles.consequence}>
+                  ✗ They can only go in a normal 2D collection
+                </Text>
+                <Text style={styles.consequence}>
+                  ✗ Other collectors see them badged as unverified
+                </Text>
+                <Text style={styles.consequence}>
+                  ✗ Collections of unverified items rank below verified ones in other people&apos;s
+                  feeds
+                </Text>
+                <Text style={styles.footnote}>
+                  None of this is permanent — you can connect an account at any time from Profile,
+                  and everything you own is promoted at once.
+                </Text>
+              </View>
+
+              {linking ? (
+                <View style={styles.block}>
+                  <Text style={styles.muted}>Reading your {GAME_LABELS[title]} inventory…</Text>
+                  <View style={styles.track}>
+                    <View style={[styles.fill, { width: `${Math.round(linkProgress * 100)}%` }]} />
+                  </View>
+                </View>
+              ) : canLinkTitle ? (
+                <PrimaryButton
+                  label={`Connect ${GAME_LABELS[title]} account`}
+                  onPress={() => void verifyNow()}
+                />
+              ) : (
+                /* §14 rung 5 — MLBB is cut, so there is nothing to connect to.
+                   Saying so is better than a button that cannot work. */
+                <Text style={styles.warn}>
+                  {GAME_LABELS[title]} account linking is not available yet, so these items stay
+                  unverified for now.
+                </Text>
+              )}
+
+              <SecondaryButton
+                label={linking ? 'Verifying…' : 'Verify later'}
+                onPress={() => setStage('complete')}
+              />
+
+              {/* §12.1's honesty rule. The same words as the link-account screen,
+                  because it is the same mocked flow and a demo must not imply
+                  two different levels of realness for one mechanism. */}
+              <Text style={styles.footnote}>
+                This OAuth flow is mocked (§12.1). No publisher API is called and no credentials are
+                collected — none of the launch titles exposes a public cosmetic-inventory API, so a
+                real Verified tier is partnership-gated (§9.3).
+              </Text>
+            </>
+          )}
+        </View>
+      ) : null}
+
       {stage === 'complete' ? (
         <View style={styles.block}>
           <Text style={styles.done}>✓</Text>
@@ -914,14 +1299,18 @@ export default function ImportScreen() {
 
           {/* The import → collection link in the never-cut chain (§14). */}
           <Text style={styles.label}>Start organising your items</Text>
-          <Text style={styles.footnote}>Based on the items you just imported.</Text>
+          <Text style={styles.footnote}>
+            Based on what you just imported. Each one is a collection you could make right now —
+            the art below is what it would look like.
+          </Text>
           {suggesting ? (
-            <LoadingState height={72} />
+            <LoadingState height={160} />
           ) : (
             nextUp.map((suggestion) => (
-              <Pressable
+              <SuggestionCard
                 key={suggestion.name}
-                style={styles.suggestion}
+                suggestion={suggestion}
+                catalogue={catalogueById}
                 onPress={() =>
                   router.replace({
                     pathname: '/collection/new',
@@ -931,14 +1320,7 @@ export default function ImportScreen() {
                     },
                   })
                 }
-              >
-                <View style={styles.rowBody}>
-                  <Text style={styles.rowTitle}>{suggestion.name}</Text>
-                  <Text style={styles.muted}>{suggestion.reason}</Text>
-                  <Text style={styles.footnote}>{suggestion.itemIds.length} items</Text>
-                </View>
-                <Text style={styles.create}>Create</Text>
-              </Pressable>
+              />
             ))
           )}
 
@@ -953,6 +1335,98 @@ export default function ImportScreen() {
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
+  );
+}
+
+/**
+ * A collection you could make, drawn as the collection rather than described as
+ * one.
+ *
+ * The old row was a name, a reason and a count — three lines of text asking
+ * someone to imagine the result. But every item in the suggestion already has
+ * art, and the whole premise of the app is that a collection is something you
+ * look at. Showing the actual pieces turns "Elderflame Set · 4 items" into a
+ * thing with a shape, and it is the same art the collection would really use,
+ * not a mock-up of it.
+ *
+ * The first tile is deliberately larger. A suggestion has a headline item —
+ * the rarest thing in it — and a flat strip of equal thumbnails hides that,
+ * which makes every suggestion look interchangeable.
+ */
+function SuggestionCard({
+  suggestion,
+  catalogue,
+  onPress,
+}: {
+  suggestion: CollectionSuggestion;
+  catalogue: ReadonlyMap<string, Item>;
+  onPress: () => void;
+}) {
+  const items = suggestion.itemIds
+    .map((id) => catalogue.get(id))
+    .filter((item): item is Item => item !== undefined);
+
+  /**
+   * Rarest first, so the tile that gets the space is the one worth showing.
+   * `groupByRarity` already owns this ordering (§12.2) — sorting on
+   * `rarityTier` here rather than a hand-written rarity list keeps the one
+   * rule in `domain/rarity.ts`.
+   */
+  const ordered = groupByRarity(items).flatMap((group) => group.items);
+  const hero = ordered[0];
+  const rest = ordered.slice(1, 4);
+  const overflow = ordered.length - 1 - rest.length;
+
+  return (
+    <Pressable style={styles.suggestionCard} onPress={onPress}>
+      {hero ? (
+        <View style={styles.suggestionArt}>
+          <ItemArt
+            seed={hero.id}
+            tier={hero.rarityTier}
+            renderUrl={hero.renderUrl}
+            style={styles.suggestionHero}
+          />
+          <View style={styles.suggestionStrip}>
+            {rest.map((item) => (
+              <ItemArt
+                key={item.id}
+                seed={item.id}
+                tier={item.rarityTier}
+                renderUrl={item.renderUrl}
+                style={styles.suggestionThumb}
+              />
+            ))}
+            {overflow > 0 ? (
+              <View style={[styles.suggestionThumb, styles.suggestionMore]}>
+                <Text style={styles.suggestionMoreText}>+{overflow}</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      <View style={styles.suggestionBody}>
+        <View style={styles.rowBody}>
+          <Text style={styles.suggestionName} numberOfLines={1}>
+            {suggestion.name}
+          </Text>
+          {/*
+            §11 F5's rule, applied outside Discover: a suggestion without its
+            reason is a demand. The reason is what makes it answerable.
+          */}
+          <Text style={styles.muted} numberOfLines={2}>
+            {suggestion.reason}
+          </Text>
+        </View>
+        <View style={styles.suggestionCta}>
+          <Text style={styles.footnote}>
+            {suggestion.itemIds.length} {suggestion.itemIds.length === 1 ? 'item' : 'items'}
+          </Text>
+          <Text style={styles.create}>Create →</Text>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -1592,6 +2066,109 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     borderWidth: 1,
     borderStyle: 'dashed',
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    padding: spacing.xl,
+    backgroundColor: colors.surface,
+  },
+  /**
+   * The video source: solid border, not dashed. Dashed is this app's "drop a
+   * file here" affordance, and wearing it on a panel with no file dialog is
+   * what made the video source read as a broken upload.
+   */
+  /**
+   * The rescued-read block. Accent border rather than warning: this is an
+   * invitation to decide, not a problem report — the scan worked, it just is
+   * not sure, and the user is the one who can settle it.
+   */
+  rescue: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: colors.surface,
+  },
+  rescueTitle: { ...typography.cardTitle, color: colors.textPrimary },
+  rescueRowOn: { borderColor: colors.accent },
+
+  /* ── Complete: suggestion previews ──────────────────────────────────────
+     A card, not a row. It is showing what the collection would look like, so
+     it is shaped like the collection card it would become. */
+  suggestionCard: {
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  suggestionArt: { flexDirection: 'row', gap: 2, height: 132 },
+  /** The rarest item, given roughly two-thirds of the width. */
+  suggestionHero: { flex: 2, height: '100%' },
+  suggestionStrip: { flex: 1, gap: 2 },
+  suggestionThumb: { flex: 1, width: '100%' },
+  suggestionMore: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  suggestionMoreText: { ...typography.meta, color: colors.textSecondary },
+  suggestionBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  suggestionName: { ...typography.cardTitle, color: colors.textPrimary },
+  suggestionCta: { alignItems: 'flex-end', gap: 2 },
+
+  /**
+   * The Verify step's "if you skip this" block.
+   *
+   * Bordered and set apart rather than a run of body text, because it is the
+   * one thing on the screen a user skipping the step still has to have read.
+   * Muted foreground, not red: these are consequences of a legitimate choice,
+   * not errors — the same reasoning that took the cross off the unverified
+   * badge in the inventory.
+   */
+  consequences: {
+    gap: spacing.xs,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  consequenceHead: { ...typography.cardTitle, color: colors.textPrimary },
+  consequence: { ...typography.meta, color: colors.textSecondary },
+
+  /** Link progress. Same two-part track as `link-account.tsx`. */
+  track: {
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  fill: { height: 6, borderRadius: radius.pill, backgroundColor: colors.accent },
+
+  /**
+   * The wrong-game callout. Warning colours rather than error: nothing has
+   * broken and nothing is lost — the user picked a different game than the one
+   * they uploaded, which is a correction, not a failure.
+   */
+  wrongGame: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    backgroundColor: colors.surface,
+  },
+  wrongGameTitle: { ...typography.cardTitle, color: colors.warning },
+  dropStatic: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.card,
     padding: spacing.xl,

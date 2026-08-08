@@ -12,6 +12,7 @@ import { COLLECTIONS, COLLECTIONS_BY_ID } from '@/fixtures/collections';
 import { ALL_SETS, ITEMS_BY_ID } from '@/fixtures/catalogue';
 import {
   isDiscoverable,
+  rankByVerification,
   setsInProgress,
   suggestCollections,
   suggestItemsThatFit,
@@ -25,6 +26,11 @@ import type {
 } from '@/domain/collections';
 import type { Item } from '@/types';
 import type { Collection, OwnedItem, Visibility } from '@/types';
+/**
+ * For feed ranking only. Safe from a cycle: `inventoryService` reads fixtures
+ * and `domain/rarity`, and imports nothing from this file.
+ */
+import { inventoryService } from './inventoryService';
 import { LATENCY_FETCH, LATENCY_GENERATE, LATENCY_INSTANT, delay } from './latency';
 
 export interface CreateCollectionInput {
@@ -55,9 +61,22 @@ function allCollections(): Collection[] {
 }
 
 export const collectionService = {
+  /**
+   * The public feed, verified collections first.
+   *
+   * The ordering is not decoration. The Import flow's Verify step tells people
+   * that skipping verification ranks their collection below verified ones in
+   * other collectors' feeds, and this is the code that makes that true. If the
+   * ranking is ever removed, that copy has to go with it.
+   *
+   * Ownership is read here rather than in the domain function because
+   * `domain/` takes no I/O (CLAUDE.md) — the service is where the two fixtures
+   * meet.
+   */
   async getPublicCollections(): Promise<Collection[]> {
     const all = allCollections().filter(isDiscoverable);
-    return delay(all, LATENCY_FETCH);
+    const ranked = rankByVerification(all, inventoryService.getVerifiedItemIdsByUser());
+    return delay(ranked, LATENCY_FETCH);
   },
 
   async getCollectionsByUser(userId: string, includePrivate = false): Promise<Collection[]> {

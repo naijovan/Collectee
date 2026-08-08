@@ -80,6 +80,65 @@ export function isDiscoverable(collection: Collection): boolean {
   return collection.visibility === 'public';
 }
 
+/**
+ * Share of a collection's items whose ownership is verified, 0–1.
+ *
+ * Keyed by OWNER, not by item. Trust is a fact about a person's claim on an
+ * item, not about the item — the same Elderflame Vandal is verified for the
+ * collector who linked their Riot account and unverified for the one who
+ * scanned a screenshot of it. A flat set of "verified item ids" would credit
+ * the second for the first's account link.
+ *
+ * An empty collection scores 0 rather than 1: "nothing to disprove" is not the
+ * same as "proven", and a vacuous 1 would float empty collections to the top of
+ * every feed.
+ */
+export function verifiedShare(
+  collection: Collection,
+  verifiedByUser: ReadonlyMap<string, readonly string[]>,
+): number {
+  if (collection.itemIds.length === 0) return 0;
+  const owned = verifiedByUser.get(collection.userId);
+  if (owned === undefined) return 0;
+  const verifiedIds = new Set(owned);
+  const verified = collection.itemIds.filter((id) => verifiedIds.has(id)).length;
+  return verified / collection.itemIds.length;
+}
+
+/**
+ * Order a feed so verified collections surface first.
+ *
+ * This is what makes the Import flow's verification prompt honest. That screen
+ * tells people an unverified collection ranks below a verified one in other
+ * collectors' feeds; without this it was a claim the app did not act on, which
+ * is the same class of defect as the Figma's 44-vs-42 count.
+ *
+ * Graded, not a gate. A collection that is 5/6 verified is not the same as one
+ * that is 0/6, and dropping both to the bottom together would remove any reason
+ * to verify the sixth. Fully verified collections still come first as a block,
+ * because that is the specific promise the Import copy makes.
+ *
+ * Ties break on likes, then newest, so ordering stays stable and meaningful
+ * among collections that are equally verified.
+ */
+export function rankByVerification(
+  collections: readonly Collection[],
+  verifiedByUser: ReadonlyMap<string, readonly string[]>,
+): Collection[] {
+  return [...collections].sort((a, b) => {
+    const shareA = verifiedShare(a, verifiedByUser);
+    const shareB = verifiedShare(b, verifiedByUser);
+
+    const fullA = shareA === 1 ? 1 : 0;
+    const fullB = shareB === 1 ? 1 : 0;
+    if (fullA !== fullB) return fullB - fullA;
+
+    if (shareA !== shareB) return shareB - shareA;
+    if (a.likeCount !== b.likeCount) return b.likeCount - a.likeCount;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
 export const VISIBILITY_LABELS: Record<Visibility, string> = {
   public: 'Public',
   unlisted: 'Unlisted',
