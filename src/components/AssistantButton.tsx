@@ -16,17 +16,32 @@
  *
  * Mounted once in the root layout rather than per screen — one instance, one
  * position, and no screen can forget it.
+ *
+ * ── The pill and the bubble are SIBLINGS, never nested ────────────────────
+ * Both are pressables. `react-native-web` renders `accessibilityRole="button"`
+ * as a real `<button>`, and a button inside a button is invalid markup that
+ * React logs as an error overlay — the exact regression the community card hit
+ * (see `CommunityCard` in `cards.tsx`). They sit side by side in a row that is
+ * `pointerEvents="box-none"`, so the gap between them stays click-through and
+ * neither contains the other.
  */
 
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname } from 'expo-router';
 
+import { assistantMascot } from '@/config/assistantArt';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useAssistantDock } from '@/state/AssistantDock';
 import { useTourAnchor } from '@/state/TourAnchors';
-import { colors, interaction, radius, spacing, typography } from '@/theme/theme';
+import { colors, interaction, motion, radius, spacing, typography } from '@/theme/theme';
 
 import { AssistantPanel } from './AssistantPanel';
-import { useHoverLift } from './primitives';
+import { ASSISTANT_CLEARANCE, ASSISTANT_NAME, BUBBLE, BUBBLE_BOTTOM } from './assistantDock';
+
+/* Re-exported so `components/index.ts` and the three screens that pad by the
+   clearance keep importing it from here, where it has always lived. */
+export { ASSISTANT_CLEARANCE, ASSISTANT_NAME };
 
 /**
  * Routes that own their whole viewport and must stay unobstructed.
@@ -37,65 +52,207 @@ import { useHoverLift } from './primitives';
  */
 const HIDDEN_ON = ['/room/immersive'];
 
-/**
- * Vertical space a scrolling screen must leave at its end so the last row is
- * not trapped under the button. Exported so screens use the real number rather
- * than each guessing at a spacer — the collision this prevents is a CTA the
- * user can see but cannot tap.
- */
-export const ASSISTANT_CLEARANCE = 150;
+/** How long the greeting shows itself on first mount, before retreating. */
+const GREETING_MS = 4000;
+
+/** One greeting per session, not per mount. Tab screens stay mounted and
+ *  remount on navigation; without this the pill would pop on every return. */
+let greetedThisSession = false;
 
 export function AssistantButton() {
   const pathname = usePathname();
-  const hover = useHoverLift();
+  const reduceMotion = useReduceMotion();
   const { open, openPanel, closePanel } = useAssistantDock();
-  /* Final stop of the first-run walkthrough. Inert without the tour mounted. */
+  /* Final stop of the first-run walkthrough. Inert without the tour mounted.
+     Anchored on the BUBBLE, not the row — the spotlight should ring the face,
+     not a wide invisible strip with the pill in it. */
   const tourAnchor = useTourAnchor('assistant-button');
 
+  const [hovered, setHovered] = useState(false);
+  const [greeting, setGreeting] = useState(!greetedThisSession);
+  const wiggle = useRef(new Animated.Value(0)).current;
+  const mascot = assistantMascot();
+
+  /* First-render greeting, then it retreats. Runs once per session. */
+  useEffect(() => {
+    if (greetedThisSession) return;
+    greetedThisSession = true;
+    const t = setTimeout(() => setGreeting(false), GREETING_MS);
+    return () => clearTimeout(t);
+  }, []);
+
+  /**
+   * The wave. A short rotate out-and-back that settles, not a loop.
+   *
+   * Reduce Motion kills it outright rather than shortening it: this is
+   * decoration by the codebase's own test — remove it and nothing is lost, the
+   * launcher still says what it is. Same call `LoadingState` makes, and the
+   * value is pinned to rest so nothing is left mid-rotation.
+   */
+  const wave = useCallback(() => {
+    if (reduceMotion) {
+      wiggle.setValue(0);
+      return;
+    }
+    wiggle.setValue(0);
+    Animated.sequence([
+      Animated.timing(wiggle, {
+        toValue: 1,
+        duration: motion.fast,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.timing(wiggle, {
+        toValue: -1,
+        duration: motion.base,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+      Animated.spring(wiggle, {
+        toValue: 0,
+        friction: motion.spring.friction,
+        tension: motion.spring.tension,
+        useNativeDriver: Platform.OS !== 'web',
+      }),
+    ]).start();
+  }, [reduceMotion, wiggle]);
+
+  const onHoverIn = useCallback(() => {
+    setHovered(true);
+    setGreeting(true);
+    wave();
+  }, [wave]);
+
+  const onHoverOut = useCallback(() => {
+    setHovered(false);
+    setGreeting(false);
+  }, []);
+
   if (HIDDEN_ON.some((route) => pathname.startsWith(route))) return null;
+
+  const rotate = wiggle.interpolate({
+    inputRange: [-1, 1],
+    outputRange: ['-8deg', '8deg'],
+  });
+
+  /* The pill is hidden while the panel is open: the launcher is a close button
+     at that point, and "Ask Miya" beside an open panel is an invitation to do
+     the thing already being done. */
+  const showPill = greeting && !open;
 
   return (
     <>
       {open ? <AssistantPanel /> : null}
-      <Pressable
-        ref={tourAnchor}
-        collapsable={false}
-        accessibilityRole="button"
-        accessibilityLabel={open ? 'Close the assistant' : 'Ask the assistant about your collection'}
-        onPress={open ? closePanel : openPanel}
-        {...hover.hoverProps}
-        style={({ pressed }) => [styles.button, hover.hoverStyle, pressed && styles.pressed]}
-      >
-        <View style={styles.inner}>
-          {/* PLACEHOLDER — Marcus is generating a logo; drop the image in here
-              and keep the 52×52 frame so the clearance constant stays true. */}
-          <Text style={styles.glyph}>{open ? '✕' : '✦'}</Text>
-        </View>
-      </Pressable>
+
+      {/* box-none so the gap between pill and bubble stays click-through and
+          this row never swallows a tap meant for the screen underneath. */}
+      <View style={styles.dock} pointerEvents="box-none">
+        {showPill ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Ask ${ASSISTANT_NAME} about your collection`}
+            onPress={openPanel}
+            onHoverIn={onHoverIn}
+            onHoverOut={onHoverOut}
+            style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+          >
+            <Text style={styles.pillText} numberOfLines={1}>
+              Ask {ASSISTANT_NAME} 👋
+            </Text>
+          </Pressable>
+        ) : null}
+
+        <Pressable
+          ref={tourAnchor}
+          collapsable={false}
+          accessibilityRole="button"
+          accessibilityLabel={
+            open ? 'Close the assistant' : `Ask ${ASSISTANT_NAME} about your collection`
+          }
+          onPress={open ? closePanel : openPanel}
+          onHoverIn={onHoverIn}
+          onHoverOut={onHoverOut}
+          onFocus={onHoverIn}
+          onBlur={onHoverOut}
+          style={({ pressed }) => [pressed && styles.pressed]}
+        >
+          {/* Animated wrapper INSIDE the pressable: rotating the pressable
+              itself would rotate its hit box with it. */}
+          <Animated.View
+            style={[
+              styles.bubble,
+              hovered && styles.bubbleHovered,
+              { transform: [{ rotate }] },
+            ]}
+          >
+            {open ? (
+              <Text style={styles.glyph}>✕</Text>
+            ) : mascot ? (
+              <Image
+                source={mascot}
+                style={styles.mascot}
+                resizeMode="cover"
+                accessibilityIgnoresInvertColors
+              />
+            ) : (
+              /* The seam is empty until the art lands — same sparkle as before. */
+              <Text style={styles.glyph}>✦</Text>
+            )}
+          </Animated.View>
+        </Pressable>
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  button: {
+  dock: {
     position: 'absolute',
-    right: spacing.lg,
-    // Clear of the tab bar, which owns the bottom edge.
-    bottom: 92,
+    /* xl rather than lg: at lg the 56pt bubble sat visually tight to the edge
+       on web, where there is no safe-area inset to buy margin. */
+    right: spacing.xl,
+    bottom: BUBBLE_BOTTOM,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     // Above the panel's overlay, so the launcher stays tappable as the close
     // control while the panel is open.
     zIndex: 60,
   },
-  inner: {
-    width: 52,
-    height: 52,
+  bubble: {
+    width: BUBBLE,
+    height: BUBBLE,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.pill,
+    overflow: 'hidden',
     backgroundColor: colors.accent,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.accentPressed,
+    shadowColor: colors.accent,
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
+  bubbleHovered: { borderColor: colors.textOnAccent },
+  mascot: { width: '100%', height: '100%' },
   glyph: { ...typography.cardTitle, fontSize: 22, lineHeight: 26, color: colors.textOnAccent },
+  pill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    /* The near-black surface token, not a raw hex — no hex outside theme.ts.
+       Same choice `import.tsx` makes for a neutral drop shadow. */
+    shadowColor: colors.background,
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  pillText: { ...typography.meta, color: colors.textPrimary },
   pressed: { opacity: interaction.pressedOpacity },
 });
