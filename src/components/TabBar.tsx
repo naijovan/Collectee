@@ -23,14 +23,18 @@ import type { SFSymbol } from 'expo-symbols';
 import { SymbolView, type AndroidSymbol } from 'expo-symbols';
 import medium from 'expo-symbols/androidWeights/medium';
 import { usePathname, useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ViewStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FEATURES } from '@/config/features';
 import * as haptics from '@/lib/haptics';
 import { useApp } from '@/state/AppContext';
 import { useTourAnchor } from '@/state/TourAnchors';
-import { colors, interaction, radius, spacing, typography } from '@/theme/theme';
+import { accentGlow, colors, fonts, interaction, radius, spacing, tabBarGlass, tabBarWash, typography } from '@/theme/theme';
+
+import { AccentFill } from './primitives';
 
 interface Tab {
   href: '/' | '/explore' | '/collections' | '/profile';
@@ -106,7 +110,9 @@ const TABS: readonly Tab[] = [
 
 function TabIcon({ icon, active, colour }: { icon: TabIcon; active: boolean; colour: string }) {
   return (
-    <View style={[styles.iconIndicator, active && styles.iconIndicatorActive]}>
+    /* No pill behind the icon any more — the whole cell carries the selection,
+       and a tinted box inside a tinted box read as two nested states. */
+    <View style={styles.iconIndicator}>
       <SymbolView
         name={active ? icon.active : icon.inactive}
         size={22}
@@ -155,7 +161,13 @@ export function TabBar() {
            says non-interactive, and this is the half that was missing. */
         accessibilityState={{ selected: active, disabled: locked }}
         accessibilityHint={locked ? 'Import your inventory to unlock this tab' : undefined}
-        style={({ pressed }) => [styles.tab, pressed && !active && styles.pressed]}
+        style={({ pressed }) => [
+          styles.tab,
+          active && styles.tabActive,
+          /* The reference's `.nav-item:active { transform: scale(0.97) }`. */
+          pressed && { transform: [{ scale: 0.97 }] },
+          pressed && !active && styles.pressed,
+        ]}
       >
         <TabIcon
           icon={tab.icon}
@@ -173,9 +185,27 @@ export function TabBar() {
     <View
       ref={barAnchor}
       collapsable={false}
-      style={[styles.bar, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
+      style={[
+        styles.bar,
+        { paddingBottom: Math.max(insets.bottom, spacing.sm) },
+        /* Web only. `backdropFilter` is a CSS property react-native-web passes
+           through but React Native's types do not know, because on native it is
+           genuinely not a thing — hence the cast rather than a type widening. */
+        Platform.OS === 'web'
+          ? ({ backdropFilter: tabBarGlass.blur } as unknown as ViewStyle)
+          : null,
+      ]}
       accessibilityRole="tablist"
     >
+      {/* A faint violet wash so the bar is not a flat slab. Not the button ramp
+          — see `tabBarWash` for why the import action would vanish into it. */}
+      <LinearGradient
+        colors={[...tabBarWash]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.barWash}
+        pointerEvents="none"
+      />
       {left.map(renderTab)}
 
       <Pressable
@@ -192,6 +222,10 @@ export function TabBar() {
         {({ pressed }) => (
           <>
             <View style={[styles.importButton, pressed && styles.importButtonPressed]}>
+              {/* Same gradient as PrimaryButton. This sits on every screen, so
+                  leaving it flat would make the one button the user sees most
+                  the odd one out. */}
+              <AccentFill pressed={pressed} />
               <SymbolView
                 name={{
                   ios: 'tray.and.arrow.down.fill',
@@ -214,21 +248,66 @@ export function TabBar() {
 }
 
 const styles = StyleSheet.create({
+  /**
+   * A floating rounded card, not a slab welded to the bottom edge.
+   *
+   * Ported from careerlingo's `.main-nav.bottom-nav`, which is the reference
+   * Jovan asked for: inset from the screen edges, heavily rounded, one hairline
+   * border and a soft shadow. The inset is what does the work — a bar with air
+   * around it reads as a control sitting ON the app, while an edge-to-edge one
+   * reads as the chrome the app is mounted in.
+   *
+   * It stays IN the layout flow rather than `position: fixed` like the original.
+   * The web version can afford fixed because the page pads for it; here the tab
+   * screens size their scroll content against a bar that occupies space, and
+   * lifting it out would hide the last row of every list behind it.
+   *
+   * 28 radius and 12 padding are careerlingo's numbers, kept as-is.
+   */
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 6,
+    /* Translucent, not solid — see `tabBarGlass`. The blur that makes it read
+       as glass rather than as a see-through panel is applied separately below,
+       because `backdropFilter` is web-only and not in RN's ViewStyle. */
+    backgroundColor: tabBarGlass.background,
+    marginHorizontal: 14,
+    marginBottom: 10,
+    borderRadius: 28,
+    borderWidth: 1,
+    /* Brighter than `border`. A glass edge catches light along its rim, and
+       that highlight is most of what sells the material — the flat border
+       colour made it look like a cut-out instead. */
+    borderColor: 'rgba(255,255,255,0.10)',
+    padding: 12,
+    /* The soft lift that separates the card from the content behind it. */
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 12,
   },
+  /**
+   * A rounded cell per tab — careerlingo's `.nav-item`.
+   *
+   * Transparent until it is the active one, so the row reads as one control
+   * with a selection inside it rather than five separate buttons.
+   */
   tab: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 56,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 1,
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: 16,
+    paddingVertical: 6,
   },
+  /**
+   * The selection. `accentMuted` is the app's own token for accent-at-low-alpha
+   * and lands in the same place as the reference's `rgba(47,128,237,0.13)` —
+   * borrowing the hex would have put a raw colour outside theme.ts.
+   */
+  tabActive: { backgroundColor: colors.accentMuted },
   iconIndicator: {
     width: 38,
     height: 28,
@@ -236,14 +315,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.sm,
   },
-  iconIndicatorActive: { backgroundColor: colors.accentMuted },
   label: {
     ...typography.meta,
-    fontSize: 10,
+    fontSize: 11,
     lineHeight: 14,
     color: colors.textTertiary,
   },
-  active: { color: colors.accent },
+  /* Weight as well as colour. The reference goes 600 -> 700 on selection, and
+     colour alone is a weak signal at 11px. */
+  active: { color: colors.accent, fontFamily: fonts.bodySemiBold },
   /** §13.4 — greyed AND non-interactive, not just greyed. */
   locked: { color: colors.border },
 
@@ -258,15 +338,23 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.pill,
+    /* Clips AccentFill to the circle. Without it the gradient draws a square. */
+    overflow: 'hidden',
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -13,
     borderWidth: 3,
     borderColor: colors.surface,
+    /* Raised out of the bar, so it gets the same halo as the assistant bubble —
+       both float over content and need something separating them from it. */
+    ...accentGlow,
   },
+  /** Behind the tabs, inside the bar. */
+  /** Rounded to match the card, or it paints square corners over it. */
+  barWash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 28 },
   importButtonPressed: {
-    backgroundColor: colors.accentPressed,
+    /* No colour here any more — AccentFill inverts its ramp on press, which is
+       the same signal without fighting the gradient drawn over this. */
     transform: [{ scale: 0.94 }],
   },
 

@@ -1386,7 +1386,7 @@ function Toggle({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.md },
   stepBody: { gap: spacing.md },
   contentFlush: { paddingBottom: spacing.xxl },

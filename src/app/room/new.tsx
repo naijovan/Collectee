@@ -581,7 +581,7 @@ export default function CreateRoomScreen() {
 
         {invites.length > 0 ? (
           <View>
-            <SectionHeader title="Invite collectors with similar taste" />
+            <SectionHeader title="Invite Collectors with Similar Taste" />
             <View style={styles.inviteRow}>
               {invites.map((entry) => (
                 <Pressable
@@ -1461,7 +1461,7 @@ function themeBackdrop(theme: RoomTheme) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: {
     width: '100%',
     maxWidth: 720,

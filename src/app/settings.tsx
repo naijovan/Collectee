@@ -41,7 +41,7 @@ export default function SettingsScreen() {
       style={styles.screen}
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}
     >
-      <SectionHeader title="Your details" />
+      <SectionHeader title="Your Details" />
       <View style={styles.card}>
         <Field
           label="Display name"
@@ -187,7 +187,7 @@ function Field({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.md },
 
   card: {

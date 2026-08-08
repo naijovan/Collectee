@@ -322,7 +322,6 @@ export default function NewsScreen() {
               key={entry.article.id}
               article={entry.article}
               reason={entry.reason}
-              accentTags
               thumb="media"
               thumbItemId={feedThumbs[index]}
               onPress={() => open(entry.article.id)}
@@ -345,7 +344,6 @@ export default function NewsScreen() {
               <ArticleCard
                 key={article.id}
                 article={article}
-                accentTags
                 thumb="media"
                 thumbItemId={savedThumbs[index]}
                 onPress={() => open(article.id)}
@@ -369,7 +367,7 @@ export default function NewsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.lg },
   list: { gap: spacing.md },
   footnote: { ...typography.meta, color: colors.textTertiary },

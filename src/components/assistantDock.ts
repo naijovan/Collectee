@@ -22,8 +22,15 @@ import { spacing } from '@/theme/theme';
 /** Diameter of the launcher bubble. */
 export const BUBBLE = 56;
 
-/** Distance from the bottom edge. The tab bar owns everything below this. */
-export const BUBBLE_BOTTOM = 92;
+/**
+ * Distance from the bottom edge. The tab bar owns everything below this.
+ *
+ * 92 cleared the old edge-to-edge bar exactly, with nothing to spare. The bar
+ * is now a floating card that sits 10 above the screen edge and carries a
+ * shadow, so the bubble was landing on its top-right corner — the glow of one
+ * control overlapping the rim of another. 116 puts a clear gap between them.
+ */
+export const BUBBLE_BOTTOM = 116;
 
 /**
  * Vertical space a scrolling screen must leave at its end so the last row is

@@ -40,6 +40,7 @@ import {
   SectionHeader,
   timeAgo,
 } from '@/components';
+import { AccentFill } from '@/components/primitives';
 import { VISIBILITY_LABELS } from '@/domain/collections';
 import { rarityLabelFor } from '@/domain/rarity';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
@@ -335,6 +336,7 @@ export default function RoomScreen() {
               style={styles.input}
             />
             <Pressable onPress={() => void postComment()} style={styles.send}>
+              <AccentFill />
               <Text style={styles.sendText}>Post</Text>
             </Pressable>
           </View>
@@ -350,7 +352,7 @@ export default function RoomScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: {
     width: '100%',
     maxWidth: 552,
@@ -441,6 +443,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderRadius: radius.pill,
     backgroundColor: colors.accent,
+    /* Clips AccentFill to the pill. */
+    overflow: 'hidden',
   },
   sendText: { ...typography.cardTitle, color: colors.textOnAccent },
 });

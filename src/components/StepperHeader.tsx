@@ -14,7 +14,7 @@
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import { colors, radius, spacing, typography, accentLink } from '@/theme/theme';
 
 export function StepperHeader({
   steps,
@@ -64,7 +64,7 @@ export function StepperHeader({
 const styles = StyleSheet.create({
   wrap: { gap: spacing.sm, paddingBottom: spacing.md },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { ...typography.body, color: colors.accent },
+  back: { ...typography.body, color: accentLink },
   count: { ...typography.meta, color: colors.textSecondary },
   bar: { flexDirection: 'row', gap: spacing.xs },
   segment: { flex: 1, height: 4, borderRadius: radius.pill, backgroundColor: colors.border },

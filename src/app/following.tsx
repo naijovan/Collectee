@@ -113,7 +113,7 @@ export default function FollowingScreen() {
         own is a stronger signal than what you follow.
       </Text>
 
-      <SectionHeader title="Franchises and characters" />
+      <SectionHeader title="Franchises and Characters" />
       {followedTopics.length === 0 ? (
         <EmptyState
           title="Not following anything yet"
@@ -171,7 +171,7 @@ export default function FollowingScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.md },
 
   body: { ...typography.body, color: colors.textSecondary },

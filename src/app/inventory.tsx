@@ -30,7 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ASSISTANT_CLEARANCE, ItemCard, SectionHeader } from '@/components';
 import { groupByRarity, rarityLabelFor, RARITY_RANK } from '@/domain/rarity';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
+import { colors, radius, rarityColors, spacing, typography, accentLink } from '@/theme/theme';
 import { GAME_SHORT_LABELS } from '@/types';
 import type { GameTitle, RarityTier } from '@/types';
 
@@ -256,7 +256,7 @@ function FilterRow<T extends string>({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.lg },
 
   title: { ...typography.screenTitle, color: colors.textPrimary },
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
   chipDot: { width: 8, height: 8, borderRadius: radius.pill },
   chipText: { ...typography.meta, fontSize: 11, color: colors.textSecondary },
   chipTextActive: { color: colors.accent },
-  clear: { ...typography.meta, color: colors.accent },
+  clear: { ...typography.meta, color: accentLink },
 
   empty: { gap: spacing.xs, paddingVertical: spacing.xl, alignItems: 'center' },
 
@@ -332,5 +332,5 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
 
   link: { paddingVertical: spacing.sm },
-  linkText: { ...typography.meta, color: colors.accent },
+  linkText: { ...typography.meta, color: accentLink },
 });

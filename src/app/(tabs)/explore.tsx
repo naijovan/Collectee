@@ -24,6 +24,7 @@ import {
   useHoverLift,
   PinnedHeader,
 } from '@/components';
+import { useScrolledPast } from '@/components/PinnedHeader';
 import { FEATURES } from '@/config/features';
 import { VIEWER_UNVERIFIED_REASON } from '@/domain/matching';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -114,6 +115,9 @@ export default function ExploreScreen() {
   const { viewerId } = useApp();
 
   const scrollRef = useTopOnFocus();
+  /* Drives the header's frosted backdrop, which is transparent at the top
+     of the page and fades in once it starts doing a job. */
+  const { scrolled, scrollProps } = useScrolledPast();
 
   const [tab, setTab] = useState<Tab>('Collectors');
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
@@ -177,7 +181,7 @@ export default function ExploreScreen() {
     <View style={styles.screen}>
       {/* Same pinned header as Home and Collections — they are sibling tabs and
           a header that moves or changes between them reads as three apps. */}
-      <PinnedHeader>
+      <PinnedHeader scrolled={scrolled}>
         <View ref={titleAnchor} collapsable={false} style={styles.headerRow}>
           <Text style={styles.title}>Discover</Text>
           {/*
@@ -199,6 +203,7 @@ export default function ExploreScreen() {
 
       <ScrollView
         ref={scrollRef}
+      {...scrollProps}
         style={styles.screen}
         contentContainerStyle={styles.content}
         refreshControl={
@@ -230,7 +235,7 @@ export default function ExploreScreen() {
 
       {!busy && tab === 'Collectors' && matchState !== 'unverified-only' ? (
         <View style={styles.list}>
-          <SectionHeader title="Collectors you may like" />
+          <SectionHeader title="Collectors You May Like" />
           {collectors.length === 0 ? (
             <Text style={styles.muted}>
               No collectors share a verified item with you yet.
@@ -270,7 +275,7 @@ export default function ExploreScreen() {
 
       {!busy && tab === 'Communities' && mine.length > 0 ? (
         <View style={styles.list}>
-          <SectionHeader title="Your communities" />
+          <SectionHeader title="Your Communities" />
           {/* Two across, like the collection grid — communities and collections
               are both browsable tiles and should not be two tiers of content. */}
           <View style={styles.communityGrid}>
@@ -292,7 +297,7 @@ export default function ExploreScreen() {
 
       {!busy && tab === 'Communities' ? (
         <View style={styles.list}>
-          <SectionHeader title="Communities for you" />
+          <SectionHeader title="Communities for You" />
           <View style={styles.communityGrid}>
           {communities.map(({ community, reason }) => {
             const isMember = joined.has(community.id);
@@ -347,7 +352,7 @@ export default function ExploreScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.lg },
   title: { ...typography.screenTitle, color: colors.textPrimary },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

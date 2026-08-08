@@ -684,7 +684,6 @@ export function ArticleCard({
   article,
   reason,
   width,
-  accentTags,
   accentEdge,
   thumb,
   thumbItemId,
@@ -694,19 +693,6 @@ export function ArticleCard({
   /** FYP only — why this surfaced. Discover has no reason and shows none. */
   reason?: string | null;
   width?: DimensionValue;
-  /**
-   * Colour each game tag with that game's own accent instead of the blue.
-   *
-   * Opt-in, and off by default, so Home's news rail renders exactly as it did
-   * before this prop existed. News turns it on because its tabs are already
-   * game-themed and a blue tag inside an ember-themed tab reads as a different
-   * control.
-   *
-   * Per TAG, not per screen: an article tagged both CODM and VALORANT shows one
-   * ember chip and one red one, which says more than tinting both with whatever
-   * tab you happen to be standing on.
-   */
-  accentTags?: boolean;
   /**
    * Slim left edge in the game's accent, matching the digest card on News.
    *
@@ -757,19 +743,17 @@ export function ArticleCard({
   const body = (
     <>
       <View style={styles.articleTagRow}>
-        {article.relatedGames.map((title) => {
-          const accent = accentTags ? gameAccents[title] : null;
-          return (
-            <View
-              key={title}
-              style={[styles.articleTag, accent ? { backgroundColor: accent.soft } : null]}
-            >
-              <Text style={[styles.articleTagText, accent ? { color: accent.base } : null]}>
-                {GAME_SHORT_LABELS[title]}
-              </Text>
-            </View>
-          );
-        })}
+        {/*
+          The SAME `GameBadge` the collection covers use.
+          These two badges drifted into different treatments — the news tag was
+          a soft-tinted fill with `base` text, the cover badge an outlined chip
+          on a scrim — and the two sit one section apart on Home, so a reader
+          sees both at once and they read as two different systems labelling the
+          same three games. One component, one look, everywhere.
+        */}
+        {article.relatedGames.map((title) => (
+          <GameBadge key={title} title={title} />
+        ))}
         <Text style={styles.itemMeta}>{timeAgo(article.publishedAt)}</Text>
       </View>
 
@@ -1002,13 +986,9 @@ const styles = StyleSheet.create({
   // Bigger and heavier than cardTitle: on a browse grid the collection name is
   // the thing being chosen between, so it should win the card outright.
   metaLeft: { flex: 1, gap: 2 },
-  metaName: {
-    ...typography.sectionHeader,
-    fontSize: 21,
-    lineHeight: 27,
-    fontFamily: fonts.display,
-    color: colors.textOnAccent,
-  },
+  /* The shared overlay treatment — bigger, tighter, and shadowed so it lifts
+     off the artwork instead of sinking into it. See `typography.overlayTitle`. */
+  metaName: { ...typography.overlayTitle, color: colors.textOnAccent },
   metaVisibility: { ...typography.meta, color: colors.textOnAccent, opacity: 0.75 },
   /** Counts stack right-aligned, clear of a long collection name. */
   metaCounts: { alignItems: 'flex-end', gap: 2 },
@@ -1106,13 +1086,6 @@ const styles = StyleSheet.create({
   articleThumbInset: { width: '100%', height: '100%', padding: spacing.xs },
   articleThumbEmpty: { borderWidth: 1, borderColor: colors.border },
   articleTagRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  articleTag: {
-    backgroundColor: colors.accentMuted,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-  },
-  articleTagText: { ...typography.meta, fontSize: 10, color: colors.accent, letterSpacing: 0.5 },
   articleTitle: { ...typography.cardTitle, color: colors.textPrimary },
   articleBlurb: { ...typography.meta, color: colors.textSecondary },
   articleReason: { ...typography.meta, color: colors.accent },

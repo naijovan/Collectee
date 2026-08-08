@@ -338,14 +338,14 @@ function Row({ label, value, ok }: { label: string; value: string; ok?: boolean 
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.lg },
   centre: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
-    backgroundColor: colors.background,
+    backgroundColor: 'transparent',
   },
   title: { ...typography.screenTitle, color: colors.textPrimary },
   sectionHeader: {

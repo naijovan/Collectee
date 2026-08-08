@@ -52,6 +52,7 @@ import {
   useHoverLift,
   PinnedHeader,
 } from '@/components';
+import { useScrolledPast } from '@/components/PinnedHeader';
 import { ART_PLACEMENTS, backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { headlineItem } from '@/domain/collections';
@@ -131,6 +132,9 @@ export default function HomeScreen() {
 
   /** Tab screens stay mounted, so returning here has to be sent back to the top. */
   const scrollRef = useTopOnFocus();
+  /* Drives the header's frosted backdrop, which is transparent at the top
+     of the page and fades in once it starts doing a job. */
+  const { scrolled, scrollProps } = useScrolledPast();
 
   const [filter, setFilter] = useState<Filter>('All');
   const [articles, setArticles] = useState<Article[]>([]);
@@ -235,7 +239,7 @@ export default function HomeScreen() {
           the app's account controls — reaching them should not require
           scrolling back to the top of a long feed. A bottom rule demarcates it
           from the content moving underneath. */}
-      <PinnedHeader>
+      <PinnedHeader scrolled={scrolled}>
       <View style={styles.header}>
           <View style={styles.headerText}>
             {/* One line, one size. Two stacked lines at different sizes made the
@@ -285,6 +289,7 @@ export default function HomeScreen() {
 
     <ScrollView
       ref={scrollRef}
+      {...scrollProps}
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={
@@ -406,7 +411,7 @@ export default function HomeScreen() {
       {FEATURES.news && filter === 'All' ? (
         <View>
           <SectionHeader
-            title="Gaming updates"
+            title="Gaming Updates"
             prominent
             onSeeAll={() => router.push('/news')}
           />
@@ -428,7 +433,6 @@ export default function HomeScreen() {
                 <ArticleCard
                   article={item}
                   width={280}
-                  accentTags
                   accentEdge
                   thumb="hero"
                   thumbItemId={railThumbs[index]}
@@ -446,7 +450,7 @@ export default function HomeScreen() {
       {show('Collections') ? (
         <View>
           <SectionHeader
-            title="Explore collectibles"
+            title="Explore Collectibles"
             prominent
             onSeeAll={() => router.navigate('/explore')}
           />
@@ -481,7 +485,7 @@ export default function HomeScreen() {
       {show('Collectors') ? (
         <View>
           <SectionHeader
-            title="Collectors you may like"
+            title="Collectors You May Like"
             prominent
             onSeeAll={() => router.navigate('/explore')}
           />
@@ -637,7 +641,7 @@ function greeting(): string {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.xl },
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -795,13 +799,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   roomCardLeft: { flex: 1, gap: 2 },
-  roomCardName: {
-    ...typography.sectionHeader,
-    fontSize: 21,
-    lineHeight: 27,
-    fontFamily: fonts.display,
-    color: colors.textOnAccent,
-  },
+  /* Same treatment as CollectionCard's title — these sit in adjacent sections
+     and a showroom name should not be set differently from a collection name. */
+  roomCardName: { ...typography.overlayTitle, color: colors.textOnAccent },
   roomCardCounts: { alignItems: 'flex-end', gap: 2 },
   /* Under the title, in the slot the collection card gives its visibility line.
      The theme is what you are walking into — "Fantasy Armoury" is a property of

@@ -34,6 +34,8 @@ import {
   ASSISTANT_CLEARANCE,
   PinnedHeader,
 } from '@/components';
+import { useScrolledPast } from '@/components/PinnedHeader';
+import { AccentFill } from '@/components/primitives';
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
 import { suggestRoom } from '@/domain/roomSuggestion';
@@ -88,6 +90,9 @@ export default function CollectionsScreen() {
   const { viewer, viewerId, inventory } = useApp();
 
   const scrollRef = useTopOnFocus();
+  /* Drives the header's frosted backdrop, which is transparent at the top
+     of the page and fades in once it starts doing a job. */
+  const { scrolled, scrollProps } = useScrolledPast();
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [rooms, setRooms] = useState<ReadonlyMap<string, RoomStatus>>(new Map());
@@ -243,13 +248,16 @@ export default function CollectionsScreen() {
                 pressed && styles.pressedIdea,
               ]}
             >
+              {/* Filled variant takes the shared ramp; the outline variant has
+                  no fill to put one in. */}
+              {canShowroom ? <AccentFill /> : null}
               <Text
                 style={[
                   styles.ideaButtonText,
                   canShowroom && styles.ideaButtonTextPrimary,
                 ]}
               >
-                {canShowroom ? 'Create showroom' : 'Create collection'}
+                {canShowroom ? 'Create Showroom' : 'Create Collection'}
               </Text>
             </Pressable>
           </View>
@@ -266,7 +274,7 @@ export default function CollectionsScreen() {
       {/* Pinned: the four tab screens keep their title and filters on screen
           while the list moves under them, so the user never loses the context
           for what they are scrolling through. */}
-      <PinnedHeader>
+      <PinnedHeader scrolled={scrolled}>
         <View style={styles.header}>
           <View style={styles.rowBody}>
             <Text style={styles.title}>Collections</Text>
@@ -278,6 +286,7 @@ export default function CollectionsScreen() {
 
     <ScrollView
       ref={scrollRef}
+      {...scrollProps}
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={
@@ -410,7 +419,7 @@ export default function CollectionsScreen() {
           {collectionIdeas.length > 0 ? (
             <View style={styles.ideaGroup}>
               <View style={styles.ideaGroupHeader}>
-                <SectionHeader title="Ready for a collection" />
+                <SectionHeader title="Ready for a Collection" />
                 <Text style={styles.muted}>
                   Good groupings, but short on verified items — these list in 2D until you
                   connect a game account.
@@ -554,7 +563,7 @@ function RoomCta({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.lg },
   rowBody: { flex: 1, minWidth: 0, gap: 2 },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, justifyContent: 'space-between' },
@@ -565,6 +574,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.pill,
     backgroundColor: colors.accent,
+    overflow: 'hidden',
   },
   createGlyph: { color: colors.textOnAccent, fontSize: 26, lineHeight: 28, fontWeight: '600' },
   title: { ...typography.screenTitle, color: colors.textPrimary },
@@ -642,6 +652,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.accent,
     backgroundColor: colors.accent,
+    /* Clips AccentFill to the pill. */
+    overflow: 'hidden',
   },
   ideaButtonPrimary: {},
   ideaButtonText: { ...typography.meta, color: colors.textOnAccent, fontWeight: '600' },

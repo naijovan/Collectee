@@ -32,12 +32,20 @@ import {
   SectionHeader,
   ASSISTANT_CLEARANCE,
 } from '@/components';
+import { headlineItem } from '@/domain/collections';
 import { intensityOption } from '@/domain/onboarding';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
-import { collectionService, inventoryService, roomService, socialService } from '@/services';
+import { catalogueService, collectionService, inventoryService, roomService, socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, fonts, radius, spacing, typography } from '@/theme/theme';
 import type { Collection, Item, RarityTier, Room, User } from '@/types';
+
+/** A published showroom with the collection it was built from. */
+interface RoomEntry {
+  room: Room;
+  collection: Collection;
+  headline: Item | null;
+}
 
 /**
  * How many items the Profile rail previews before deferring to /inventory.
@@ -65,6 +73,8 @@ export default function ProfileScreen() {
 
   const [collections, setCollections] = useState<Collection[]>([]);
   const [publishedRooms, setPublishedRooms] = useState<Room[]>([]);
+  /** Showrooms with their backing collection, for the shared card. */
+  const [roomEntries, setRoomEntries] = useState<RoomEntry[]>([]);
   const [following, setFollowing] = useState<User[]>([]);
   const [followers, setFollowers] = useState<User[]>([]);
   const [busy, setBusy] = useState(true);
@@ -80,9 +90,29 @@ export default function ProfileScreen() {
       ]);
       const rooms = await roomService.getRoomsOnProfile(mine.map((c) => c.id));
 
+      /* Each room paired with the collection it was built from and that
+         collection's rarest item, because Profile now renders showrooms with
+         the same `CollectionCard` the Collections tab uses and the card needs
+         both. Resolved here rather than per card so the grid does not fire a
+         fetch per tile. */
+      const byId = new Map(mine.map((c) => [c.id, c]));
+      const paired = await Promise.all(
+        rooms.map(async (room) => {
+          const collection = byId.get(room.collectionId) ?? null;
+          return {
+            room,
+            collection,
+            headline: collection
+              ? headlineItem(await catalogueService.getItems(collection.itemIds))
+              : null,
+          };
+        }),
+      );
+
       if (cancelled) return;
       setCollections(mine);
       setPublishedRooms(rooms);
+      setRoomEntries(paired.filter((e) => e.collection !== null) as RoomEntry[]);
       setFollowing(out);
       setFollowers(back);
       setBusy(false);
@@ -134,7 +164,7 @@ export default function ProfileScreen() {
 
       {pickerOpen ? (
         <View style={styles.pickerCard}>
-          <SectionHeader title="Choose your avatar" />
+          <SectionHeader title="Choose Your Avatar" />
           {/* Ordered by the games this account follows — the same rule the
               first-run step uses, so the grid does not reshuffle between the
               two places it appears. */}
@@ -200,7 +230,7 @@ export default function ProfileScreen() {
           different structure per user. An empty state that says what a room is
           does more work than a gap. */}
       <View>
-        <SectionHeader title="Showrooms" prominent />
+        <SectionHeader title="Your Showrooms" prominent />
         {publishedRooms.length === 0 ? (
           <Pressable style={styles.roomEmpty} onPress={() => router.push('/room/new')}>
             <Text style={styles.devLabel}>No rooms yet</Text>
@@ -211,24 +241,28 @@ export default function ProfileScreen() {
         ) : null}
       </View>
 
-      {publishedRooms.length > 0 ? (
+      {roomEntries.length > 0 ? (
         <View>
-          <View style={styles.roomList}>
-            {publishedRooms.map((room) => (
+          {/* The same grid of `CollectionCard`s the Collections tab uses for
+              its own Showrooms section. Profile had thin rows with a square
+              theme thumbnail, so the identical set of rooms looked like two
+              different features depending on which tab you reached them from.
+              A showroom is something you look at; the card shows it. */}
+          <View style={styles.collectionGrid}>
+            {roomEntries.map((entry) => (
               <Pressable
-                key={room.id}
-                style={styles.roomRow}
-                onPress={() => router.push({ pathname: '/room/[id]', params: { id: room.id } })}
+                key={entry.room.id}
+                style={styles.collectionCell}
+                onPress={() =>
+                  router.push({ pathname: '/room/[id]', params: { id: entry.room.id } })
+                }
               >
-                <ItemArt seed={room.themeId} tier="mythic" style={styles.roomThumb} />
-                <View style={styles.roomBody}>
-                  <Text style={styles.devLabel}>{room.title}</Text>
-                  <Text style={styles.muted}>
-                    {room.placements.length} items · ♥ {room.likeCount.toLocaleString()} ·{' '}
-                    {room.visitorCount.toLocaleString()} visitors
-                  </Text>
-                </View>
-                <Text style={styles.chevron}>›</Text>
+                <CollectionCard
+                  collection={entry.collection}
+                  owner={viewer}
+                  headline={entry.headline}
+                  showVisibility
+                />
               </Pressable>
             ))}
           </View>
@@ -237,7 +271,7 @@ export default function ProfileScreen() {
 
       <View>
         <SectionHeader
-          title="Collections"
+          title="Your Collections"
           prominent
           onSeeAll={() => router.navigate('/collections')}
         />
@@ -269,7 +303,7 @@ export default function ProfileScreen() {
           filters live on /inventory. */}
       <View>
         <SectionHeader
-          title="Inventory"
+          title="Your Inventory"
           prominent
           actionLabel="View full inventory"
           onSeeAll={() => router.push('/inventory')}
@@ -384,7 +418,7 @@ function Stat({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.lg },
 
   identity: { alignItems: 'center', gap: spacing.xs },
@@ -515,18 +549,4 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
 
-  roomList: { gap: spacing.sm },
-  roomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-  },
-  roomThumb: { width: 64, height: 46 },
-  roomBody: { flex: 1, gap: 2 },
-  chevron: { fontSize: 22, color: colors.textTertiary },
 });

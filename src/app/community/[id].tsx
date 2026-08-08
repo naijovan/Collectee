@@ -281,7 +281,7 @@ export default function CommunityScreen() {
         </View>
       )}
 
-      <SectionHeader title="Collectors here" />
+      <SectionHeader title="Collectors Here" />
       {members.length === 0 ? (
         <Text style={styles.muted}>No members yet.</Text>
       ) : (
@@ -321,7 +321,7 @@ export default function CommunityScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
+  screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.md },
 
   identity: { alignItems: 'center', gap: spacing.xs },

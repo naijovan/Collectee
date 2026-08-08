@@ -35,7 +35,7 @@ import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useApp } from '@/state/AppContext';
 import { useAssistantDock } from '@/state/AssistantDock';
 import { useTourAnchor, useTourAnchors } from '@/state/TourAnchors';
-import { colors, interaction, motion, radius, spacing, typography } from '@/theme/theme';
+import { accentGlow, colors, interaction, motion, radius, spacing, typography } from '@/theme/theme';
 
 import { AssistantPanel } from './AssistantPanel';
 import { ASSISTANT_CLEARANCE, ASSISTANT_NAME, BUBBLE, BUBBLE_BOTTOM } from './assistantDock';
@@ -286,11 +286,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
     borderWidth: 2,
     borderColor: colors.accentPressed,
-    shadowColor: colors.accent,
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    /* The shared halo. Violet rather than the blue it used, so the glow reads
+       as coming from the gradient's far end rather than as a second colour
+       under the button. */
+    ...accentGlow,
   },
   bubbleHovered: { borderColor: colors.textOnAccent },
   mascot: { width: '100%', height: '100%' },

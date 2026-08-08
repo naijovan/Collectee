@@ -130,6 +130,133 @@ export const rarityColors = {
 } as const;
 
 /**
+ * The primary button's fill — blue into violet, across the diagonal.
+ *
+ * The first attempt was one shade either side of `accent`, which was too subtle
+ * to read as a gradient at all: at button size a 10% luminance shift over 44px
+ * just looks like a flat blue that failed to render. If a gradient is going to
+ * be there, it has to be visible enough to be a decision.
+ *
+ * Blue → violet rather than blue → any other hue, because violet is already in
+ * the palette as `rarityColors.epic`. This borrows a colour the app owns rather
+ * than importing a new one, so the button still belongs to the same system.
+ *
+ * ⚠️ This does widen §13.2's "a single blue accent". The trade is deliberate
+ * and Jovan's call: the primary button is the most repeated surface in the app
+ * and the one the eye is meant to go to. `from` stays close to `accent`, so the
+ * button still READS blue and only resolves into violet at its trailing corner.
+ *
+ * Diagonal, not vertical. A vertical ramp on a pill reads as a lighting bug —
+ * a bevel that lost its highlight. Corner to corner reads as intentional.
+ *
+ * `pressed` inverts the direction rather than darkening a flat fill, which
+ * reads as the surface tilting under the finger.
+ */
+export const accentGradient = {
+  from: '#3B82F6',
+  to: '#9333EA',
+  /** Corner to corner. See above for why not vertical. */
+  start: { x: 0, y: 0 },
+  end: { x: 1, y: 1 },
+} as const;
+
+/**
+ * The halo under a raised accent control — the assistant bubble and the tab
+ * bar's import action.
+ *
+ * Both float over content rather than sitting in the layout, and a flat pill on
+ * a dark backdrop has nothing separating it from what it covers. A coloured
+ * shadow reads as the control being lit rather than as a drop shadow, which is
+ * what makes it look raised instead of pasted on.
+ *
+ * Violet rather than the blue: it is the gradient's far end, so the glow looks
+ * like it is coming FROM the button rather than being a second colour under it.
+ *
+ * Only for controls that float. A glow on an in-layout button is noise.
+ */
+/**
+ * Text buttons — "See all", "Change", "Clear", the stepper's back link.
+ *
+ * These have no fill to put a gradient in, so they take the ramp's END colour
+ * instead. React Native cannot gradient-fill text: the only routes are a
+ * masking library (a new dependency, which §13.1 says goes through chat first)
+ * or web-only `background-clip: text`, which would leave the label invisible on
+ * iOS and Android. Jovan's call, 8 Aug: take the violet, skip the dependency.
+ *
+ * Violet rather than the blue `from` end, deliberately. A borderless label in
+ * `accent` is indistinguishable from the old flat-blue button era; in violet it
+ * is visibly part of the same family as the gradient CTAs without pretending to
+ * be one of them.
+ *
+ * NOT for every accent-coloured word. Active step labels, the scan percentage
+ * and the active tab are state indicators, not buttons, and they keep `accent`.
+ */
+export const accentLink = '#A855F7';
+
+/**
+ * The tab bar's wash — a violet tint over `surface`, not the button ramp.
+ *
+ * Deliberately NOT `accentGradient`. A full blue→violet ramp across the bar
+ * puts the import action's own gradient on top of the same two colours, and the
+ * button stops reading as raised — it dissolves into its own background, which
+ * is the opposite of what the glow is for.
+ *
+ * So: violet at very low alpha, left to right. Enough to stop the bar being a
+ * flat slab, faint enough that the button still separates from it.
+ */
+export const tabBarWash = ['rgba(147,51,234,0.10)', 'rgba(147,51,234,0.02)'] as const;
+
+/**
+ * Frosted glass for the floating tab bar — careerlingo's `--glass-strong` plus
+ * its `backdrop-filter: blur(14px)`.
+ *
+ * `surface` at 72% rather than solid, so whatever the bar sits over tints it
+ * instead of being hidden by it. On its own that is just a see-through panel;
+ * the blur is what turns it into glass, because it stops the shapes behind from
+ * reading as shapes and leaves only their colour.
+ *
+ * ── Why the blur is web-only ──────────────────────────────────────────────
+ * `backdropFilter` is a CSS property react-native-web passes through, and web
+ * is the demo target. iOS and Android need `expo-blur` or a `GlassView`, and
+ * neither is worth a native code path for a surface nobody will demo on a
+ * phone — they get the translucency without the frost, which still reads as a
+ * light panel rather than a slab.
+ *
+ * Cast at the call site: `backdropFilter` is not in React Native's ViewStyle,
+ * because on native it is genuinely not a thing.
+ */
+/**
+ * Frosted glass for the sticky top bar — careerlingo's `--glass` plus its
+ * `backdrop-filter: blur(18px) saturate(1.2)`.
+ *
+ * More opaque than `tabBarGlass` (78% vs 72%) and blurred harder. Text sits
+ * DIRECTLY on this one, so it has to stay legible over whatever scrolls
+ * underneath; the tab bar only carries icons and 11px labels with their own
+ * contrast.
+ */
+export const headerGlass = {
+  /** `surface` at 78%. Same reason as tabBarGlass for the literal living here. */
+  background: 'rgba(20,24,33,0.78)',
+  blur: 'blur(18px) saturate(120%)',
+} as const;
+
+export const tabBarGlass = {
+  /** `surface` at 72%. The literal is here rather than in a component so the
+   *  no-raw-hex rule holds; `colors.surface` is a CSS var on web and cannot be
+   *  given an alpha channel arithmetically. */
+  background: 'rgba(20,24,33,0.72)',
+  blur: 'blur(14px) saturate(140%)',
+} as const;
+
+export const accentGlow = {
+  shadowColor: '#9333EA',
+  shadowOpacity: 0.55,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 10,
+} as const;
+
+/**
  * Who can see this — one colour per visibility, so the three are told apart at
  * a glance instead of being three identical grey words across a grid of cards.
  *
@@ -142,27 +269,6 @@ export const rarityColors = {
  * collection is a normal thing to have, and red would read as an error on a
  * state the user deliberately chose.
  */
-/**
- * The primary button's fill, as a two-stop gradient.
- *
- * A flat `accent` rectangle repeated on thirty screens is the flattest surface
- * in the app, and the one the eye is meant to go to. A short ramp gives it a
- * light source without changing what colour it is — `accent` is still the
- * midpoint, so the button reads as the same blue, just lit.
- *
- * Deliberately NARROW. A wide two-hue gradient (blue to purple, say) is the
- * thing that dates a UI fastest, and it would put a second colour into a
- * palette §13.2 defines as "a single blue accent". These two stops are one
- * shade either side of the token.
- *
- * `pressed` inverts the direction rather than darkening a flat fill, which
- * reads as the surface tilting under the finger.
- */
-export const accentGradient = {
-  from: '#4E85FF',
-  to: '#2454CC',
-} as const;
-
 export const visibilityColors = {
   public: '#22C55E',
   unlisted: '#F5A524',
@@ -379,6 +485,40 @@ export const brand = {
   googleGreen: '#34A853',
 } as const;
 
+/**
+ * App background — a restrained "display shelf" field that sits behind screen
+ * content. It is intentionally quieter than the cards and item art: soft bands,
+ * edge light and a little material depth, never a hero image.
+ *
+ * These are rgba values because the component builds the background out of
+ * layered washes. They live here under the same rule as `scrim`: translucency is
+ * still a colour decision, so it belongs in the token file and nowhere else.
+ */
+export const appBackground = {
+  dark: {
+    base: DARK_PALETTE.background,
+    clear: 'rgba(47,107,255,0)',
+    topGlow: 'rgba(47,107,255,0.09)',
+    sideGlow: 'rgba(18,228,240,0.045)',
+    lowerGlow: 'rgba(245,165,36,0.025)',
+    shelfLine: 'rgba(255,255,255,0.035)',
+    shelfShadow: 'rgba(0,0,0,0.22)',
+    shelfGlow: 'rgba(47,107,255,0.045)',
+    shelfWarm: 'rgba(245,165,36,0.025)',
+  },
+  light: {
+    base: LIGHT_PALETTE.background,
+    clear: 'rgba(29,79,216,0)',
+    topGlow: 'rgba(29,79,216,0.04)',
+    sideGlow: 'rgba(15,157,99,0.025)',
+    lowerGlow: 'rgba(178,106,2,0.025)',
+    shelfLine: 'rgba(11,13,16,0.045)',
+    shelfShadow: 'rgba(11,13,16,0.025)',
+    shelfGlow: 'rgba(29,79,216,0.022)',
+    shelfWarm: 'rgba(178,106,2,0.018)',
+  },
+} as const;
+
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -430,6 +570,32 @@ export const typography = {
    * `{ ...typography.meta, ...typography.numeric }`.
    */
   numeric: { fontVariant: ['tabular-nums'] as 'tabular-nums'[] },
+  /**
+   * The name of a collection or a showroom, set over its own artwork.
+   *
+   * Bigger and tighter than `sectionHeader`, and carrying a shadow. All three
+   * do the same job: these titles sit ON a picture, and plain white type at 21
+   * disappeared into every light crop and read as a caption rather than as the
+   * name of the thing. A grid of them looked like a list of files.
+   *
+   * The shadow is the load-bearing part. A scrim alone cannot save a light
+   * label over a bright render — the mosaics with pale sky in them were exactly
+   * that case — and a soft dark halo tight to the glyphs fixes it without
+   * darkening the art further.
+   *
+   * `-0.4` tracking rather than `sectionHeader`'s `-0.2`: at 23 the display
+   * face opens up, and the tighter set is what keeps a long collection name on
+   * one line.
+   */
+  overlayTitle: {
+    fontSize: 23,
+    lineHeight: 28,
+    fontFamily: fonts.display,
+    letterSpacing: -0.4,
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
 } as const;
 
 /** Was hardcoded as `0.5` in five files. Uppercase eyebrow text wants it. */
@@ -479,6 +645,7 @@ export const theme = {
   rarityColors,
   rarityTreatments,
   rarityGlyphs,
+  appBackground,
   gameAccents,
   spacing,
   radius,
