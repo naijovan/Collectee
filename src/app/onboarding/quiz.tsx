@@ -109,7 +109,10 @@ export default function QuizScreen() {
         newsService.getDiscover(100),
       ]);
       if (cancelled) return;
-      setChips(deriveTasteChips(sets, items, articles));
+      /* Labels and the title list are passed in rather than imported by the
+         domain, same as the articles: `src/domain` stays free of anything it
+         would otherwise have to reach for. */
+      setChips(deriveTasteChips(sets, items, articles, GAME_LABELS, GAME_TITLES));
     }
 
     void load();
@@ -134,19 +137,44 @@ export default function QuizScreen() {
       avatarId: string | null;
       details: AccountDetails;
     }) => {
+      const picked = keep.picked
+        .map((value) => chips.find((c) => c.value === value))
+        .filter((chip): chip is TasteChip => chip !== undefined);
+
+      /*
+        Game chips are UNIONED into the games answer, not written as topics.
+        This is the one wiring detail the interest picker had to get right.
+
+        Games live in a different overlay from topics — `followedGamesFor` reads
+        `User.followedGames` plus `followedGameAdds`, and never looks at the
+        topic list — so calling `followTopic(userId, 'game', …)` would store a
+        row that `rankFyp` never reads. The chip would toggle, look selected,
+        and change nothing: exactly the dead control the tag rule on this step
+        exists to prevent, reintroduced by the fix for it.
+
+        Unioned rather than assigned because the games STEP is an assignment and
+        runs from the same answer object. A game picked here means "this one
+        too", so it has to be added to that set before it is written, not
+        written after it and overwritten.
+      */
+      const gamesFromChips = picked
+        .filter((chip) => chip.kind === 'game')
+        .map((chip) => chip.title);
+      const games = [...new Set([...keep.games, ...gamesFromChips])];
+
       /* An empty games answer is "no preference", not "unfollow everything".
          Someone who skips step 1 keeps the seeded three; writing an empty set
          would silently empty their feed and read as a bug. */
-      if (keep.games.length > 0) {
-        await newsService.setFollowedGames(viewerId, keep.games);
+      if (games.length > 0) {
+        await newsService.setFollowedGames(viewerId, games);
       }
 
       /* `followTopic`, not `toggleFollowedTopic`. The viewer is seeded already
          following Elderflame and Gusion, both of which are derived chips — a
          toggle would unfollow the very thing the user just picked. */
-      for (const value of keep.picked) {
-        const chip = chips.find((c) => c.value === value);
-        if (chip) await newsService.followTopic(viewerId, chip.kind, chip.value);
+      for (const chip of picked) {
+        if (chip.kind === 'game') continue;
+        await newsService.followTopic(viewerId, chip.kind, chip.value);
       }
 
       /* Null means the step was skipped, which must leave the seeded face
@@ -620,7 +648,11 @@ function TasteStep({
                 }}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: active }}
-                accessibilityLabel={`${chip.value}, ${chip.kind} in ${GAME_LABELS[chip.title]}`}
+                accessibilityLabel={
+                  chip.kind === 'game'
+                    ? `${chip.value}, game`
+                    : `${chip.value}, ${chip.kind} in ${GAME_LABELS[chip.title]}`
+                }
                 style={({ pressed }) => [
                   styles.chip,
                   active && styles.chipActive,
@@ -630,9 +662,13 @@ function TasteStep({
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
                   {chip.value}
                 </Text>
-                <Text style={[styles.chipMeta, active && styles.chipTextActive]}>
-                  {GAME_SHORT_LABELS[chip.title]}
-                </Text>
+                {/* Suppressed for a game chip: the value already IS the game, so
+                    the suffix rendered "Valorant · VAL". */}
+                {chip.kind === 'game' ? null : (
+                  <Text style={[styles.chipMeta, active && styles.chipTextActive]}>
+                    {GAME_SHORT_LABELS[chip.title]}
+                  </Text>
+                )}
               </Pressable>
             );
           })}
@@ -742,7 +778,23 @@ const styles = StyleSheet.create({
   tickActive: { borderColor: colors.accent, backgroundColor: colors.accent },
   tickMark: { ...typography.meta, color: colors.textOnAccent },
 
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
+  /**
+   * Centred rather than left-aligned, which is what turns a wrapped row into an
+   * interest picker.
+   *
+   * With nine chips left-aligned the last row was a short ragged stub against
+   * the left edge and the whole block read as a list that had run out. Centring
+   * distributes every row's slack evenly, so twenty-eight chips read as a field
+   * of options — the social-picker look Ray asked for. It also matches the step
+   * body, which is already centred.
+   */
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
