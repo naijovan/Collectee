@@ -156,7 +156,7 @@ export function AssistantButton() {
   });
 
   /* The pill is hidden while the panel is open: the launcher is a close button
-     at that point, and "Ask Miya" beside an open panel is an invitation to do
+     at that point, and "Ask Colly" beside an open panel is an invitation to do
      the thing already being done. */
   const showPill = greeting && !open;
 

@@ -41,14 +41,17 @@ export const ASSISTANT_CLEARANCE = BUBBLE_BOTTOM + BUBBLE + spacing.md;
 export const PANEL_CLEARANCE = ASSISTANT_CLEARANCE + spacing.sm;
 
 /**
- * What the assistant is called, in one place — the greeting pill and the panel
- * header both read it, so renaming is one edit rather than a search.
+ * What the assistant is called, in one place — the greeting pill, the panel
+ * header and the tour guide all read it, so renaming is one edit.
  *
- * ⚠️ NAMING RISK (§15). "Miya" is a shipped Mobile Legends hero, and this app
- * already uses that name for a Moonton character: `avatar-mlbb-miya` is in the
- * avatar roster and `mlbb-miya-modena-butterfly` is in the catalogue. Naming
- * OUR mascot the same thing makes one word mean two different things inside one
- * product, and reads as a publisher character fronting it. An original name
- * costs exactly this line. Flagged, not decided.
+ * Was "Miya" until 8 Aug, which was a shipped Mobile Legends hero name and one
+ * this app already uses for a Moonton character (`avatar-mlbb-miya` in the
+ * avatar roster, `mlbb-miya-modena-butterfly` in the catalogue). One word
+ * meaning two different things in one product, with the second meaning being
+ * someone else's IP (§15). "Colly" is ours.
+ *
+ * The rename is scoped to the PERSONA. The avatar roster still says Miya,
+ * because that entry IS the Moonton hero, and the pose files are still called
+ * `miya-tour-*.png` because they are internal wired paths.
  */
-export const ASSISTANT_NAME = 'Miya';
+export const ASSISTANT_NAME = 'Colly';

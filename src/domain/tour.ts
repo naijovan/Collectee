@@ -47,10 +47,10 @@ export interface TourStop {
   /** Hidden entirely when this is false — §14 can cut the surface a stop names. */
   enabled?: boolean;
   /**
-   * Miya's line for this stop, and the pose she says it in — tour v2 only.
+   * Colly's line for this stop, and the pose she says it in — tour v2 only.
    *
    * ADDITIVE. `title`/`body` above are untouched and remain what the card tour
-   * renders, so `FEATURES.tourGuideMiya` off is byte-identical to today. The
+   * renders, so `FEATURES.tourGuideColly` off is byte-identical to today. The
    * two are not the same copy rewritten: the card explains, the guide talks.
    *
    * House rule still applies to the playful voice — she may not claim anything

@@ -493,7 +493,7 @@ const ART_WIRING: { registry: string; asset: string; slot: string }[] = [
   },
   {
     registry: 'src/config/tourGuideArt.ts',
-    asset: 'assets/collectee/assistant/miya-tour-mascot-happy.png',
+    asset: 'assets/collectee/assistant/miya-tour-happy.png',
     slot: 'happy',
   },
 ];

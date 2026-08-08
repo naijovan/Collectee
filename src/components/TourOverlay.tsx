@@ -363,7 +363,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
    * below runs exactly as it did before tour v2 existed — which is what makes
    * "flag off is byte-identical" a property rather than a promise.
    */
-  const guided = FEATURES.tourGuideMiya && guidePosesReady();
+  const guided = FEATURES.tourGuideColly && guidePosesReady();
 
   /* Computed once. Two calls would be two chances for the wrapper's anchor and
      the figure's placement to disagree about where she is standing. */
