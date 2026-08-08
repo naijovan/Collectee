@@ -22,8 +22,8 @@ export {
   ItemCard,
   timeAgo,
 } from './cards';
+export { AppBackground, AppBackgroundFrame } from './AppBackground';
 export { AvatarPicker } from './AvatarPicker';
-export { AppBackground } from './AppBackground';
 export { CollectionCoverMosaic } from './CollectionCoverMosaic';
 export {
   Avatar,
@@ -33,6 +33,7 @@ export {
   GameBadge,
   ItemArt,
   LoadingState,
+  AccentFill,
   PrimaryButton,
   RarityBadge,
   SecondaryButton,

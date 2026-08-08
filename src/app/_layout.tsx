@@ -42,7 +42,7 @@ import { AssistantDockProvider } from '@/state/AssistantDock';
 import { TourAnchorsProvider } from '@/state/TourAnchors';
 import { ThemeModeProvider, useThemeMode } from '@/theme/ThemeMode';
 import { installWebChrome } from '@/theme/webChrome';
-import { AppBackground, AssistantButton, TourOverlay } from '@/components';
+import { AppBackgroundFrame, AssistantButton, TourOverlay } from '@/components';
 import { colors, DARK_PALETTE, fonts } from '@/theme/theme';
 
 /* Hold the native splash until the fonts resolve, so the first frame is already
@@ -118,16 +118,32 @@ export default function RootLayout() {
       <AppProvider>
         <AssistantDockProvider>
           <TourAnchorsProvider>
-            {/* Wraps the navigator so its container stops painting Expo
-                Router's light DefaultTheme behind every transparent screen. */}
+            {/*
+              Both halves of a conflict, kept.
+
+              Marcus's `ThemeProvider value={NAV_THEME}` stays: it stops Expo
+              Router painting its light DefaultTheme behind every transparent
+              screen, which was the actual source of the white first frame.
+
+              Codex's newer background structure stays too. `AppBackground` is
+              no longer mounted as a sibling here — it arrives per screen via
+              `AppBackgroundFrame` in this Stack's `screenLayout` below, which
+              is the later design. Mounting it both ways would stack two
+              translucent gradients and double their wash.
+
+              ⚠️ CODEX: `(tabs)/_layout.tsx` sets `screenLayout` as well, so a
+              tab screen is wrapped by this Stack's frame AND the Tabs one —
+              two gradients on the five screens that matter most. Worth a look;
+              left alone here because the background is your call, not mine.
+            */}
             <ThemeProvider value={NAV_THEME}>
               <View style={styles.appShell}>
-              <AppBackground />
               <ThemedChrome />
               <FirstRunGate />
               <Stack
+                screenLayout={({ children }) => <AppBackgroundFrame>{children}</AppBackgroundFrame>}
                 screenOptions={{
-                  headerStyle: { backgroundColor: 'transparent' },
+                  headerStyle: { backgroundColor: colors.surface },
                   headerTintColor: colors.textPrimary,
                   headerTitleStyle: { fontFamily: fonts.display, fontSize: 17 },
                   headerShadowVisible: false,
@@ -207,7 +223,7 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  appShell: { flex: 1 },
+  appShell: { flex: 1, backgroundColor: colors.background },
 });
 
 /**
