@@ -348,7 +348,30 @@ for (const thread of THREADS) {
 /* Widened to `Article`: ARTICLES is `as const`, so entries without a `body`
    have no such property and the union cannot be read through. */
 for (const article of ARTICLES as readonly Article[]) {
+  /*
+   * EVERY seeded article must have a write-up.
+   *
+   * `body` stays optional on the type because phase 2 ingests real feeds, where
+   * an entry may legitimately have no excerpt and inventing one would break the
+   * sourcing rule. But a SEEDED article without one is a bug, and it shipped as
+   * exactly that: the "Read full article" reader is gated on `body`, so for a
+   * while only three of eighteen articles had a reader and the rest offered
+   * nothing but an external link. The type cannot express "required in the
+   * seed, optional at runtime"; this can.
+   */
+  check(
+    article.body !== undefined && article.body.length > 0,
+    `Article ${article.id}: no body — the in-app reader is gated on it, so this article would offer only the source link`,
+  );
   if (!article.body) continue;
+
+  /* The detail screen previews `body[0]`. A heading or a figure as the preview
+     reads as a layout fault rather than as a standfirst. */
+  check(
+    article.body[0]?.kind === 'paragraph',
+    `Article ${article.id}: body must open with a paragraph — the detail screen renders body[0] as the preview`,
+  );
+
   for (const block of article.body) {
     if (block.kind !== 'image') continue;
     check(
