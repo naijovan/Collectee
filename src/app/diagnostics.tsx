@@ -20,6 +20,7 @@ import { avatarArtCoverage } from '@/config/avatarRegistry';
 import { communityArtCoverage } from '@/config/communityArt';
 import { newsBannerCoverage } from '@/config/newsBanners';
 import { assistantMascotCoverage } from '@/config/assistantArt';
+import { guidePoseCoverage } from '@/config/tourGuideArt';
 import { newsThumbCoverage } from '@/config/newsThumbs';
 import { intensityOption } from '@/domain/onboarding';
 import { countScan } from '@/domain/scan';
@@ -63,6 +64,7 @@ export default function FoundationScreen() {
   const bannerCoverage = newsBannerCoverage();
   const thumbCoverage = newsThumbCoverage();
   const mascotCoverage = assistantMascotCoverage();
+  const guideCoverage = guidePoseCoverage();
   const [communityCoverage, setCommunityCoverage] = useState({ covered: 0, total: 0 });
   const [checks, setChecks] = useState<Check[]>([]);
   const [running, setRunning] = useState(true);
@@ -305,6 +307,11 @@ export default function FoundationScreen() {
           label="Assistant mascot"
           value={`${mascotCoverage.covered}/${mascotCoverage.total} — the launcher falls back to the sparkle glyph`}
           ok={mascotCoverage.covered === mascotCoverage.total}
+        />
+        <Row
+          label="Tour guide poses"
+          value={`${guideCoverage.covered}/${guideCoverage.total} — the guided tour stays off until all three land`}
+          ok={guideCoverage.covered === guideCoverage.total}
         />
       </View>
 
