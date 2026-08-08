@@ -130,19 +130,6 @@ export const rarityColors = {
 } as const;
 
 /**
- * Who can see this — one colour per visibility, so the three are told apart at
- * a glance instead of being three identical grey words across a grid of cards.
- *
- * Here rather than in `domain/collections.ts` beside `VISIBILITY_LABELS`, for
- * the same reason `rarityColors` is here: colour decisions live in this file,
- * and `src/domain` is pure logic that should not grow a dependency on the theme.
- *
- * Semantic, and the ladder runs the way exposure does — open, link-only, shut.
- * Private is the QUIETEST of the three rather than the loudest: a private
- * collection is a normal thing to have, and red would read as an error on a
- * state the user deliberately chose.
- */
-/**
  * The primary button's fill — blue into violet, across the diagonal.
  *
  * The first attempt was one shade either side of `accent`, which was too subtle
@@ -173,6 +160,19 @@ export const accentGradient = {
   end: { x: 1, y: 1 },
 } as const;
 
+/**
+ * Who can see this — one colour per visibility, so the three are told apart at
+ * a glance instead of being three identical grey words across a grid of cards.
+ *
+ * Here rather than in `domain/collections.ts` beside `VISIBILITY_LABELS`, for
+ * the same reason `rarityColors` is here: colour decisions live in this file,
+ * and `src/domain` is pure logic that should not grow a dependency on the theme.
+ *
+ * Semantic, and the ladder runs the way exposure does — open, link-only, shut.
+ * Private is the QUIETEST of the three rather than the loudest: a private
+ * collection is a normal thing to have, and red would read as an error on a
+ * state the user deliberately chose.
+ */
 export const visibilityColors = {
   public: '#22C55E',
   unlisted: '#F5A524',
