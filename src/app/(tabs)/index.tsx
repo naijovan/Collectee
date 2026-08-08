@@ -52,6 +52,7 @@ import {
   useHoverLift,
   PinnedHeader,
 } from '@/components';
+import { useScrolledPast } from '@/components/PinnedHeader';
 import { ART_PLACEMENTS, backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { headlineItem } from '@/domain/collections';
@@ -131,6 +132,9 @@ export default function HomeScreen() {
 
   /** Tab screens stay mounted, so returning here has to be sent back to the top. */
   const scrollRef = useTopOnFocus();
+  /* Drives the header's frosted backdrop, which is transparent at the top
+     of the page and fades in once it starts doing a job. */
+  const { scrolled, scrollProps } = useScrolledPast();
 
   const [filter, setFilter] = useState<Filter>('All');
   const [articles, setArticles] = useState<Article[]>([]);
@@ -235,7 +239,7 @@ export default function HomeScreen() {
           the app's account controls — reaching them should not require
           scrolling back to the top of a long feed. A bottom rule demarcates it
           from the content moving underneath. */}
-      <PinnedHeader>
+      <PinnedHeader scrolled={scrolled}>
       <View style={styles.header}>
           <View style={styles.headerText}>
             {/* One line, one size. Two stacked lines at different sizes made the
@@ -285,6 +289,7 @@ export default function HomeScreen() {
 
     <ScrollView
       ref={scrollRef}
+      {...scrollProps}
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={

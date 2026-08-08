@@ -225,6 +225,21 @@ export const tabBarWash = ['rgba(147,51,234,0.10)', 'rgba(147,51,234,0.02)'] as 
  * Cast at the call site: `backdropFilter` is not in React Native's ViewStyle,
  * because on native it is genuinely not a thing.
  */
+/**
+ * Frosted glass for the sticky top bar — careerlingo's `--glass` plus its
+ * `backdrop-filter: blur(18px) saturate(1.2)`.
+ *
+ * More opaque than `tabBarGlass` (78% vs 72%) and blurred harder. Text sits
+ * DIRECTLY on this one, so it has to stay legible over whatever scrolls
+ * underneath; the tab bar only carries icons and 11px labels with their own
+ * contrast.
+ */
+export const headerGlass = {
+  /** `surface` at 78%. Same reason as tabBarGlass for the literal living here. */
+  background: 'rgba(20,24,33,0.78)',
+  blur: 'blur(18px) saturate(120%)',
+} as const;
+
 export const tabBarGlass = {
   /** `surface` at 72%. The literal is here rather than in a component so the
    *  no-raw-hex rule holds; `colors.surface` is a CSS var on web and cannot be

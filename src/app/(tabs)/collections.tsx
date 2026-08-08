@@ -34,6 +34,7 @@ import {
   ASSISTANT_CLEARANCE,
   PinnedHeader,
 } from '@/components';
+import { useScrolledPast } from '@/components/PinnedHeader';
 import { AccentFill } from '@/components/primitives';
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
@@ -89,6 +90,9 @@ export default function CollectionsScreen() {
   const { viewer, viewerId, inventory } = useApp();
 
   const scrollRef = useTopOnFocus();
+  /* Drives the header's frosted backdrop, which is transparent at the top
+     of the page and fades in once it starts doing a job. */
+  const { scrolled, scrollProps } = useScrolledPast();
 
   const [entries, setEntries] = useState<Entry[]>([]);
   const [rooms, setRooms] = useState<ReadonlyMap<string, RoomStatus>>(new Map());
@@ -270,7 +274,7 @@ export default function CollectionsScreen() {
       {/* Pinned: the four tab screens keep their title and filters on screen
           while the list moves under them, so the user never loses the context
           for what they are scrolling through. */}
-      <PinnedHeader>
+      <PinnedHeader scrolled={scrolled}>
         <View style={styles.header}>
           <View style={styles.rowBody}>
             <Text style={styles.title}>Collections</Text>
@@ -282,6 +286,7 @@ export default function CollectionsScreen() {
 
     <ScrollView
       ref={scrollRef}
+      {...scrollProps}
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={

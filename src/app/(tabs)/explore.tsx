@@ -24,6 +24,7 @@ import {
   useHoverLift,
   PinnedHeader,
 } from '@/components';
+import { useScrolledPast } from '@/components/PinnedHeader';
 import { FEATURES } from '@/config/features';
 import { VIEWER_UNVERIFIED_REASON } from '@/domain/matching';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -114,6 +115,9 @@ export default function ExploreScreen() {
   const { viewerId } = useApp();
 
   const scrollRef = useTopOnFocus();
+  /* Drives the header's frosted backdrop, which is transparent at the top
+     of the page and fades in once it starts doing a job. */
+  const { scrolled, scrollProps } = useScrolledPast();
 
   const [tab, setTab] = useState<Tab>('Collectors');
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
@@ -177,7 +181,7 @@ export default function ExploreScreen() {
     <View style={styles.screen}>
       {/* Same pinned header as Home and Collections — they are sibling tabs and
           a header that moves or changes between them reads as three apps. */}
-      <PinnedHeader>
+      <PinnedHeader scrolled={scrolled}>
         <View ref={titleAnchor} collapsable={false} style={styles.headerRow}>
           <Text style={styles.title}>Discover</Text>
           {/*
@@ -199,6 +203,7 @@ export default function ExploreScreen() {
 
       <ScrollView
         ref={scrollRef}
+      {...scrollProps}
         style={styles.screen}
         contentContainerStyle={styles.content}
         refreshControl={
