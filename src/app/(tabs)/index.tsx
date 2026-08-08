@@ -564,12 +564,23 @@ export default function HomeScreen() {
                     ) : null}
 
                     <View style={styles.roomCardMeta} pointerEvents="none">
-                      <Text style={styles.roomCardName} numberOfLines={1}>
-                        {entry.room.title}
-                      </Text>
-                      <View style={styles.roomCardCounts}>
+                      {/* Title with the theme under it, exactly where the
+                          collection card puts its visibility line — the theme
+                          is a property of this room, so it belongs beneath the
+                          name rather than in the numbers column opposite. */}
+                      <View style={styles.roomCardLeft}>
+                        <Text style={styles.roomCardName} numberOfLines={1}>
+                          {entry.room.title}
+                        </Text>
                         <Text style={styles.roomCardTheme} numberOfLines={1}>
                           {entry.themeName}
+                        </Text>
+                      </View>
+                      {/* Likes and item count, mirroring the collection card so
+                          the two read as the same object at a glance. */}
+                      <View style={styles.roomCardCounts}>
+                        <Text style={styles.roomCardLike}>
+                          ♥ {entry.room.likeCount.toLocaleString()}
                         </Text>
                         <Text style={styles.roomCardItems}>
                           {entry.room.placements.length} items
@@ -783,19 +794,20 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: spacing.md,
   },
+  roomCardLeft: { flex: 1, gap: 2 },
   roomCardName: {
     ...typography.sectionHeader,
     fontSize: 21,
     lineHeight: 27,
     fontFamily: fonts.display,
     color: colors.textOnAccent,
-    flex: 1,
   },
   roomCardCounts: { alignItems: 'flex-end', gap: 2 },
-  /* The theme takes the slot the like count holds on a collection card. A room
-     has no likes on this surface, and the theme is the closest thing to a
-     reason to open one — "Fantasy Armoury" says what you are walking into. */
+  /* Under the title, in the slot the collection card gives its visibility line.
+     The theme is what you are walking into — "Fantasy Armoury" is a property of
+     the room, not a number, so it does not belong in the counts column. */
   roomCardTheme: { ...typography.meta, color: colors.accent },
+  roomCardLike: { ...typography.meta, color: colors.danger },
   roomCardItems: { ...typography.meta, color: colors.textOnAccent, opacity: 0.75 },
   /* Owner top-right, same pill as the collection card's. */
   roomOwnerPill: {
