@@ -225,22 +225,44 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
+  /**
+   * 44, not 28.
+   *
+   * At 28 she was a dot — the point of putting her here is that the panel
+   * reads as the same character the launcher bubble opened, and an
+   * unidentifiable circle does not do that. 44 sits just above the two-line
+   * title block (~38pt: a 20pt title over a 16pt mode line), so she anchors
+   * the row without towering over it.
+   *
+   * No `marginRight` — the header row already has `gap`, and carrying both
+   * double-spaced her away from the title.
+   *
+   * The ring matches the launcher bubble's, so the face in the header and the
+   * face in the corner read as one thing rather than two portraits.
+   */
   headerMascot: {
-    width: 28,
-    height: 28,
+    width: 44,
+    height: 44,
     borderRadius: radius.pill,
-    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.accentPressed,
     backgroundColor: colors.surfaceSunken,
   },
   header: {
     flexDirection: 'row',
+    /* flex-start keeps the close button pinned top-right, unchanged. The text
+       block centres itself against the face separately. */
     alignItems: 'flex-start',
     gap: spacing.sm,
-    padding: spacing.md,
+    /* lg, not md: at 44 the face filled the old 12pt padding and the row read
+       as cramped. */
+    padding: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerText: { flex: 1, gap: 2 },
+  /* Centred against the 44pt face rather than top-aligned to it, so the
+     two-line block sits balanced beside her instead of riding high. */
+  headerText: { flex: 1, gap: 2, alignSelf: 'center' },
   title: { ...typography.cardTitle, color: colors.textPrimary },
   mode: { ...typography.meta, color: colors.textTertiary },
   close: { ...typography.cardTitle, color: colors.textSecondary },
