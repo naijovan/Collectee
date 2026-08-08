@@ -27,7 +27,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
-import { ArticleCard, EmptyState, FilterChips, LoadingState, NewsBanner } from '@/components';
+import { ASSISTANT_CLEARANCE, ArticleCard, EmptyState, FilterChips, LoadingState, NewsBanner } from '@/components';
 import { DEMO_NOW, FEATURES } from '@/config/features';
 import { pickThumbnailIds } from '@/domain/news';
 import type { RankedArticle } from '@/domain/news';
@@ -361,7 +361,9 @@ export default function NewsScreen() {
         {FEATURES.liveSummarisation ? '' : ' Summaries and digests are seeded for this build.'}
       </Text>
 
-      <View style={{ height: spacing.xxl }} />
+      {/* The floating assistant sits over this corner. Pad by the real
+          number so the last row is never resting underneath it. */}
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
   );
 }

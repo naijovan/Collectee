@@ -39,15 +39,29 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LinearGradient } from 'expo-linear-gradient';
+
 import { FEATURES } from '@/config/features';
+import { guidePosesReady } from '@/config/tourGuideArt';
 import { buildTourStops } from '@/domain/tour';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import * as haptics from '@/lib/haptics';
 import { newsService } from '@/services';
 import { useTourAnchors } from '@/state/TourAnchors';
 import type { AnchorRect } from '@/state/TourAnchors';
-import { colors, interaction, motion, radius, scrim, spacing, typography } from '@/theme/theme';
+import {
+  colors,
+  interaction,
+  motion,
+  radius,
+  scrim,
+  spacing,
+  tourScrim,
+  typography,
+} from '@/theme/theme';
 import { GAME_TITLES } from '@/types';
+
+import { TourGuide, placeGuide } from './TourGuide';
 
 /**
  * How long to let a screen settle after navigating before measuring it.
@@ -82,6 +96,60 @@ const CARD_GAP = spacing.md;
 const NATIVE_DRIVER = Platform.OS !== 'web';
 
 type Phase = 'moving' | 'shown';
+
+/**
+ * One panel of the dim.
+ *
+ * Guided mode only — the classic path keeps its original flat `styles.dim`
+ * nodes inline. This draws the theatrical field: a full-screen gradient plus a
+ * vignette, both offset by this panel's own origin inside an
+ * `overflow: hidden` box.
+ *
+ * That offset is the whole trick. Four panels each drawing their own gradient
+ * would tile — four separate ramps with visible steps at every seam. Drawing
+ * the SAME screen-sized gradient in each and sliding it back into place makes
+ * the four pieces read as one continuous field with a hole in it, which is what
+ * a real backdrop treatment would have given us and a per-panel one would not.
+ */
+function ScrimPanel({
+  x,
+  y,
+  w,
+  h,
+  screenW,
+  screenH,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  screenW: number;
+  screenH: number;
+}) {
+  if (w <= 0 || h <= 0) return null;
+
+  const box = { position: 'absolute' as const, left: x, top: y, width: w, height: h };
+
+  const full = {
+    position: 'absolute' as const,
+    left: -x,
+    top: -y,
+    width: screenW,
+    height: screenH,
+  };
+
+  return (
+    <View style={[box, styles.panelClip]} pointerEvents="auto">
+      <LinearGradient colors={[tourScrim.top, tourScrim.bottom]} style={full} />
+      <LinearGradient
+        colors={[tourScrim.vignette, tourScrim.vignetteClear, tourScrim.vignette]}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+        style={full}
+      />
+    </View>
+  );
+}
 
 function sameRect(a: AnchorRect | null, b: AnchorRect | null): boolean {
   if (a === null || b === null) return a === b;
@@ -286,6 +354,21 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
 
   const total = stops.length;
 
+  /**
+   * Is this the guided run?
+   *
+   * THREE conditions, all required. The flag is the intent, `guidePosesReady`
+   * is the belt-and-braces against a half-delivered art pack, and a stop must
+   * actually have a line written for her. Any one missing and the card path
+   * below runs exactly as it did before tour v2 existed — which is what makes
+   * "flag off is byte-identical" a property rather than a promise.
+   */
+  const guided = FEATURES.tourGuideMiya && guidePosesReady();
+
+  /* Computed once. Two calls would be two chances for the wrapper's anchor and
+     the figure's placement to disagree about where she is standing. */
+  const guidePlacement = placeGuide({ width: screenW, height: screenH }, insets, hole);
+
   // ── The prompt ──────────────────────────────────────────────────────────
   if (index === -1) {
     return (
@@ -342,38 +425,83 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
           whole screen dims — that is the beat before the spotlight lands. */}
       {phase === 'shown' && hole ? (
         <>
-          <View
-            style={[styles.dim, { top: 0, left: 0, right: 0, height: Math.max(0, hole.y - HOLE_PAD) }]}
-            pointerEvents="auto"
+          {/* CLASSIC PATH — untouched from tour v1, deliberately.
+              These use `right: 0` / `bottom: 0`, which stretch to the parent,
+              where the guided panels below size themselves from measured
+              window dimensions. On web those two can differ by a scrollbar
+              width, so the flag-off path keeps the original nodes rather than
+              inheriting a subtle one-pixel regression from the rewrite. */}
+          {!guided ? (
+            <>
+              <View
+                style={[styles.dim, { top: 0, left: 0, right: 0, height: Math.max(0, hole.y - HOLE_PAD) }]}
+                pointerEvents="auto"
+              />
+              <View
+                style={[styles.dim, { top: hole.y + hole.height + HOLE_PAD, left: 0, right: 0, bottom: 0 }]}
+                pointerEvents="auto"
+              />
+              <View
+                style={[
+                  styles.dim,
+                  {
+                    top: hole.y - HOLE_PAD,
+                    left: 0,
+                    width: Math.max(0, hole.x - HOLE_PAD),
+                    height: hole.height + HOLE_PAD * 2,
+                  },
+                ]}
+                pointerEvents="auto"
+              />
+              <View
+                style={[
+                  styles.dim,
+                  {
+                    top: hole.y - HOLE_PAD,
+                    left: hole.x + hole.width + HOLE_PAD,
+                    right: 0,
+                    height: hole.height + HOLE_PAD * 2,
+                  },
+                ]}
+                pointerEvents="auto"
+              />
+            </>
+          ) : (
+            <>
+          <ScrimPanel
+            x={0}
+            y={0}
+            w={screenW}
+            h={Math.max(0, hole.y - HOLE_PAD)}
+            screenW={screenW}
+            screenH={screenH}
           />
-          <View
-            style={[styles.dim, { top: hole.y + hole.height + HOLE_PAD, left: 0, right: 0, bottom: 0 }]}
-            pointerEvents="auto"
+          <ScrimPanel
+            x={0}
+            y={hole.y + hole.height + HOLE_PAD}
+            w={screenW}
+            h={Math.max(0, screenH - (hole.y + hole.height + HOLE_PAD))}
+            screenW={screenW}
+            screenH={screenH}
           />
-          <View
-            style={[
-              styles.dim,
-              {
-                top: hole.y - HOLE_PAD,
-                left: 0,
-                width: Math.max(0, hole.x - HOLE_PAD),
-                height: hole.height + HOLE_PAD * 2,
-              },
-            ]}
-            pointerEvents="auto"
+          <ScrimPanel
+            x={0}
+            y={hole.y - HOLE_PAD}
+            w={Math.max(0, hole.x - HOLE_PAD)}
+            h={hole.height + HOLE_PAD * 2}
+            screenW={screenW}
+            screenH={screenH}
           />
-          <View
-            style={[
-              styles.dim,
-              {
-                top: hole.y - HOLE_PAD,
-                left: hole.x + hole.width + HOLE_PAD,
-                right: 0,
-                height: hole.height + HOLE_PAD * 2,
-              },
-            ]}
-            pointerEvents="auto"
+          <ScrimPanel
+            x={hole.x + hole.width + HOLE_PAD}
+            y={hole.y - HOLE_PAD}
+            w={Math.max(0, screenW - (hole.x + hole.width + HOLE_PAD))}
+            h={hole.height + HOLE_PAD * 2}
+            screenW={screenW}
+            screenH={screenH}
           />
+            </>
+          )}
 
           {/* Transparent, but it swallows touches. The hole is a real gap, so
               without this the highlighted control is live — and tapping the
@@ -427,9 +555,42 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
           />
         </>
       ) : (
-        <View style={[StyleSheet.absoluteFill, styles.fullScrim]} pointerEvents="auto" />
+        <View
+          style={[StyleSheet.absoluteFill, guided ? styles.guidedFullScrim : styles.fullScrim]}
+          pointerEvents="auto"
+        />
       )}
 
+      {guided && stop.guide ? (
+        /* Guided run. The guide takes the whole lower (or upper) band rather
+           than sitting beside the hole like the card does — she is the subject,
+           not an annotation. Everything above this point is shared with the
+           card path, so the cutout, the ring and the pulse are literally the
+           same nodes. */
+        <Animated.View
+          style={[
+            styles.guideWrap,
+            guidePlacement.anchor === 'top'
+              ? { top: insets.top + spacing.md }
+              : { bottom: insets.bottom + spacing.md },
+            { opacity: fade },
+          ]}
+          pointerEvents={phase === 'shown' ? 'box-none' : 'none'}
+        >
+          <TourGuide
+            pose={stop.guide.pose}
+            line={stop.guide.line}
+            index={index}
+            total={total}
+            placement={guidePlacement}
+            onNext={() => goToStop(index + 1)}
+            onBack={() => (index === 0 ? finish() : goToStop(index - 1))}
+            onClose={finish}
+            backLabel={index === 0 ? 'Skip tour' : 'Back'}
+            nextLabel={index === total - 1 ? 'Done' : 'Next'}
+          />
+        </Animated.View>
+      ) : (
       <Animated.View
         style={[styles.cardWrap, cardPosition, { opacity: fade }]}
         pointerEvents={phase === 'shown' ? 'box-none' : 'none'}
@@ -486,6 +647,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
           </View>
         </View>
       </Animated.View>
+      )}
     </View>
   );
 }
@@ -496,10 +658,20 @@ const styles = StyleSheet.create({
   root: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 },
   fullScrim: { backgroundColor: scrim.medium },
   dim: { position: 'absolute', backgroundColor: scrim.medium },
+  /** Guided panel — clips the screen-sized gradients back to this rectangle. */
+  panelClip: { overflow: 'hidden' },
+  /** Guided full-screen dim during 'moving', when there is no hole yet. */
+  guidedFullScrim: { backgroundColor: tourScrim.top },
 
   ring: { position: 'absolute', borderWidth: 2, borderColor: colors.accent },
   glow: { position: 'absolute', borderWidth: 6, borderColor: colors.accent },
 
+  guideWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    paddingHorizontal: spacing.lg,
+  },
   cardWrap: {
     position: 'absolute',
     left: 0,

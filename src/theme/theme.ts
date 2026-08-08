@@ -251,6 +251,42 @@ export const scrim = {
 } as const;
 
 /**
+ * The guided tour's de-emphasis — PRD §13.4's walkthrough, v2.
+ *
+ * ── Why this is not a blur ────────────────────────────────────────────────
+ * Real backdrop blur was evaluated and rejected. The spotlight cuts its hole
+ * with FOUR rectangles rather than a mask (see `TourOverlay`), and a
+ * `backdrop-filter` on four panels samples differently at each boundary, so the
+ * hole gets visible seams along its edges. Native has no blur module at all
+ * without a new dependency (§13.1). A cheap fake blur was explicitly off the
+ * table, so the dim earns its keep by being composed instead.
+ *
+ * ── What it is ────────────────────────────────────────────────────────────
+ * A deep indigo gradient, darkest at the top and lifting slightly toward the
+ * bottom where the guide stands, plus a vignette that darkens the edges. The
+ * gradient is drawn once in screen space and clipped per panel, so the four
+ * pieces line up into one field rather than four tiles.
+ *
+ * Indigo rather than neutral grey: grey over a dark app reads as "disabled",
+ * and this moment is theatrical, not broken. It is close enough to
+ * `background` to feel like the same product and far enough to read as a
+ * deliberate state change.
+ *
+ * These are `rgba` rather than hex because they composite over live content —
+ * same licence `scrim` takes, and the same reason they live in this file.
+ */
+export const tourScrim = {
+  /** Top of the field — deepest. */
+  top: 'rgba(9,10,26,0.94)',
+  /** Bottom, where the guide stands. Slightly lifted so she is not in a pit. */
+  bottom: 'rgba(5,6,15,0.88)',
+  /** Edge darkening, drawn over the gradient. */
+  vignette: 'rgba(3,4,10,0.55)',
+  /** Centre of the vignette — transparent, so the middle stays readable. */
+  vignetteClear: 'rgba(3,4,10,0)',
+} as const;
+
+/**
  * Fallback palette for `RoomAtmosphere` when a theme supplies fewer than three
  * colours — [base, primary, secondary], matching the `RoomTheme.palette` shape.
  *

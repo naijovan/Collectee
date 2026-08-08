@@ -34,6 +34,7 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import {
+  ASSISTANT_CLEARANCE,
   ArticleCard,
   Avatar,
   CollectionCard,
@@ -461,7 +462,9 @@ export default function HomeScreen() {
       ) : null}
 
       {loading ? <LoadingState height={40} /> : null}
-      <View style={{ height: spacing.xxl }} />
+      {/* The floating assistant sits over this corner. Pad by the real
+          number so the last row is never resting underneath it. */}
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
     </View>
   );

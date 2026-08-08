@@ -167,6 +167,20 @@ export const FEATURES = {
    */
   firstRunTour: true,
 
+  /**
+   * Tour v2 — the walkthrough guided by the Miya character rather than a card.
+   *
+   * OFF until all three of her poses land (`config/tourGuideArt`). With it off
+   * the tour is byte-identical to today's: the guide path is additive and the
+   * card path is untouched, so this flag is a real switch rather than a
+   * half-migration.
+   *
+   * Belt and braces: the overlay also checks `guidePosesReady()`, so flipping
+   * this on against a partial art pack still falls back to the card instead of
+   * showing a character-shaped hole.
+   */
+  tourGuideMiya: false,
+
   /** [ROADMAP] §11 F2 — Collection Insights. Build only if all four flows land early. */
   collectionInsights: false,
 
