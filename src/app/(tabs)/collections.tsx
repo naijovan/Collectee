@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
 import {
   Pressable,
   RefreshControl,
@@ -89,6 +90,7 @@ export default function CollectionsScreen() {
   const router = useRouter();
   const { width: viewportWidth } = useWindowDimensions();
   const { viewer, viewerId, inventory } = useApp();
+  const ideaHeaders = useEqualHeaders();
 
   const scrollRef = useTopOnFocus();
   /* Drives the header's frosted backdrop, which is transparent at the top
@@ -266,12 +268,16 @@ export default function CollectionsScreen() {
           style={({ pressed }) => [
             styles.ideaButton,
             styles.ideaButtonOverlay,
-            canShowroom && styles.ideaButtonPrimary,
             pressed && styles.pressedIdea,
           ]}
         >
-          {canShowroom ? <AccentFill /> : null}
-          <Text style={[styles.ideaButtonText, canShowroom && styles.ideaButtonTextPrimary]}>
+          {/* Both buttons, not just the showroom one. The gradient used to be
+              gated on `canShowroom`, which left "Create Collection" as the only
+              flat-blue CTA in the app — it read as a lesser, disabled-looking
+              twin of the button beside it, when the two are equally valid
+              actions on equally valid suggestions. */}
+          <AccentFill />
+          <Text style={styles.ideaButtonText}>
             {canShowroom ? 'Create Showroom' : 'Create Collection'}
           </Text>
         </Pressable>
@@ -449,14 +455,16 @@ export default function CollectionsScreen() {
               time — what does accepting this actually make? — and the showroom
               half goes first because it is the one gated on verification and so
               the one worth acting on while the items are fresh. */}
-          <View style={styles.ideaColumns}>
+          <View style={styles.ideaColumns} onLayout={ideaHeaders.onRowLayout}>
           {showroomIdeas.length > 0 ? (
             <View style={styles.ideaGroup}>
-              <View style={styles.ideaGroupHeader}>
-                <SectionHeader title="Ready for a Showroom" />
-                <Text style={styles.muted}>
-                  Enough verified items to build an interactive room in one step.
-                </Text>
+              <View style={[styles.ideaGroupHeader, { minHeight: ideaHeaders.height }]}>
+                <View style={styles.ideaGroupHeaderInner} onLayout={ideaHeaders.measure('showroom')}>
+                  <SectionHeader title="Ready for a Showroom" />
+                  <Text style={styles.muted}>
+                    Enough verified items to build an interactive room in one step.
+                  </Text>
+                </View>
               </View>
               <View style={styles.ideaList}>
                 {showroomIdeas.map((idea) => renderIdea(idea))}
@@ -466,12 +474,14 @@ export default function CollectionsScreen() {
 
           {collectionIdeas.length > 0 ? (
             <View style={styles.ideaGroup}>
-              <View style={styles.ideaGroupHeader}>
-                <SectionHeader title="Ready for a Collection" />
-                <Text style={styles.muted}>
-                  Good groupings, but short on verified items — these list in 2D until you
-                  connect a game account.
-                </Text>
+              <View style={[styles.ideaGroupHeader, { minHeight: ideaHeaders.height }]}>
+                <View style={styles.ideaGroupHeaderInner} onLayout={ideaHeaders.measure('collection')}>
+                  <SectionHeader title="Ready for a Collection" />
+                  <Text style={styles.muted}>
+                    Good groupings, but short on verified items — these list in 2D until you
+                    connect a game account.
+                  </Text>
+                </View>
               </View>
               <View style={styles.ideaList}>
                 {collectionIdeas.map((idea) => renderIdea(idea))}
@@ -486,6 +496,67 @@ export default function CollectionsScreen() {
     </ScrollView>
     </View>
   );
+}
+
+/**
+ * The narrowest an ideas column may be before the pair wraps to one per row.
+ * Shared with `styles.ideaGroup` so the wrap point below and the wrap point
+ * flexbox actually uses cannot drift apart.
+ */
+const IDEA_COLUMN_MIN_WIDTH = 300;
+
+/**
+ * Give the two "Ready for a …" headers a common height, so the cards beneath
+ * them start on the same line.
+ *
+ * ── Why measuring, and not a minHeight ────────────────────────────────────
+ * The two blurbs are different lengths: one wraps to a single line where the
+ * other takes two. Whichever is taller pushes its cards down, and the columns
+ * read as misaligned when it is the text above them that differs.
+ *
+ * A hard `minHeight` cannot fix that, because how many lines a blurb takes is
+ * not a constant — it changes with the window width, the platform font, the
+ * user's text-size setting and any edit to the copy. Every value is right at
+ * one width and wrong at the next.
+ *
+ * ── How the measurement avoids latching ───────────────────────────────────
+ * Each header reports the height of an INNER view, which no minHeight is
+ * applied to, so what is measured is always the natural height of the text.
+ * Measuring the outer view instead would feed the equalised height straight
+ * back in, and the row could then only ever grow — a window resize that made
+ * both blurbs shorter would leave the old, taller gap behind.
+ *
+ * Heights are kept per column rather than as a running maximum for the same
+ * reason: the max is recomputed from what both columns currently report, so it
+ * comes back down when the text does.
+ */
+function useEqualHeaders() {
+  const [heights, setHeights] = useState<Record<string, number>>({});
+  const [rowWidth, setRowWidth] = useState(0);
+
+  const onRowLayout = useCallback((event: LayoutChangeEvent) => {
+    const width = Math.round(event.nativeEvent.layout.width);
+    setRowWidth((current) => (current === width ? current : width));
+  }, []);
+
+  const measure = useCallback(
+    (key: string) => (event: LayoutChangeEvent) => {
+      /* Rounded up: sub-pixel text heights differ by fractions between the two
+         columns, and an unrounded compare re-renders forever chasing them. */
+      const height = Math.ceil(event.nativeEvent.layout.height);
+      setHeights((current) => (current[key] === height ? current : { ...current, [key]: height }));
+    },
+    [],
+  );
+
+  /* Only while the columns are actually side by side. Stacked, equalising just
+     adds dead space above the second card. This is the same condition flexbox
+     uses to decide whether to wrap. */
+  const sideBySide = rowWidth >= IDEA_COLUMN_MIN_WIDTH * 2 + spacing.lg;
+  const values = Object.values(heights);
+  const height = sideBySide && values.length > 1 ? Math.max(...values) : undefined;
+
+  return { onRowLayout, measure, height };
 }
 
 function matchesFilter(
@@ -667,20 +738,19 @@ const styles = StyleSheet.create({
   /* The two outcome groups side by side rather than stacked. Each is half the
      row, so "what this makes" is one comparison instead of a scroll. */
   ideaColumns: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
-  ideaGroup: { flexGrow: 1, flexBasis: '46%', minWidth: 300, gap: spacing.md },
+  ideaGroup: { flexGrow: 1, flexBasis: '46%', minWidth: IDEA_COLUMN_MIN_WIDTH, gap: spacing.md },
   /**
-   * A floor, so the two columns' cards start at the same height.
+   * Height comes from `useEqualHeaders`, not from this stylesheet.
    *
-   * The blurbs are different lengths — "Enough verified items to build an
-   * interactive room in one step" wraps to one line where "Good groupings, but
-   * short on verified items — these list in 2D until you connect a game
-   * account" takes two. The taller header pushed its cards down, and the two
-   * columns read as misaligned when it was the text above them that differed.
-   *
-   * 62 is a SectionHeader plus two lines of `meta` plus the gap, so the longer
-   * blurb sets the height and the shorter one pads to match.
+   * It used to carry `minHeight: 62` — a hand-counted "SectionHeader plus two
+   * lines of meta plus the gap". That is a guess about how text wraps, and it
+   * was wrong: the number has to change with the viewport width, the font
+   * scale, and the copy. At the width in the report it was short by about ten
+   * pixels, so the right column's cards still sat lower than the left's.
    */
-  ideaGroupHeader: { gap: spacing.xs, minHeight: 62 },
+  ideaGroupHeader: { gap: spacing.xs },
+  /* Measured free of the equalising minHeight — see `useEqualHeaders`. */
+  ideaGroupHeaderInner: { gap: spacing.xs },
   ideaList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   ideaPreview: {
     flexDirection: 'row',
@@ -743,9 +813,7 @@ const styles = StyleSheet.create({
     /* Clips AccentFill to the pill. */
     overflow: 'hidden',
   },
-  ideaButtonPrimary: {},
   ideaButtonText: { ...typography.meta, color: colors.textOnAccent, fontWeight: '600' },
-  ideaButtonTextPrimary: {},
   pressedIdea: { opacity: 0.75 },
   ideaHint: { ...typography.meta, color: colors.textTertiary },
   ideaCard: {

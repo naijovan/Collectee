@@ -148,8 +148,8 @@ const HERO_PANEL_OFFSETS: Record<string, `${number}%`> = {
   /* Both are framed right of centre and were running off the panel. -24% went
      a touch too far the other way once the blurred bars came off the source
      and the crop started using the whole picture. */
-  'mlbb-emberfall-warlord': '-18%',
-  'mlbb-shadow-protocol': '-18%',
+  'mlbb-emberfall-warlord': '-12%',
+  'mlbb-shadow-protocol': '-12%',
 };
 
 /**
