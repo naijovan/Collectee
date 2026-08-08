@@ -239,13 +239,18 @@ export interface Article {
   /** AI summary — the one place a real model call may run (§12.1). */
   summary: string;
   /**
-   * Collectee's own multi-paragraph write-up, when there is one.
+   * Collectee's own multi-paragraph write-up.
    *
-   * Optional on purpose. Most seeded articles are a headline and a summary,
-   * which is what an aggregated feed entry looks like; a handful are written
-   * out in full so the detail screen has something real to render. The screen
-   * handles both — absent means it shows the summary and the source card, as it
-   * always did.
+   * EVERY SEEDED ARTICLE HAS ONE, and `validate-fixtures` enforces that. It is
+   * still optional on the type because phase 2 ingests real feeds, where an
+   * entry may legitimately arrive with no excerpt and inventing one would break
+   * the sourcing rule above. "Required in the seed, optional at runtime" is not
+   * expressible here, so the seed rule lives in the validator.
+   *
+   * It matters because the in-app reader is GATED on this field. When only
+   * three of eighteen articles had a body, only three offered a "Read full
+   * article" button and the rest had nothing but an external link — which is
+   * the bug that made this required.
    */
   body?: readonly ArticleBlock[];
   tags: string[];
