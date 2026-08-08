@@ -54,6 +54,8 @@ export interface ScanImage {
 
 export type PickImageResult =
   | { status: 'picked'; image: PickedImage }
+  /** More than one file chosen. `images` is never empty. */
+  | { status: 'picked-many'; images: PickedImage[] }
   | { status: 'cancelled' }
   | { status: 'unsupported-type'; name: string }
   | { status: 'too-large'; name: string; bytes: number }
@@ -67,32 +69,45 @@ export const mediaService = {
    * pressed Escape" is the most likely outcome and is not an error — the caller
    * has to render something different for cancel, wrong type and too big.
    */
-  async pickImage(): Promise<PickImageResult> {
+  async pickImage({ multiple = false }: { multiple?: boolean } = {}): Promise<PickImageResult> {
     if (Platform.OS !== 'web' || typeof document === 'undefined') {
       // [ROADMAP] Native needs expo-image-picker, which §13.1 defers. The demo
       // runs on web; callers fall back to picking an item as the cover.
       return { status: 'unavailable' };
     }
 
-    const file = await openFileDialog(IMAGE_MIME_TYPES.join(','));
-    if (file === null) return { status: 'cancelled' };
+    const files = await openFileDialog(IMAGE_MIME_TYPES.join(','), multiple);
+    if (files.length === 0) return { status: 'cancelled' };
 
-    if (!IMAGE_MIME_TYPES.includes(file.type as (typeof IMAGE_MIME_TYPES)[number])) {
-      return { status: 'unsupported-type', name: file.name };
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      return { status: 'too-large', name: file.name, bytes: file.size };
+    /**
+     * A rejected file fails the WHOLE pick rather than being dropped silently.
+     *
+     * Someone selecting six screenshots and getting five imported, with no
+     * indication which one went missing, is worse than being told to try again
+     * — and the dialog's `accept` already filters by type, so reaching either
+     * branch means the user went out of their way.
+     */
+    for (const file of files) {
+      if (!IMAGE_MIME_TYPES.includes(file.type as (typeof IMAGE_MIME_TYPES)[number])) {
+        return { status: 'unsupported-type', name: file.name };
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        return { status: 'too-large', name: file.name, bytes: file.size };
+      }
     }
 
-    return {
-      status: 'picked',
-      image: {
+    const images = await Promise.all(
+      files.map(async (file) => ({
         uri: await readAsDataUrl(file),
         name: file.name,
         bytes: file.size,
         mimeType: file.type,
-      },
-    };
+      })),
+    );
+
+    return images.length === 1
+      ? { status: 'picked', image: images[0]! }
+      : { status: 'picked-many', images };
   },
 
   /**
@@ -180,29 +195,33 @@ const DIALOG_OPEN_MS = 1000;
  * blur that opening it causes, or after `DIALOG_OPEN_MS` if this browser never
  * blurs. After that point a focus event genuinely does mean the dialog closed.
  */
-function openFileDialog(accept: string): Promise<File | null> {
+function openFileDialog(accept: string, multiple = false): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = accept;
+    input.multiple = multiple;
     input.style.display = 'none';
     document.body.appendChild(input);
 
     let settled = false;
     let armTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const settle = (file: File | null) => {
+    const settle = (chosen: File[]) => {
       if (settled) return;
       settled = true;
       clearTimeout(armTimer);
       window.removeEventListener('blur', arm);
       window.removeEventListener('focus', onFocus);
       input.remove();
-      resolve(file);
+      resolve(chosen);
     };
 
+    /** `input.files` is a FileList, not an array, and is empty on cancel. */
+    const chosen = () => Array.from(input.files ?? []);
+
     const onFocus = () => {
-      setTimeout(() => settle(input.files?.[0] ?? null), DIALOG_SETTLE_MS);
+      setTimeout(() => settle(chosen()), DIALOG_SETTLE_MS);
     };
 
     /** Idempotent: whichever of blur or the timer happens first wins. */
@@ -213,8 +232,8 @@ function openFileDialog(accept: string): Promise<File | null> {
       window.addEventListener('focus', onFocus, { once: true });
     };
 
-    input.addEventListener('change', () => settle(input.files?.[0] ?? null), { once: true });
-    input.addEventListener('cancel', () => settle(null), { once: true });
+    input.addEventListener('change', () => settle(chosen()), { once: true });
+    input.addEventListener('cancel', () => settle([]), { once: true });
     window.addEventListener('blur', arm, { once: true });
     armTimer = setTimeout(arm, DIALOG_OPEN_MS);
 

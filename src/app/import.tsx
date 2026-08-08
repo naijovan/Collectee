@@ -66,10 +66,7 @@ import { ART_PLACEMENTS, GAME_COVERS } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import type { CollectionSuggestion } from '@/domain/collections';
 import { groupByRarity, rarityLabelFor } from '@/domain/rarity';
-import {
-  foreignTitleMatches,
-  isMatchIncluded,
-} from '@/domain/scan';
+import { foreignTitleMatches, isMatchIncluded, routeDetections } from '@/domain/scan';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import * as haptics from '@/lib/haptics';
@@ -170,7 +167,8 @@ export default function ImportScreen() {
    * chip away.
    */
   const [kind, setKind] = useState<'image' | 'video'>('image');
-  const [upload, setUpload] = useState<PickedImage | null>(null);
+  /** Every screenshot picked for this scan. One flow, many files. */
+  const [uploads, setUploads] = useState<PickedImage[]>([]);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ScanResult | null>(null);
@@ -215,7 +213,7 @@ export default function ImportScreen() {
 
   const scanMode = scanService.modeFor({
     kind,
-    uri: upload?.uri ?? `demo://${title}-inventory`,
+    uri: uploads[0]?.uri ?? `demo://${title}-inventory`,
     title,
   });
 
@@ -450,10 +448,18 @@ export default function ImportScreen() {
 
   /** Pick the screenshot to scan. The file is real even though the read is not. */
   async function chooseUpload() {
-    const picked = await mediaService.pickImage();
+    const picked = await mediaService.pickImage({ multiple: true });
     switch (picked.status) {
       case 'picked':
-        setUpload(picked.image);
+        /* Appended, not replaced. Picking again is how a user adds a second
+           screenshot, and browsers only allow one dialog per gesture — so
+           replacing would make a two-file import impossible to assemble in
+           two goes. */
+        setUploads((prev) => [...prev, picked.image]);
+        setUploadNote(null);
+        return;
+      case 'picked-many':
+        setUploads((prev) => [...prev, ...picked.images]);
         setUploadNote(null);
         return;
       case 'unsupported-type':
@@ -475,13 +481,51 @@ export default function ImportScreen() {
     setStage('scanning');
     setProgress(0);
 
-    const scan = await scanService.scan(
-      { kind, uri: upload?.uri ?? `demo://${title}-inventory`, title },
-      (fraction) => {
-        // A cancelled run keeps ticking; it just stops being allowed to speak.
-        if (runId.current === run) setProgress(fraction);
-      },
-    );
+    /**
+     * One scan per uploaded image, merged.
+     *
+     * Sequential rather than parallel: each is a vision call on the largest
+     * model in the app, and firing six at once on conference wifi is how a
+     * demo times out. It also lets the progress bar mean something — each
+     * image advances its share of the whole.
+     *
+     * Detections are concatenated and re-routed together at the end, which is
+     * what makes cross-FILE deduplication work: `routeDetections` marks the
+     * second sighting of an item id a `duplicate`, and it cannot tell — or
+     * need to — whether the first came from another frame or another file.
+     */
+    const sources =
+      uploads.length > 0 ? uploads.map((u) => u.uri) : [`demo://${title}-inventory`];
+
+    const collected: ScanDetection[] = [];
+    /**
+     * The batch is only "live" if EVERY image was. One fallback taints it —
+     * the Review header must not claim the whole set was read from the uploads
+     * when part of it is a prepared fixture (§12.1's honesty rule).
+     */
+    let degraded: ScanResult['source'] | null = null;
+    let sourceDetail: string | undefined;
+
+    for (const [index, uri] of sources.entries()) {
+      const part = await scanService.scan({ kind, uri, title }, (fraction) => {
+        if (runId.current === run) setProgress((index + fraction) / sources.length);
+      });
+      if (runId.current !== run) return;
+      collected.push(...part.detections);
+      if (part.source !== 'live') {
+        degraded = part.source;
+        sourceDetail = part.sourceDetail ?? sourceDetail;
+      }
+    }
+
+    const scan: ScanResult = {
+      id: `scan-${title}-${sources.length}`,
+      title,
+      durationMs: 0,
+      detections: routeDetections(collected),
+      source: degraded ?? 'live',
+      sourceDetail,
+    };
     if (runId.current !== run) return;
 
     // Every item id the Review and Needs Review screens can possibly show.
@@ -735,35 +779,42 @@ export default function ImportScreen() {
             onChange={setKind}
           />
 
-          {/* An image source takes a real file; video stays the prepared recording. */}
-          {kind === 'image' && upload ? (
-            <Pressable style={styles.dropFilled} onPress={() => void chooseUpload()}>
-              <Image
-                source={{ uri: upload.uri }}
-                style={styles.dropPreview}
-                resizeMode="cover"
-                accessible
-                accessibilityLabel={`Selected screenshot: ${upload.name}`}
-              />
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
-                  {upload.name}
-                </Text>
-                <Text style={styles.muted}>
-                  {formatBytes(upload.bytes)} · grid segmented into tiles
-                </Text>
-              </View>
-              <Text style={styles.change}>Change</Text>
-            </Pressable>
+          {/* An image source takes real files; video stays the prepared recording. */}
+          {kind === 'image' && uploads.length > 0 ? (
+            <View style={styles.uploadList}>
+              {uploads.map((file, index) => (
+                <View key={`${file.name}-${index}`} style={styles.dropFilled}>
+                  <Image
+                    source={{ uri: file.uri }}
+                    style={styles.dropPreview}
+                    resizeMode="cover"
+                    accessible
+                    accessibilityLabel={`Selected screenshot: ${file.name}`}
+                  />
+                  <View style={styles.rowBody}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                      {file.name}
+                    </Text>
+                    <Text style={styles.muted}>{formatBytes(file.bytes)}</Text>
+                  </View>
+                  {/* Per-file remove. With one upload "Change" was enough;
+                      with several, the only useful action on a row is dropping
+                      that row. */}
+                  <Pressable
+                    onPress={() => setUploads((prev) => prev.filter((_, i) => i !== index))}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${file.name}`}
+                  >
+                    <Text style={styles.change}>Remove</Text>
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable style={styles.addMore} onPress={() => void chooseUpload()}>
+                <Text style={styles.change}>＋ Add another screenshot</Text>
+              </Pressable>
+            </View>
           ) : (
-            /*
-              Video is not an upload target and must not look like one. It has
-              no file dialog (§14 rung 4), so when it wore the same dashed drop
-              zone with the same ⇪ glyph, tapping it did nothing and read as a
-              broken upload. It keeps a distinct style, a glyph that is not an
-              upload arrow, and copy that says the recording is already
-              supplied — so there is nothing to press and nothing looks pressed.
-            */
             <Pressable
               style={kind === 'video' ? styles.dropStatic : styles.dropZone}
               onPress={kind === 'image' ? () => void chooseUpload() : undefined}
@@ -771,12 +822,12 @@ export default function ImportScreen() {
             >
               <Text style={styles.dropGlyph}>{kind === 'video' ? '▶' : '⇪'}</Text>
               <Text style={styles.body}>
-                {kind === 'video' ? 'inventory-scroll.mp4' : 'Choose a screenshot'}
+                {kind === 'video' ? 'inventory-scroll.mp4' : 'Choose screenshots'}
               </Text>
               <Text style={styles.muted}>
                 {kind === 'video'
                   ? 'Prepared recording · no file needed — press Start scan'
-                  : 'PNG or JPG, up to 8 MB · grid segmented into tiles'}
+                  : 'PNG or JPG, up to 8 MB each · pick as many as you like'}
               </Text>
             </Pressable>
           )}
@@ -794,7 +845,7 @@ export default function ImportScreen() {
           <PrimaryButton
             label="Start scan"
             onPress={() => void runScan()}
-            disabled={kind === 'image' && !upload}
+            disabled={kind === 'image' && uploads.length === 0}
           />
           {/*
             §12.1's honesty rule, and the one piece of copy on this screen that
@@ -804,10 +855,10 @@ export default function ImportScreen() {
             the service does rather than a second guess at it.
           */}
           <Text style={styles.footnote}>
-            {kind === 'image' && !upload
-              ? 'Choose a screenshot first — there is nothing to scan yet.'
+            {kind === 'image' && uploads.length === 0
+              ? 'Choose at least one screenshot — there is nothing to scan yet.'
               : scanMode === 'live'
-                ? 'Your screenshot is sent to a vision model, which reads the item names and rarity borders. If it cannot be reached, a prepared result is shown instead and says so.'
+                ? `${uploads.length === 1 ? 'Your screenshot is' : `All ${uploads.length} screenshots are`} sent to a vision model, which reads the item names and rarity borders. If it cannot be reached, a prepared result is shown instead and says so.`
                 : kind === 'video'
                   ? 'Screen recordings use the prepared set for this title — frame sampling is not built (§12.1, §14 rung 4).'
                   : 'No scanner endpoint is configured, so the results below are prepared rather than read from your upload (§12.1).'}
@@ -1033,9 +1084,15 @@ export default function ImportScreen() {
                         We read: {match.reading} · {GAME_LABELS[wrongGame.title]}
                       </Text>
                     </View>
-                    <Text style={confirmed ? styles.create : styles.chevron}>
-                      {confirmed ? '✓' : '＋'}
-                    </Text>
+                    {/* A labelled button, not a glyph. "＋" reads as "add
+                        another", which is the opposite of what this does —
+                        it accepts a suggestion the app is unsure about, and
+                        that is a decision worth naming. */}
+                    <View style={[styles.confirmChip, confirmed && styles.confirmChipOn]}>
+                      <Text style={[styles.confirmChipText, confirmed && styles.confirmChipTextOn]}>
+                        {confirmed ? '✓ Added' : 'Confirm'}
+                      </Text>
+                    </View>
                   </Pressable>
                 );
               })}
@@ -2351,6 +2408,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   rescueRowOn: { borderColor: colors.accent },
+  /** Reads as a decision rather than an increment. */
+  confirmChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  confirmChipOn: { backgroundColor: colors.accentMuted, borderColor: colors.success },
+  confirmChipText: { ...typography.meta, color: colors.accent },
+  confirmChipTextOn: { color: colors.success },
 
   /* ── Complete: suggestion previews ──────────────────────────────────────
      A card, not a row. It is showing what the collection would look like, so
@@ -2446,6 +2514,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   dropGlyph: { fontSize: 32, color: colors.accent },
+  uploadList: { gap: spacing.sm },
+  addMore: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+  },
   dropFilled: {
     flexDirection: 'row',
     alignItems: 'center',
