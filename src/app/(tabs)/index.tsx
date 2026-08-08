@@ -33,6 +33,7 @@ import {
 } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   ASSISTANT_CLEARANCE,
@@ -69,6 +70,7 @@ import type { CollectorRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useAssistantDock } from '@/state/AssistantDock';
 import { colors, fonts, interaction, radius, scrim, spacing, typography } from '@/theme/theme';
+import { GAME_LABELS, GAME_TITLES } from '@/types';
 import type { Article, Collection, Item, Room, User } from '@/types';
 
 const FILTERS = ['All', 'Collections', 'Collectors', 'Rooms'] as const;
@@ -322,20 +324,55 @@ export default function HomeScreen() {
         </View>
 
         {/*
-          Three bands, darkest at the left, so the copy has solid ground and the
-          art is still fully visible on the right. Layered blocks rather than a
-          gradient package (§13.1 — no new dependencies); at this width the step
-          between them is not perceptible.
+          A real left-to-right fade, not a panel. The art runs edge to edge
+          underneath and this dissolves it where the words are, so the left side
+          reads as darkened artwork rather than a black box with pictures glued
+          beside it. `expo-linear-gradient` is already a dependency (sign-in and
+          the tour overlay both use it), so this costs nothing.
+
+          Ends at `scrim.clear` — transparent BLACK, not 'transparent'. On
+          Android a fade to `transparent` passes through grey and shows as a
+          dirty band; theme.ts documents that trap and this is exactly it.
         */}
-        <View style={styles.heroScrimFull} pointerEvents="none" />
-        <View style={styles.heroScrimMid} pointerEvents="none" />
-        <View style={styles.heroScrimNear} pointerEvents="none" />
+        <LinearGradient
+          colors={[scrim.heavy, scrim.medium, scrim.clear]}
+          locations={[0, 0.45, 0.85]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.heroFade}
+          pointerEvents="none"
+        />
+        {/* A second, vertical pass along the bottom. The games row sits on the
+            art's lower edge where the fade above has already run out. */}
+        <LinearGradient
+          colors={[scrim.clear, scrim.medium]}
+          style={styles.heroFadeFoot}
+          pointerEvents="none"
+        />
 
         <View style={styles.heroCopy}>
           <Text style={styles.eyebrow}>✦ Collections made for you</Text>
           <Text style={styles.heroHeadline}>Epic skins.{'\n'}Endless legends.</Text>
-          <View style={styles.heroCta}>
+          <View style={styles.heroRow}>
             <PrimaryButton label="Explore" onPress={() => router.navigate('/explore')} />
+            {/*
+              The titles Collectee actually supports, as our own wordmarks.
+
+              ⚠️ NOT publisher logos. The reference for this banner carries the
+              real Mobile Legends, Overwatch, Dota and League marks; those are
+              third-party trademarks and the same rule that keeps franchise
+              names out of room themes (§11 F4) and publisher art out of the
+              meshes applies here. Set in our type, they say which games are
+              supported without borrowing anyone's brand — and they stay honest,
+              because these three are the games the catalogue actually has.
+            */}
+            <View style={styles.heroGames}>
+              {GAME_TITLES.map((title) => (
+                <Text key={title} style={styles.heroGame}>
+                  {GAME_LABELS[title]}
+                </Text>
+              ))}
+            </View>
           </View>
         </View>
       </View>
@@ -592,14 +629,14 @@ const styles = StyleSheet.create({
      to read as a portrait. */
   heroPhone: { height: 300 },
 
-  /* The art sits on the right and bleeds off the edge. Starting at 28% keeps
-     the first panel behind the headline, which is what makes the scrim ramp
-     look intentional rather than like a box. */
+  /* Edge to edge. The art fills the entire banner and the gradient above
+     dissolves it under the copy — previously it started at 28%, which left a
+     hard seam where the black panel ended and the pictures began. */
   heroArtLayer: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    left: '28%',
+    left: 0,
     right: 0,
     flexDirection: 'row',
     /* Overflow the top and bottom so the shear never exposes a corner. */
@@ -609,21 +646,38 @@ const styles = StyleSheet.create({
   heroPanel: { flex: 1, overflow: 'hidden' },
   heroPanelArt: { width: '118%', height: '100%', marginLeft: '-9%' },
 
-  /* Left-to-right ramp in three steps. Each covers less width and is lighter,
-     so the copy end is solid and the right end is clean art. */
-  heroScrimFull: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: scrim.light },
-  heroScrimMid: { position: 'absolute', top: 0, bottom: 0, left: 0, width: '55%', backgroundColor: scrim.medium },
-  heroScrimNear: { position: 'absolute', top: 0, bottom: 0, left: 0, width: '34%', backgroundColor: scrim.heavy },
+  heroFade: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
+  heroFadeFoot: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '42%' },
 
+  /* Not inset from the right any more: the copy is left-aligned and short, and
+     reserving 38% of the width for art the gradient now handles was pushing the
+     headline into an unnecessarily narrow column. */
   heroCopy: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     left: 0,
-    right: '38%',
+    right: 0,
     justifyContent: 'center',
     padding: spacing.lg,
     gap: spacing.xs,
+  },
+  /* Explore and the supported titles share the bottom line, the way the
+     reference puts its logo row level with the button. */
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+    marginTop: spacing.md,
+    flexWrap: 'wrap',
+  },
+  heroGames: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  heroGame: {
+    ...typography.meta,
+    color: colors.textOnAccent,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    opacity: 0.85,
   },
   eyebrow: { ...typography.meta, color: colors.accent, letterSpacing: 0.5 },
   /* Bigger than the old 20, and sitting on artwork now, so it has to hold its
