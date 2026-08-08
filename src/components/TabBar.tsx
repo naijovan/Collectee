@@ -24,13 +24,14 @@ import { SymbolView, type AndroidSymbol } from 'expo-symbols';
 import medium from 'expo-symbols/androidWeights/medium';
 import { usePathname, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FEATURES } from '@/config/features';
 import * as haptics from '@/lib/haptics';
 import { useApp } from '@/state/AppContext';
 import { useTourAnchor } from '@/state/TourAnchors';
-import { accentGlow, colors, interaction, radius, spacing, typography } from '@/theme/theme';
+import { accentGlow, colors, interaction, radius, spacing, tabBarWash, typography } from '@/theme/theme';
 
 import { AccentFill } from './primitives';
 
@@ -178,6 +179,15 @@ export function TabBar() {
       style={[styles.bar, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
       accessibilityRole="tablist"
     >
+      {/* A faint violet wash so the bar is not a flat slab. Not the button ramp
+          — see `tabBarWash` for why the import action would vanish into it. */}
+      <LinearGradient
+        colors={[...tabBarWash]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.barWash}
+        pointerEvents="none"
+      />
       {left.map(renderTab)}
 
       <Pressable
@@ -224,6 +234,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: colors.surface,
+    /* Clips the wash to the bar. The raised import button deliberately escapes
+       it via its negative margin, which `overflow: visible` on the parent is
+       what allows — so the clip lives on the wash instead (below). */
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingTop: 6,
@@ -276,6 +289,8 @@ const styles = StyleSheet.create({
        both float over content and need something separating them from it. */
     ...accentGlow,
   },
+  /** Behind the tabs, inside the bar. */
+  barWash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   importButtonPressed: {
     /* No colour here any more — AccentFill inverts its ramp on press, which is
        the same signal without fighting the gradient drawn over this. */

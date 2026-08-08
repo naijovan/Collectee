@@ -193,6 +193,19 @@ export const accentGradient = {
  */
 export const accentLink = '#A855F7';
 
+/**
+ * The tab bar's wash — a violet tint over `surface`, not the button ramp.
+ *
+ * Deliberately NOT `accentGradient`. A full blue→violet ramp across the bar
+ * puts the import action's own gradient on top of the same two colours, and the
+ * button stops reading as raised — it dissolves into its own background, which
+ * is the opposite of what the glow is for.
+ *
+ * So: violet at very low alpha, left to right. Enough to stop the bar being a
+ * flat slab, faint enough that the button still separates from it.
+ */
+export const tabBarWash = ['rgba(147,51,234,0.10)', 'rgba(147,51,234,0.02)'] as const;
+
 export const accentGlow = {
   shadowColor: '#9333EA',
   shadowOpacity: 0.55,
@@ -443,24 +456,24 @@ export const appBackground = {
   dark: {
     base: DARK_PALETTE.background,
     clear: 'rgba(47,107,255,0)',
-    topGlow: 'rgba(47,107,255,0.12)',
-    sideGlow: 'rgba(18,228,240,0.07)',
-    lowerGlow: 'rgba(245,165,36,0.045)',
-    shelfLine: 'rgba(255,255,255,0.06)',
-    shelfShadow: 'rgba(0,0,0,0.34)',
-    shelfGlow: 'rgba(47,107,255,0.075)',
-    shelfWarm: 'rgba(245,165,36,0.035)',
+    topGlow: 'rgba(47,107,255,0.09)',
+    sideGlow: 'rgba(18,228,240,0.045)',
+    lowerGlow: 'rgba(245,165,36,0.025)',
+    shelfLine: 'rgba(255,255,255,0.035)',
+    shelfShadow: 'rgba(0,0,0,0.22)',
+    shelfGlow: 'rgba(47,107,255,0.045)',
+    shelfWarm: 'rgba(245,165,36,0.025)',
   },
   light: {
     base: LIGHT_PALETTE.background,
     clear: 'rgba(29,79,216,0)',
-    topGlow: 'rgba(29,79,216,0.055)',
-    sideGlow: 'rgba(15,157,99,0.04)',
-    lowerGlow: 'rgba(178,106,2,0.04)',
-    shelfLine: 'rgba(11,13,16,0.07)',
-    shelfShadow: 'rgba(11,13,16,0.045)',
-    shelfGlow: 'rgba(29,79,216,0.035)',
-    shelfWarm: 'rgba(178,106,2,0.025)',
+    topGlow: 'rgba(29,79,216,0.04)',
+    sideGlow: 'rgba(15,157,99,0.025)',
+    lowerGlow: 'rgba(178,106,2,0.025)',
+    shelfLine: 'rgba(11,13,16,0.045)',
+    shelfShadow: 'rgba(11,13,16,0.025)',
+    shelfGlow: 'rgba(29,79,216,0.022)',
+    shelfWarm: 'rgba(178,106,2,0.018)',
   },
 } as const;
 

@@ -34,6 +34,7 @@ import {
   ASSISTANT_CLEARANCE,
   PinnedHeader,
 } from '@/components';
+import { AccentFill } from '@/components/primitives';
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
 import { suggestRoom } from '@/domain/roomSuggestion';
@@ -243,13 +244,16 @@ export default function CollectionsScreen() {
                 pressed && styles.pressedIdea,
               ]}
             >
+              {/* Filled variant takes the shared ramp; the outline variant has
+                  no fill to put one in. */}
+              {canShowroom ? <AccentFill /> : null}
               <Text
                 style={[
                   styles.ideaButtonText,
                   canShowroom && styles.ideaButtonTextPrimary,
                 ]}
               >
-                {canShowroom ? 'Create showroom' : 'Create collection'}
+                {canShowroom ? 'Create Showroom' : 'Create Collection'}
               </Text>
             </Pressable>
           </View>
@@ -565,6 +569,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.pill,
     backgroundColor: colors.accent,
+    overflow: 'hidden',
   },
   createGlyph: { color: colors.textOnAccent, fontSize: 26, lineHeight: 28, fontWeight: '600' },
   title: { ...typography.screenTitle, color: colors.textPrimary },
@@ -642,6 +647,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.accent,
     backgroundColor: colors.accent,
+    /* Clips AccentFill to the pill. */
+    overflow: 'hidden',
   },
   ideaButtonPrimary: {},
   ideaButtonText: { ...typography.meta, color: colors.textOnAccent, fontWeight: '600' },
