@@ -48,6 +48,34 @@ interface Entry {
 
 const registry = readFileSync('src/config/artRegistry.ts', 'utf8');
 
+/**
+ * What the demo account already owns.
+ *
+ * `importFromScan` skips items already in the inventory, so uploading one of
+ * these reads correctly, matches correctly, and then adds nothing — the Review
+ * screen now says so, but a demo folder whose files half do nothing is a folder
+ * you cannot trust under pressure.
+ *
+ * Parsed from the seeded ownership block rather than hardcoded, so it follows
+ * the fixture. If Jovan's inventory changes, so does this set on the next run.
+ */
+function ownedByViewer(): Set<string> {
+  const source = readFileSync('src/fixtures/owned-items.ts', 'utf8');
+  const start = source.indexOf("const JOVAN = ownAll('user-jovan'");
+  if (start === -1) {
+    throw new Error(
+      "Could not find the JOVAN ownership block in owned-items.ts. If the viewer's " +
+        'fixture was renamed, update this parser — a silent empty set here would put ' +
+        'un-importable files back in the demo folder.',
+    );
+  }
+  const end = source.indexOf('\n]);', start);
+  const block = source.slice(start, end);
+  return new Set([...block.matchAll(/itemId: '([a-z0-9-]+)'/g)].map((m) => m[1]!));
+}
+
+const owned = ownedByViewer();
+
 /** The bundled render for an id, or null when the item has no art yet. */
 function artFor(id: string): string | null {
   const match = registry.match(
@@ -108,6 +136,8 @@ const index: string[] = [
 
 let copied = 0;
 let missing = 0;
+let alreadyOwned = 0;
+const ownedNotes: string[] = [];
 
 for (const source of SOURCES) {
   const entries = parse(source.file).sort(
@@ -119,6 +149,11 @@ for (const source of SOURCES) {
   index.push(`## ${source.game}`, '');
 
   for (const entry of entries) {
+    if (owned.has(entry.id)) {
+      alreadyOwned += 1;
+      ownedNotes.push(`- ${entry.name} (${source.game})`);
+      continue;
+    }
     if (entry.art === null || !existsSync(entry.art)) {
       missing += 1;
       index.push(`- ~~${entry.name}~~ — no render yet, cannot be demoed`);
@@ -132,9 +167,24 @@ for (const source of SOURCES) {
   index.push('');
 }
 
+if (ownedNotes.length > 0) {
+  index.push(
+    '## Deliberately NOT here',
+    '',
+    'The demo account already owns these. They would be read and matched',
+    'correctly and then import nothing, because `importFromScan` skips items',
+    'already in the inventory. The Review screen labels them "In your',
+    'inventory" — useful to show once on purpose, useless to hit by accident.',
+    '',
+    ...ownedNotes,
+    '',
+  );
+}
+
 writeFileSync(join(OUT, 'README.md'), index.join('\n'));
 
 console.log(`demo/ built — ${copied} uploads across ${SOURCES.length} games`);
+console.log(`${alreadyOwned} skipped: already in the demo account's inventory`);
 if (missing > 0) console.log(`${missing} catalogue items have no render and were skipped`);
 for (const source of SOURCES) console.log(`  demo/${source.dir}/`);
 console.log('  demo/README.md');

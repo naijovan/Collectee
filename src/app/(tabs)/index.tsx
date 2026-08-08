@@ -70,7 +70,7 @@ import {
 import type { CollectorRecommendation } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useAssistantDock } from '@/state/AssistantDock';
-import { colors, fonts, interaction, radius, rarityColors, scrim, spacing, typography } from '@/theme/theme';
+import { colors, fonts, gameAccents, interaction, radius, rarityColors, scrim, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS, GAME_TITLES } from '@/types';
 import type { Article, Collection, Item, Room, User } from '@/types';
 
@@ -152,7 +152,12 @@ export default function HomeScreen() {
       FEATURES.news ? newsService.getDiscover(6) : Promise.resolve([]),
       collectionService.getPublicCollections(),
       socialService.getUsers(),
-      matchService.getRecommendedCollectors(viewerId, 6),
+      /* 12, matching Explore. Six filled about half a desktop rail and then
+         stopped dead, so a wide window showed a short row with empty track
+         beside it — the list looked truncated rather than scrollable. There are
+         13 other collectors seeded, so 12 fills the rail at any width and still
+         leaves the scroll doing something. */
+      matchService.getRecommendedCollectors(viewerId, 12),
       roomService.getPublishedRooms(),
     ]);
 
@@ -399,7 +404,26 @@ export default function HomeScreen() {
                       "MOBILE" reads as the end of VALORANT's name before the
                       eye finds the break. */}
                   {index > 0 ? <Text style={styles.heroGameRule}>|</Text> : null}
-                  <Text style={styles.heroGame}>{GAME_LABELS[title]}</Text>
+                  {/*
+                    Each title in its OWN game's accent, so the row runs amber →
+                    teal → violet and reads as a colour ramp across three words.
+
+                    Not a literal gradient: React Native cannot fill text with
+                    one, and the masking library that would is a dependency §13.1
+                    sends through chat. This is better than a fake anyway — the
+                    colours mean something. They are the same `gameAccents` the
+                    news cards and the game badges use, so a reader who has
+                    learned "amber = CODM" anywhere else in the app reads this
+                    row without being told.
+
+                    No per-game special case here: `mlbb.secondary` was gold and
+                    collided with CODM's amber, and that was fixed in the token
+                    rather than worked around at this one call site — the same
+                    collision was showing on every game badge in the app.
+                  */}
+                  <Text style={[styles.heroGame, { color: gameAccents[title].secondary }]}>
+                    {GAME_LABELS[title]}
+                  </Text>
                 </View>
               ))}
             </View>

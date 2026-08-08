@@ -350,7 +350,21 @@ export const gameAccents = {
   /** Land of Dawn violet, with the gold its splash art keeps returning to. */
   mlbb: {
     base: '#8B5CF6',
-    secondary: '#FFC53D',
+    /**
+     * Light violet, not the gold it used to be.
+     *
+     * `secondary` is the on-dark label colour — game badges, the hero's title
+     * row, anywhere the accent has to carry 10-12px type. MLBB's was #FFC53D
+     * and CODM's is #FFB347: two ambers ~10 points apart, indistinguishable at
+     * that size. Every surface showing both games therefore rendered two of the
+     * three in what looked like the same colour.
+     *
+     * Violet-300 keeps MLBB's identity (its `base` is violet, and that is what
+     * its badge border and its news edge already use) while staying legible on
+     * a dark chip. The three secondaries are now amber / teal / violet — three
+     * hues, not two-and-a-bit.
+     */
+    secondary: '#C4B5FD',
     soft: 'rgba(139,92,246,0.16)',
   },
   /* `satisfies Record<GameTitle, …>` rather than a bare object: adding a fourth
