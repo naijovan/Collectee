@@ -1,0 +1,36 @@
+# What NOT to upload to Vercel.
+#
+# The deploy was uploading ~410 MB and spending about six minutes on the upload
+# alone, which is the difference between a two-minute fix and a coffee break if
+# we need to ship under time pressure. Nothing here is reachable from the app.
+#
+# ── The rule for adding to this file ──────────────────────────────────────
+# The Vercel build runs exactly one command — `npx expo export --platform web`
+# (see vercel.json; there is no postinstall and no prepare). So the only files
+# that must survive are the ones METRO resolves. Metro resolves `require()` at
+# BUILD time, and a require with no file on disk is a build error, not a
+# fallback — so an over-eager entry here breaks the deploy rather than degrading
+# it. Before adding a path, check it has no `require()` reaching into it:
+#
+#     grep -rn "assets/collectee/<dir>" src | grep require
+#
+# Most of assets/ genuinely ships and must NOT be listed. `display/` alone has
+# 376 require() sites; `models/`, `depth/`, `items/`, `subjects/`, `avatars/`,
+# `backdrops/`, `communities/` and `brand/` are all wired into registries too.
+
+# Raw hand-off blobs from the HuggingFace/TRELLIS bakes — source GLBs and the
+# stills they were baked from. 104 MB, and nothing in src/ or scripts/ reads it.
+exports/
+
+# Bake INPUTS. Referenced only by scripts/verified-weapon-manifest.ts, which is
+# reached solely by the bake:* and validate:weapons scripts — none of which run
+# on Vercel. The baked OUTPUTS live in assets/collectee/models and do ship.
+assets/collectee/trellis-inputs/
+
+# Reference imagery handed to the art agent. Zero references anywhere in the
+# repo, and third-party material we deliberately do not publish (§15).
+assets/collectee/character-references/
+
+# Local working files. Already gitignored, listed so a CLI deploy from a dirty
+# tree cannot sweep them up.
+scratchpad/
