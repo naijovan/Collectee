@@ -83,7 +83,7 @@ import {
 } from '@/services';
 import type { PickedImage } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, spacing, typography, accentLink } from '@/theme/theme';
+import { colors, radius, scrim, spacing, typography, accentLink } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { GameTitle, Item, ScanDetection, ScanResolution, ScanResult } from '@/types';
 
@@ -152,7 +152,7 @@ const PREVIEW_UNMATCHED = 3;
 export default function ImportScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { viewer, viewerId, refreshInventory } = useApp();
+  const { viewer, viewerId, inventory, refreshInventory } = useApp();
 
   const [stage, setStage] = useState<Stage>('landing');
   const scrollRef = useTopOnFocus(stage);
@@ -256,6 +256,28 @@ export default function ImportScreen() {
   );
 
   const matchedGroups = useMemo(() => groupByRarity(matchedEntries), [matchedEntries]);
+
+  /**
+   * Catalogue ids the viewer already owns.
+   *
+   * `importFromScan` silently skips these — it filters on `!existing.has(id)` —
+   * so re-scanning a screenshot of things you already have writes nothing. That
+   * was only discoverable on the Complete screen, AFTER pressing a button that
+   * promised to import them.
+   *
+   * NOT the same as `outcome: 'duplicate'`, which means "this item appeared
+   * twice in THIS scan" (cross-frame dedup) and says nothing about ownership.
+   */
+  const ownedItemIds = useMemo(
+    () => new Set(inventory.map((entry) => entry.item.id)),
+    [inventory],
+  );
+
+  /** Matched reads the viewer already holds. Counted for the note above the list. */
+  const alreadyOwnedCount = useMemo(
+    () => matchedEntries.filter((entry) => ownedItemIds.has(entry.item.id)).length,
+    [matchedEntries, ownedItemIds],
+  );
 
   /**
    * Read cleanly, no catalogue match. These carry `reading` rather than an
@@ -830,6 +852,18 @@ export default function ImportScreen() {
               />
             </View>
 
+            {/*
+              Said BEFORE the button, not after. The Complete screen already
+              explained this, which is one press too late — the CTA counts these
+              items and then nothing happens to them.
+            */}
+            {alreadyOwnedCount > 0 ? (
+              <Text style={styles.muted}>
+                {alreadyOwnedCount} of these {alreadyOwnedCount === 1 ? 'is' : 'are'} already in
+                your inventory and {alreadyOwnedCount === 1 ? 'will not be added' : 'will not be added'}{' '}
+                again
+              </Text>
+            ) : null}
             {counts.discarded > 0 ? (
               <Text style={styles.warn}>
                 {/*
@@ -1039,6 +1073,7 @@ export default function ImportScreen() {
                         key={detection.id}
                         item={item}
                         included={isMatchIncluded(detection.id, resolutions)}
+                        owned={ownedItemIds.has(item.id)}
                         onToggle={() => toggleMatch(detection.id)}
                       />
                     ))}
@@ -1898,10 +1933,13 @@ function SeeAllRow({
 function MatchedTile({
   item,
   included,
+  owned,
   onToggle,
 }: {
   item: Item;
   included: boolean;
+  /** Already in the viewer's inventory — importing writes nothing for it. */
+  owned?: boolean;
   onToggle: () => void;
 }) {
   return (
@@ -1909,6 +1947,16 @@ function MatchedTile({
       <View style={!included && styles.tileRemoved}>
         <ItemCard item={item} width="100%" artHeight={84} trustLevel="unverified" onPress={onToggle} />
       </View>
+      {/*
+        Marked on the tile, not only in the count above. A user scanning a grid
+        of twelve matches needs to know WHICH of them they already have — a
+        number tells them how many to look for and not where.
+      */}
+      {owned ? (
+        <View style={styles.ownedTag} pointerEvents="none">
+          <Text style={styles.ownedTagText}>In your inventory</Text>
+        </View>
+      ) : null}
       <Pressable
         onPress={onToggle}
         hitSlop={6}
@@ -2162,6 +2210,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   rescueTitle: { ...typography.cardTitle, color: colors.textPrimary },
+  /* Sits on the tile's art, top-left, clear of the rarity badge and the tick. */
+  ownedTag: {
+    position: 'absolute',
+    top: spacing.xs,
+    left: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: scrim.heavy,
+  },
+  ownedTagText: { ...typography.meta, fontSize: 10, color: colors.textOnAccent },
   /* Neutral, not warning: nothing went wrong here. The scan worked and the
      catalogue is simply smaller than the game. */
   unrecognised: {
