@@ -60,6 +60,7 @@
     "bake:weapons": "tsx scripts/bake-procedural-weapons.ts",
     "bake:palette": "tsx scripts/bake-palette.ts",
     "bake:display-art": "tsx scripts/bake-display-art.ts",
+    "bake:app-icon": "tsx scripts/bake-app-icon.ts",
     "bake:item-looks": "tsx scripts/bake-item-looks.ts",
     "build:demo": "tsx scripts/build-demo-uploads.ts"
   },
