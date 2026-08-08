@@ -181,6 +181,33 @@ export const COLLECTIONS = [
     likeCount: 4056,
     createdAt: '2026-06-07T19:05:00.000Z',
   },
+  /**
+   * The viewer's own showroom, backing `room-jovan-triptych`.
+   *
+   * Exactly three items, and every one of them is a REAL baked mesh in
+   * `modelRegistry` — an Elderflame Vandal, a Prime Karambit and Marcus's
+   * re-baked Gusion. That combination is the point: a gun, a blade and a
+   * character, so the room demonstrates all three mesh kinds at once instead of
+   * three variations on a rifle.
+   *
+   * All three are verified for Jovan, which §9.4 requires before anything can
+   * be placed in a room. Three is also exactly MIN_ROOM_ITEMS, so this doubles
+   * as the fixture proving the floor is reachable rather than theoretical.
+   */
+  {
+    id: 'col-jovan-triptych',
+    userId: 'user-jovan',
+    name: 'Dragon, Blade, Sovereign',
+    description: 'Three pieces, three games, one shelf. Nothing else earns a pedestal.',
+    coverUrl: '',
+    themeTags: ['cross-game', 'mythic'],
+    itemIds: ['val-elderflame-vandal', 'val-prime-karambit', 'mlbb-gusion-cyber-faust'],
+    visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 1893,
+    createdAt: '2026-08-04T14:10:00.000Z',
+  },
 ] as const satisfies readonly Collection[];
 
 export const COLLECTIONS_BY_ID: ReadonlyMap<string, Collection> = new Map(
@@ -273,7 +300,11 @@ export const ROOMS: readonly Room[] = [
     id: 'room-rei-mythic',
     collectionId: 'col-rei-mythic-only',
     themeId: 'theme-weapon-vault',
-    title: 'Mythic Only',
+    /* Not "Mythic Only" — that is the COLLECTION's name, and the two sit next
+       to each other on the Collections tab. A room is a different object with
+       a different job, and giving it a distinct title is what stops the pair
+       reading as one entry rendered twice. */
+    title: 'Nothing But Mythic',
     description: 'If it is not Mythic it does not get a pedestal.',
     coverUrl: '',
     backdropUrl: 'room-backdrops/weapon-vault.png',
@@ -310,6 +341,65 @@ export const ROOMS: readonly Room[] = [
     visitorCount: 2160,
     publishedAt: '2026-08-01T18:40:00.000Z',
     createdAt: '2026-08-01T17:55:00.000Z',
+  },
+  /**
+   * The viewer's own room. Until now both seeded rooms belonged to other
+   * collectors, so the owner-only surfaces — Edit Showroom, the ownership split
+   * on the collection page — had nothing to demonstrate on a fresh install.
+   *
+   * Three authored slots for three items, deliberately. `slotsForItemCount`
+   * returns the authored set only while the item count does not exceed it, so
+   * this room is one of the few that actually renders its hand-placed
+   * composition rather than the generated grid (§11 F4 — see the open note
+   * about that in the todo list).
+   *
+   * Pedestals rather than wall mounts: a character model standing on a plinth
+   * beside two floating weapons is the arrangement that shows the meshes off.
+   */
+  {
+    id: 'room-jovan-triptych',
+    collectionId: 'col-jovan-triptych',
+    themeId: 'theme-cyber-shrine',
+    /* Distinct from its collection, "Dragon, Blade, Sovereign", for the same
+       reason as above — and it names the room's setting rather than its
+       contents, which is what a room title is for. */
+    title: 'Shrine of the Sovereign',
+    description:
+      'A dragon-forged rifle, a karambit worth more than the account, and the sovereign who guards them.',
+    coverUrl: '',
+    backdropUrl: 'room-backdrops/cyber-shrine.png',
+    slots: [
+      { id: 'shrine-pedestal-hero', kind: 'pedestal', x: 0.4, y: 0.4, w: 0.22, h: 0.36, depth: 2 },
+      { id: 'shrine-pedestal-left', kind: 'pedestal', x: 0.12, y: 0.48, w: 0.18, h: 0.28, depth: 1 },
+      { id: 'shrine-pedestal-right', kind: 'pedestal', x: 0.7, y: 0.48, w: 0.18, h: 0.28, depth: 1 },
+    ],
+    placements: [
+      /* Gusion takes the hero slot: he is the only full figure, and a character
+         reads as the subject with the weapons flanking him. */
+      { slotId: 'shrine-pedestal-hero', ownedItemId: 'own-jovan-mlbb-gusion-cyber-faust', rotation: 0 },
+      { slotId: 'shrine-pedestal-left', ownedItemId: 'own-jovan-val-elderflame-vandal', rotation: 0 },
+      { slotId: 'shrine-pedestal-right', ownedItemId: 'own-jovan-val-prime-karambit', rotation: 0 },
+    ],
+    settings: {
+      parallaxEnabled: true,
+      /* Opens wide, not zoomed into one pedestal — the whole point of this room
+         is that there are three different KINDS of thing in it. */
+      focusedSlotId: null,
+      lightingPreset: 'warm-gold',
+      brightness: 0.72,
+      animatedLighting: true,
+      /* `framed`, not `hologram`. The other seeded rooms use hologram, and
+         these three are real baked meshes — a hologram treatment on genuine
+         geometry hides the thing worth showing. */
+      displayStyle: 'framed',
+    },
+    visibility: 'public',
+    allowComments: true,
+    showOnProfile: true,
+    likeCount: 1204,
+    visitorCount: 3180,
+    publishedAt: '2026-08-04T15:00:00.000Z',
+    createdAt: '2026-08-04T14:20:00.000Z',
   },
 ];
 

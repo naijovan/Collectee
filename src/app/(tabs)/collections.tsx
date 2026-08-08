@@ -322,6 +322,7 @@ export default function CollectionsScreen() {
                   collection={entry.collection}
                   owner={viewer}
                   headline={entry.headline}
+                  showVisibility
                   onPress={() =>
                     router.push({
                       pathname: '/collection/[id]',
@@ -329,9 +330,6 @@ export default function CollectionsScreen() {
                     })
                   }
                 />
-                <Text style={styles.visibility}>
-                  {VISIBILITY_LABELS[entry.collection.visibility]}
-                </Text>
               </FadeInView>
             ))}
         </View>
@@ -374,8 +372,8 @@ export default function CollectionsScreen() {
                   collection={entry.collection}
                   owner={viewer}
                   headline={entry.headline}
+                  showVisibility
                 />
-                <Text style={styles.visibility}>Interactive room ›</Text>
               </Pressable>
             ))}
           </View>
@@ -594,7 +592,6 @@ const styles = StyleSheet.create({
   },
   gridItem: { width: '48%', gap: 2 },
   gridItemPhone: { width: '100%' },
-  visibility: { ...typography.meta, color: colors.textTertiary, paddingLeft: spacing.xs },
 
   suggestionsSection: { gap: spacing.xl },
   suggestionIntro: { gap: spacing.sm },

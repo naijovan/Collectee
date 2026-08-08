@@ -231,8 +231,13 @@ const styles = StyleSheet.create({
     /* lg, not xl. The screens are full-bleed — there is no gutter to move
        into — so every extra pixel of right margin pushes the bubble further
        ACROSS the content rather than away from it. xl was tried and put the
-       bubble on top of article media cards. */
-    right: spacing.lg,
+       bubble on top of article media cards.
+
+       Web adds a scrollbar's worth on top. The bar occupies the same right edge
+       and the bubble was landing against it; 10 clears the track set in
+       theme/webChrome.ts without reaching xl and re-creating the article-card
+       collision. Native has no scrollbar gutter, so it keeps the bare lg. */
+    right: spacing.lg + (Platform.OS === 'web' ? 10 : 0),
     bottom: BUBBLE_BOTTOM,
     flexDirection: 'row',
     alignItems: 'center',
