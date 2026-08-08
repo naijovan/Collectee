@@ -24,7 +24,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { ASSISTANT_CLEARANCE, ArticleCard, EmptyState, FilterChips, LoadingState, NewsBanner } from '@/components';
@@ -140,7 +140,7 @@ export default function NewsScreen() {
      registered as its fallback. See `TourStop.fallbackTargetIds`. */
   const digestAnchor = useTourAnchor('news-digest');
   const tabsAnchor = useTourAnchor('news-tabs');
-  const { viewerId, unreadNotifications } = useApp();
+  const { viewerId } = useApp();
 
   const [tab, setTab] = useState<string>(TABS[0]);
   /** Switching tab replaces the whole page, so it reads as a new one. */
@@ -233,24 +233,19 @@ export default function NewsScreen() {
   return (
     <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content}>
       {/*
-        §11 F6 groups notifications and following management with the feeds, and
-        this is the only route to either.
+        The two text links that used to sit here are gone — Jovan's TODO, done.
+        Notifications is the bell in Home's header, where §13.4 puts it and
+        where the unread dot was already being drawn; followed topics is a row on
+        Profile.
 
-        TODO(Jovan): §13.4 puts the bell on Home and it currently opens /news.
-        One-line href change in src/app/(tabs)/index.tsx — the unread dot it
-        already renders is counting notifications nobody could open until now.
+        Both moves were required rather than tidying. This screen was the ONLY
+        route to either, so the links could not simply be deleted: /following
+        had no other caller anywhere in the app, and removing this one would
+        have left §11 F6's feed management in the build and unreachable.
+
+        The page now opens on its tabs, which is the first thing a reader needs
+        rather than two utility links above the content.
       */}
-      <View style={styles.utilityRow}>
-        <Pressable onPress={() => router.push('/notifications')} hitSlop={8}>
-          <Text style={styles.utilityLink}>
-            Notifications{unreadNotifications > 0 ? ` (${unreadNotifications})` : ''}
-          </Text>
-        </Pressable>
-        <Pressable onPress={() => router.push('/following')} hitSlop={8}>
-          <Text style={styles.utilityLink}>Following</Text>
-        </Pressable>
-      </View>
-
       <View ref={tabsAnchor} collapsable={false}>
         <FilterChips
           options={TABS}
@@ -399,8 +394,6 @@ const styles = StyleSheet.create({
   },
   list: { gap: spacing.md },
   footnote: { ...typography.meta, color: colors.textTertiary },
-  utilityRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.lg },
-  utilityLink: { ...typography.meta, color: colors.accent },
 
   digest: {
     /* Same height as the shimmer that stands in for it, so a cold load does not

@@ -34,6 +34,8 @@ import {
 import type { StyleProp, ViewStyle } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SymbolView } from 'expo-symbols';
+import medium from 'expo-symbols/androidWeights/medium';
 
 import {
   ASSISTANT_CLEARANCE,
@@ -404,13 +406,38 @@ export default function HomeScreen() {
             >
               <Text style={styles.bellGlyph}>✦</Text>
             </Hoverable>
+            {/*
+              Notifications — §13.4, and the TODO that used to sit in news.tsx.
+              This control already RENDERED the unread dot while opening /news,
+              so the dot was counting notifications nobody could reach from
+              here. It now goes where its own badge points.
+
+              Repointed rather than added, which is why the header does not get
+              busier: it stays at three controls — assistant, bell, avatar. The
+              News screen keeps its Home entry through "See all" on the Gaming
+              updates rail below, which is the more natural way in anyway.
+
+              A real bell rather than the ◔ it used to draw. `expo-symbols` is
+              already a dependency and the assistant panel uses it; 22 matches
+              the fontSize the sibling glyph is set at, so the row's optical
+              weight is unchanged.
+            */}
             <Hoverable
-              accessibilityLabel="Gaming updates"
-              onPress={() => router.push('/news')}
+              accessibilityLabel={
+                unreadNotifications > 0
+                  ? `Notifications, ${unreadNotifications} unread`
+                  : 'Notifications'
+              }
+              onPress={() => router.push('/notifications')}
               hitSlop={8}
               style={styles.bell}
             >
-              <Text style={styles.bellGlyph}>◔</Text>
+              <SymbolView
+                name={{ ios: 'bell', android: 'notifications', web: 'notifications' }}
+                size={22}
+                tintColor={colors.textSecondary}
+                weight={{ ios: 'regular', android: medium }}
+              />
               {unreadNotifications > 0 ? <View style={styles.unreadDot} /> : null}
             </Hoverable>
             <Hoverable accessibilityLabel="Your profile" onPress={() => router.navigate('/profile')} hitSlop={8}>

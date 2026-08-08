@@ -41,7 +41,14 @@ import { useDragScroll } from '@/hooks/useDragScroll';
 import { useScrolledPast } from '@/components/PinnedHeader';
 import { useHoverPop } from '@/components/primitives';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
-import { catalogueService, collectionService, inventoryService, roomService, socialService } from '@/services';
+import {
+  catalogueService,
+  collectionService,
+  inventoryService,
+  newsService,
+  roomService,
+  socialService,
+} from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, fonts, radius, spacing, typography } from '@/theme/theme';
 import type { Collection, Item, RarityTier, Room, User } from '@/types';
@@ -125,16 +132,21 @@ export default function ProfileScreen() {
   }, [collections, roomEntries]);
   const [following, setFollowing] = useState<User[]>([]);
   const [followers, setFollowers] = useState<User[]>([]);
+  /* Followed TOPICS — games, franchises and characters — which are a different
+     thing from the `following` above, that being people. The count is here so
+     the row below can say how many rather than being a bare link. */
+  const [topicCount, setTopicCount] = useState(0);
   const [busy, setBusy] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const [mine, out, back] = await Promise.all([
+      const [mine, out, back, topics] = await Promise.all([
         collectionService.getCollectionsByUser(viewerId),
         socialService.getFollowing(viewerId),
         socialService.getFollowers(viewerId),
+        newsService.getFollowedTopics(viewerId),
       ]);
       const rooms = await roomService.getRoomsOnProfile(mine.map((c) => c.id));
 
@@ -163,6 +175,7 @@ export default function ProfileScreen() {
       setRoomEntries(paired.filter((e) => e.collection !== null) as RoomEntry[]);
       setFollowing(out);
       setFollowers(back);
+      setTopicCount(topics.length);
       setBusy(false);
     }
 
@@ -332,6 +345,37 @@ export default function ProfileScreen() {
             onPress={() => router.push({ pathname: '/connections', params: { tab: 'following' } })}
           />
         </View>
+
+        {/*
+          Followed topics — the ONLY route to /following now that the News
+          screen's utility links are gone. Without this the screen would still
+          be in the build and unreachable, which is what §11 F6's feed
+          management being reachable at all depends on.
+
+          A row rather than a fifth Stat, deliberately: the stats are `flex: 1`
+          siblings, so a fifth would narrow all five and "Collections" is
+          already the widest label at a quarter of the row. A row also puts the
+          distinction where it can be read — the Following stat above is PEOPLE
+          and this is games, franchises and characters, and two tiles labelled
+          "Following" and "Topics" side by side would invite exactly the
+          conflation this wording avoids.
+        */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Followed topics. ${topicCount} followed. Manages what your feed is built from.`}
+          onPress={() => router.push('/following')}
+          style={({ pressed }) => [styles.topicsRow, pressed && { opacity: 0.7 }]}
+        >
+          <View style={styles.topicsText}>
+            <Text style={styles.topicsLabel}>Followed topics</Text>
+            <Text style={styles.muted}>
+              {topicCount === 0
+                ? 'Nothing followed yet — your feed ranks on what you own'
+                : `${topicCount} followed · what your feed is built from`}
+            </Text>
+          </View>
+          <Text style={styles.topicsChevron}>›</Text>
+        </Pressable>
 
 
         {/*
@@ -602,6 +646,24 @@ const styles = StyleSheet.create({
    * actually over, which inside a shared box looked like the whole bar moving.
    */
   stats: { flexDirection: 'row', gap: spacing.sm },
+
+  /* Same surface, border and radius as `stat`, so the row reads as part of the
+     same block rather than as a different kind of control that happens to sit
+     under it. */
+  topicsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  topicsText: { flex: 1, minWidth: 0, gap: 2 },
+  topicsLabel: { ...typography.cardTitle, color: colors.textPrimary },
+  topicsChevron: { ...typography.cardTitle, color: colors.textTertiary },
   stat: {
     flex: 1,
     alignItems: 'center',
