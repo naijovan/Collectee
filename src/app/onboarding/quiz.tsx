@@ -236,12 +236,43 @@ export default function QuizScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={{ height: insets.top }} />
-      <StepperHeader
-        steps={steps}
-        current={step}
-        onBack={step > 0 ? () => setStep((c) => c - 1) : undefined}
-      />
+      {/*
+        The header block, in the SAME column as the content below it.
+
+        Two separate faults produced Ray's report, and both were here rather
+        than in `StepperHeader`:
+
+        1. No horizontal padding at all. The header was a direct child of a
+           `flex: 1` screen, so "‹ Back" started at x=0 and "Step N of M"
+           right-aligned to the very edge — on web, under the scrollbar gutter,
+           which is why the counter looked cut off rather than merely tight.
+
+        2. Nothing kept it in the content column. The steps below are
+           `maxWidth: 460` inside a centred `alignItems: 'center'` container, so
+           on any screen wider than ~508 the content was centred while the
+           header ran the full width. That is the "layout left-hugs while
+           content sits centred" mismatch: the two were genuinely on different
+           grids.
+
+        `headerPad` carries the same `spacing.xl` the content uses and
+        `headerColumn` the same 460, so the Back link now begins exactly above
+        the first character of the step body at every width.
+
+        The top inset is folded in here too. It was a spacer `View` of height
+        `insets.top`, which is 0 on web — so on a browser the brand mark sat
+        flush against the viewport top with nothing above it. `spacing.lg` is
+        added unconditionally so there is breathing room on every platform.
+      */}
+      <View style={[styles.headerPad, { paddingTop: insets.top + spacing.lg }]}>
+        <View style={styles.headerColumn}>
+          <StepperHeader
+            steps={steps}
+            current={step}
+            onBack={step > 0 ? () => setStep((c) => c - 1) : undefined}
+            large
+          />
+        </View>
+      </View>
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -654,6 +685,12 @@ function IntensityStep({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: 'transparent' },
+
+  /* Matches `content`'s horizontal padding and `step`'s width, so the header
+     and the step body share one column. Centred for the same reason `content`
+     is. See the note at the call site. */
+  headerPad: { paddingHorizontal: spacing.xl, alignItems: 'center' },
+  headerColumn: { width: '100%', maxWidth: 460 },
   content: {
     padding: spacing.xl,
     paddingBottom: spacing.xxl,
