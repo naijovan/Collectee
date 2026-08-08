@@ -54,14 +54,20 @@ if (itemless.length === 0) problems += 1;
 console.log('');
 
 for (const title of GAME_TITLES as readonly GameTitle[]) {
-  /* Newest first, which is the order the tab renders in — the dedupe is
-     order-dependent, so auditing any other order audits nothing. */
-  /* `as const` narrows each relatedGames to a literal tuple, so `.includes`
-     wants that tuple's own member type rather than GameTitle. Widening to
-     readonly string[] is the read this loop actually needs. */
-  const tab = ARTICLES.filter((a) =>
-    (a.relatedGames as readonly string[]).includes(title),
-  ).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+  /*
+   * `rankGameFeed`, NOT newest-first.
+   *
+   * This sorted by publishedAt and called it "the order the tab renders in".
+   * It is not: the News tab is personalised, so chronological is a made-up
+   * order. That matters more than tidiness, because `pickThumbnailIds` walks
+   * the list in order and hands each article the first of its ids not already
+   * taken — a collision that exists in the real order can be invisible in a
+   * fabricated one, and the other way round. Auditing the wrong order audits
+   * nothing.
+   */
+  const tab = rankGameFeed(ARTICLES as never, feedViewer as never, title, DEMO_NOW, 50).map(
+    (entry) => entry.article,
+  );
   const thumbs = pickThumbnailIds(tab);
 
   console.log(`── ${GAME_LABELS[title]} — ${tab.length} articles`);
