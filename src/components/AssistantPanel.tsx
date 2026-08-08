@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -34,21 +35,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SUGGESTED_QUESTIONS } from '@/domain/assistant';
 import type { AssistantContext } from '@/domain/assistant';
 import { assistantService } from '@/services';
+import { assistantMascot } from '@/config/assistantArt';
 import { useAssistantDock } from '@/state/AssistantDock';
 import { useApp } from '@/state/AppContext';
 import { colors, interaction, radius, scrim, spacing, typography } from '@/theme/theme';
 
-/**
- * Height of the launcher plus its gap, so the panel sits above it rather than
- * on it: the button's `bottom: 92` plus its 52pt frame, plus a little air.
- *
- * Not imported from `AssistantButton` — that file imports this one, and a cycle
- * for one number is not worth it. If the launcher moves, move this too.
- */
-const LAUNCHER_CLEARANCE = 152;
+import { ASSISTANT_NAME, PANEL_CLEARANCE } from './assistantDock';
 
 export function AssistantPanel() {
   const insets = useSafeAreaInsets();
+  const mascot = assistantMascot();
   const { viewerId } = useApp();
   const { closePanel, turns, addTurn } = useAssistantDock();
   const scroller = useRef<ScrollView>(null);
@@ -99,13 +95,24 @@ export function AssistantPanel() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={[styles.anchor, { paddingBottom: LAUNCHER_CLEARANCE + insets.bottom }]}
+        style={[styles.anchor, { paddingBottom: PANEL_CLEARANCE + insets.bottom }]}
         pointerEvents="box-none"
       >
         <View style={styles.panel}>
           <View style={styles.header}>
+            {/* The same face as the launcher, so opening the panel feels like
+                the bubble expanded rather than a different thing appearing.
+                Null until the art lands — the row simply has no avatar then. */}
+            {mascot ? (
+              <Image
+                source={mascot}
+                style={styles.headerMascot}
+                resizeMode="cover"
+                accessibilityIgnoresInvertColors
+              />
+            ) : null}
             <View style={styles.headerText}>
-              <Text style={styles.title}>Ask about your collection</Text>
+              <Text style={styles.title}>Ask {ASSISTANT_NAME} about your collection</Text>
               <Text style={styles.mode}>
                 {mode === 'offline'
                   ? 'Answers computed on-device'
@@ -218,15 +225,44 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
+  /**
+   * 44, not 28.
+   *
+   * At 28 she was a dot — the point of putting her here is that the panel
+   * reads as the same character the launcher bubble opened, and an
+   * unidentifiable circle does not do that. 44 sits just above the two-line
+   * title block (~38pt: a 20pt title over a 16pt mode line), so she anchors
+   * the row without towering over it.
+   *
+   * No `marginRight` — the header row already has `gap`, and carrying both
+   * double-spaced her away from the title.
+   *
+   * The ring matches the launcher bubble's, so the face in the header and the
+   * face in the corner read as one thing rather than two portraits.
+   */
+  headerMascot: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.accentPressed,
+    backgroundColor: colors.surfaceSunken,
+  },
   header: {
     flexDirection: 'row',
+    /* flex-start keeps the close button pinned top-right, unchanged. The text
+       block centres itself against the face separately. */
     alignItems: 'flex-start',
     gap: spacing.sm,
-    padding: spacing.md,
+    /* lg, not md: at 44 the face filled the old 12pt padding and the row read
+       as cramped. */
+    padding: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerText: { flex: 1, gap: 2 },
+  /* Centred against the 44pt face rather than top-aligned to it, so the
+     two-line block sits balanced beside her instead of riding high. */
+  headerText: { flex: 1, gap: 2, alignSelf: 'center' },
   title: { ...typography.cardTitle, color: colors.textPrimary },
   mode: { ...typography.meta, color: colors.textTertiary },
   close: { ...typography.cardTitle, color: colors.textSecondary },
