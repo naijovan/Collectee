@@ -189,6 +189,8 @@ export default function ImportScreen() {
   const [linking, setLinking] = useState(false);
   const [linkProgress, setLinkProgress] = useState(0);
   const [linkResult, setLinkResult] = useState<{ verified: number } | null>(null);
+  /** Exactly what this import asked for — the scope Verify confirms. */
+  const [importedItemIds, setImportedItemIds] = useState<readonly string[]>([]);
 
   /**
    * Incremented by "Cancel scan". The scan is a timer, not a request, so it
@@ -300,6 +302,12 @@ export default function ImportScreen() {
    * with no explanation. This finds the explanation locally (`domain/scan.ts`),
    * with no model call.
    */
+  /** Catalogue by id, for the Complete step's suggestion previews. */
+  const catalogueById = useMemo(
+    () => new Map(fullCatalogue.map((item) => [item.id, item])),
+    [fullCatalogue],
+  );
+
   const wrongGame = useMemo(() => {
     if (fullCatalogue.length === 0) return null;
     const readings = unmatchedEntries.map((d) => d.reading!.name);
@@ -392,6 +400,17 @@ export default function ImportScreen() {
     const imported = await inventoryService.importFromScan(viewerId, itemIds, confidence);
     await refreshInventory();
     setImportedCount(imported.length);
+    /**
+     * Kept so Verify can scope the account link to this import.
+     *
+     * `itemIds` rather than `imported`, deliberately: `importFromScan` writes
+     * nothing for items the inventory already held, so re-scanning the same
+     * screenshot returns an empty array. Those items are still exactly what the
+     * user just asked to import and still the ones they expect Verify to
+     * confirm — scoping to `imported` would make the button do nothing on a
+     * second run, which is the case most likely to be hit while rehearsing.
+     */
+    setImportedItemIds(itemIds);
     // One of exactly three success haptics in the app — the three rungs of the
     // never-cut chain (§14). Firing it anywhere else dilutes what it means.
     haptics.success();
@@ -415,11 +434,23 @@ export default function ImportScreen() {
   /**
    * Link the game account the items were just imported from — the ONLY path to
    * a verified item (§9.3). Mocked, and the step says so on screen.
+   *
+   * Scoped to `importedItemIds`. Connecting an account here confirms THIS
+   * import, not the whole account: someone who imports three skins expects
+   * three to turn verified, and having the rest of their library flip at the
+   * same time is both surprising and not undoable item by item. The full-account
+   * sweep still lives on the link-account screen, where that is what was asked
+   * for.
    */
   async function verifyNow() {
     setLinking(true);
     setLinkProgress(0);
-    const outcome = await inventoryService.linkAccount(viewerId, title, setLinkProgress);
+    const outcome = await inventoryService.linkAccount(
+      viewerId,
+      title,
+      setLinkProgress,
+      importedItemIds,
+    );
     // Every screen reading the viewer's inventory has to see the new trust
     // levels, not just this one.
     await refreshInventory();
@@ -1057,7 +1088,16 @@ export default function ImportScreen() {
               <Text style={styles.body}>
                 A scan proves what an item looks like, not who owns it — so everything imported
                 lands unverified. Connecting your {GAME_LABELS[title]} account reads the inventory
-                back and confirms what is actually yours.
+                back and confirms which of these are actually yours.
+              </Text>
+              {/* Says what will and will not change. Without this the step reads
+                  as an offer to verify the whole account, and the number that
+                  comes back looks wrong. */}
+              <Text style={styles.footnote}>
+                This confirms the {importedItemIds.length}{' '}
+                {importedItemIds.length === 1 ? 'item' : 'items'} from this import only. Anything
+                else in your {GAME_LABELS[title]} inventory stays as it is — verify it from Profile
+                when you want to.
               </Text>
 
               {/* The four consequences of skipping. Each one is enforced in code. */}
@@ -1169,14 +1209,18 @@ export default function ImportScreen() {
 
           {/* The import → collection link in the never-cut chain (§14). */}
           <Text style={styles.label}>Start organising your items</Text>
-          <Text style={styles.footnote}>Based on the items you just imported.</Text>
+          <Text style={styles.footnote}>
+            Based on what you just imported. Each one is a collection you could make right now —
+            the art below is what it would look like.
+          </Text>
           {suggesting ? (
-            <LoadingState height={72} />
+            <LoadingState height={160} />
           ) : (
             nextUp.map((suggestion) => (
-              <Pressable
+              <SuggestionCard
                 key={suggestion.name}
-                style={styles.suggestion}
+                suggestion={suggestion}
+                catalogue={catalogueById}
                 onPress={() =>
                   router.replace({
                     pathname: '/collection/new',
@@ -1186,14 +1230,7 @@ export default function ImportScreen() {
                     },
                   })
                 }
-              >
-                <View style={styles.rowBody}>
-                  <Text style={styles.rowTitle}>{suggestion.name}</Text>
-                  <Text style={styles.muted}>{suggestion.reason}</Text>
-                  <Text style={styles.footnote}>{suggestion.itemIds.length} items</Text>
-                </View>
-                <Text style={styles.create}>Create</Text>
-              </Pressable>
+              />
             ))
           )}
 
@@ -1208,6 +1245,98 @@ export default function ImportScreen() {
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
+  );
+}
+
+/**
+ * A collection you could make, drawn as the collection rather than described as
+ * one.
+ *
+ * The old row was a name, a reason and a count — three lines of text asking
+ * someone to imagine the result. But every item in the suggestion already has
+ * art, and the whole premise of the app is that a collection is something you
+ * look at. Showing the actual pieces turns "Elderflame Set · 4 items" into a
+ * thing with a shape, and it is the same art the collection would really use,
+ * not a mock-up of it.
+ *
+ * The first tile is deliberately larger. A suggestion has a headline item —
+ * the rarest thing in it — and a flat strip of equal thumbnails hides that,
+ * which makes every suggestion look interchangeable.
+ */
+function SuggestionCard({
+  suggestion,
+  catalogue,
+  onPress,
+}: {
+  suggestion: CollectionSuggestion;
+  catalogue: ReadonlyMap<string, Item>;
+  onPress: () => void;
+}) {
+  const items = suggestion.itemIds
+    .map((id) => catalogue.get(id))
+    .filter((item): item is Item => item !== undefined);
+
+  /**
+   * Rarest first, so the tile that gets the space is the one worth showing.
+   * `groupByRarity` already owns this ordering (§12.2) — sorting on
+   * `rarityTier` here rather than a hand-written rarity list keeps the one
+   * rule in `domain/rarity.ts`.
+   */
+  const ordered = groupByRarity(items).flatMap((group) => group.items);
+  const hero = ordered[0];
+  const rest = ordered.slice(1, 4);
+  const overflow = ordered.length - 1 - rest.length;
+
+  return (
+    <Pressable style={styles.suggestionCard} onPress={onPress}>
+      {hero ? (
+        <View style={styles.suggestionArt}>
+          <ItemArt
+            seed={hero.id}
+            tier={hero.rarityTier}
+            renderUrl={hero.renderUrl}
+            style={styles.suggestionHero}
+          />
+          <View style={styles.suggestionStrip}>
+            {rest.map((item) => (
+              <ItemArt
+                key={item.id}
+                seed={item.id}
+                tier={item.rarityTier}
+                renderUrl={item.renderUrl}
+                style={styles.suggestionThumb}
+              />
+            ))}
+            {overflow > 0 ? (
+              <View style={[styles.suggestionThumb, styles.suggestionMore]}>
+                <Text style={styles.suggestionMoreText}>+{overflow}</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      <View style={styles.suggestionBody}>
+        <View style={styles.rowBody}>
+          <Text style={styles.suggestionName} numberOfLines={1}>
+            {suggestion.name}
+          </Text>
+          {/*
+            §11 F5's rule, applied outside Discover: a suggestion without its
+            reason is a demand. The reason is what makes it answerable.
+          */}
+          <Text style={styles.muted} numberOfLines={2}>
+            {suggestion.reason}
+          </Text>
+        </View>
+        <View style={styles.suggestionCta}>
+          <Text style={styles.footnote}>
+            {suggestion.itemIds.length} {suggestion.itemIds.length === 1 ? 'item' : 'items'}
+          </Text>
+          <Text style={styles.create}>Create →</Text>
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -1857,6 +1986,36 @@ const styles = StyleSheet.create({
    * file here" affordance, and wearing it on a panel with no file dialog is
    * what made the video source read as a broken upload.
    */
+  /* ── Complete: suggestion previews ──────────────────────────────────────
+     A card, not a row. It is showing what the collection would look like, so
+     it is shaped like the collection card it would become. */
+  suggestionCard: {
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  suggestionArt: { flexDirection: 'row', gap: 2, height: 132 },
+  /** The rarest item, given roughly two-thirds of the width. */
+  suggestionHero: { flex: 2, height: '100%' },
+  suggestionStrip: { flex: 1, gap: 2 },
+  suggestionThumb: { flex: 1, width: '100%' },
+  suggestionMore: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  suggestionMoreText: { ...typography.meta, color: colors.textSecondary },
+  suggestionBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  suggestionName: { ...typography.cardTitle, color: colors.textPrimary },
+  suggestionCta: { alignItems: 'flex-end', gap: 2 },
+
   /**
    * The Verify step's "if you skip this" block.
    *
