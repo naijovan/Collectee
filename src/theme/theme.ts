@@ -218,6 +218,19 @@ export function accentRampAt(t: number): string {
   return `#${channel(1)}${channel(3)}${channel(5)}`;
 }
 
+/**
+ * The light end of the accent blue, for a number printed over artwork.
+ *
+ * `accentGradient.from` is too dark to sit on a scrim at 12px — it is a fill
+ * colour, meant to have white on top of it, not to be read as text. This is the
+ * same hue lifted until it holds against a photograph.
+ *
+ * Used for counts that are neither likes (red) nor a match score (the tiered
+ * `matchTone`): a community's membership, where plain white made the only
+ * number on the card indistinguishable from the sentence above it.
+ */
+export const accentSoft = '#93C5FD';
+
 export const accentLink = '#A855F7';
 
 /**

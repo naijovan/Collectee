@@ -29,6 +29,7 @@ import { useHoverLift } from './primitives';
 import {
   colors,
   fonts,
+  accentSoft,
   crossGameAccent,
   gameAccents,
   matchTone,
@@ -560,7 +561,7 @@ export function CommunityCard({
             ) : null}
           </View>
           <View style={styles.metaCounts}>
-            <Text style={styles.metaItems}>{memberCount.toLocaleString()} members</Text>
+            <Text style={styles.metaMembers}>{memberCount.toLocaleString()} members</Text>
           </View>
         </View>
       </View>
@@ -1121,6 +1122,17 @@ const styles = StyleSheet.create({
      not before. */
   metaLike: { ...typography.meta, color: colors.danger },
   metaItems: { ...typography.meta, color: colors.textOnAccent, opacity: 0.75 },
+  /* The one number on a community card, so it gets a colour of its own rather
+     than the same washed-out white as the reason line above it. Tabular figures
+     because these are four and five digits and the column would otherwise shift
+     as they change. Weight from the family, not `fontWeight` — Android fakes a
+     second bold over the loaded cut. */
+  metaMembers: {
+    ...typography.meta,
+    ...typography.numeric,
+    color: accentSoft,
+    fontFamily: fonts.bodySemiBold,
+  },
 
 
   ownerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
