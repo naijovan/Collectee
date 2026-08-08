@@ -85,6 +85,10 @@ export interface TourStop {
     standBeside?: boolean;
     /** Pin the bubble to one flank — see `GuideOptions.bubbleSide`. */
     bubbleSide?: 'left' | 'right';
+    /** Line the bubble up with her head rather than her waist. */
+    bubbleAlign?: 'top' | 'centre';
+    /** Hard ceiling for everything in the guided layer, as a fraction. */
+    maxBottomFraction?: number;
   };
 }
 
@@ -107,7 +111,7 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       body:
         'Import scans a screenshot of your in-game inventory and matches what it finds against the catalogue. Anything it is unsure about goes to a review step rather than straight into your account.',
       /* Right of her: on her left the bubble sat over the Gaming Updates row. */
-      guide: { pose: 'pointing', bubbleSide: 'right', line: 'Start here! Snap your in-game inventory and I will match it against the catalogue. Anything I am unsure about goes to a review step, never straight in.' },
+      guide: { pose: 'pointing', bubbleSide: 'right', maxBottomFraction: 0.6, line: 'Start here! Snap your in-game inventory and I will match it against the catalogue. Anything I am unsure about goes to a review step, never straight in.' },
     },
     {
       id: 'discover',
@@ -118,7 +122,7 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
         'Collectors whose inventories overlap yours, and the communities around them. Every match shows the reason it scored — a percentage on its own is not much of an argument.',
       /* Left of her, keeping the Verify and Reports buttons in the top-right
          corner clear on this stop. */
-      guide: { pose: 'pointing', bubbleSide: 'left', line: 'This is where you find people with your taste. Every match shows why it scored — a percentage on its own is not much of an argument.' },
+      guide: { pose: 'pointing', bubbleSide: 'left', bubbleAlign: 'top', line: 'This is where you find people with your taste. Every match shows why it scored — a percentage on its own is not much of an argument.' },
     },
     {
       id: 'news',

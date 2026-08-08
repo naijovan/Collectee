@@ -400,6 +400,8 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
   const guidePlacement = placeGuide({ width: screenW, height: screenH }, insets, hole, {
     standBeside: stop?.guide?.standBeside,
     bubbleSide: stop?.guide?.bubbleSide,
+    bubbleAlign: stop?.guide?.bubbleAlign,
+    maxBottomFraction: stop?.guide?.maxBottomFraction,
   });
 
   /* Companion to the rect log above — what the solver DID with that rect. */

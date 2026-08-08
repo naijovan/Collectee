@@ -145,6 +145,25 @@ export interface GuideOptions {
    * legal positions, it cannot force an illegal one.
    */
   bubbleSide?: 'left' | 'right';
+  /**
+   * Align the bubble's TOP with hers instead of its centre with hers.
+   *
+   * Used where the pair has to sit tight under something — on Discover the
+   * highlighted band is at the very top of the screen, so centring the bubble
+   * on her dropped it a hundred points lower than it needed to be for no
+   * reason.
+   */
+  bubbleAlign?: 'top' | 'centre';
+  /**
+   * Hard ceiling on how far down anything in the guided layer may reach, as a
+   * fraction of the safe area.
+   *
+   * Belt and braces rather than a new behaviour: a bottom-anchored stop is
+   * already capped at the midline, which is stricter. This exists so the
+   * guarantee is stated on the stop rather than inferred from whether the
+   * solver happened to classify the target as bottom-anchored.
+   */
+  maxBottomFraction?: number;
 }
 
 export function placeGuide(
@@ -255,14 +274,24 @@ export function placeGuide(
 
   /* Bottom-anchored: only the band above the target is eligible, and it is
      further capped at the midline so her feet never cross it. */
+  const cappedTo = (box: Box, fraction: number): Box => ({
+    ...box,
+    h: Math.max(0, Math.min(box.h, safe.y + safe.h * fraction - box.y)),
+  });
+
+  const applyCeiling = (box: Box): Box =>
+    options.maxBottomFraction === undefined ? box : cappedTo(box, options.maxBottomFraction);
+
   const cappedAbove = (box: Box): Box => ({
     ...box,
     h: Math.max(0, Math.min(box.h, midline - box.y)),
   });
 
-  const eligible = bottomAnchored
-    ? regions.filter((r) => r.name === 'above').map((r) => ({ ...r, box: cappedAbove(r.box) }))
-    : regions;
+  const eligible = (
+    bottomAnchored
+      ? regions.filter((r) => r.name === 'above').map((r) => ({ ...r, box: cappedAbove(r.box) }))
+      : regions
+  ).map((r) => ({ ...r, box: applyCeiling(r.box) }));
 
   /**
    * Where the BUBBLE is allowed to live.
@@ -277,7 +306,7 @@ export function placeGuide(
    * ~96pt of the bottom), so capping there clears the bar's band as well
    * without this module needing to know the bar exists.
    */
-  let bubbleBounds: Box = bottomAnchored ? cappedAbove(safe) : safe;
+  let bubbleBounds: Box = applyCeiling(bottomAnchored ? cappedAbove(safe) : safe);
 
   const rank = (list: typeof regions) =>
     list
@@ -324,7 +353,7 @@ export function placeGuide(
 
   /* Relaxed: the bubble follows her out of the capped band, or it would be
      solving against a region she is no longer in. */
-  if (relaxed) bubbleBounds = safe;
+  if (relaxed) bubbleBounds = applyCeiling(safe);
 
   const h = best.height;
   const w = h * FIGURE_ASPECT;
@@ -395,8 +424,10 @@ export function placeGuide(
     bubbleBounds.x,
     bubbleBounds.x + bubbleBounds.w - bw,
   );
+  /* 'top' lines the bubble up with her head rather than her waist. */
+  const besideY = options.bubbleAlign === 'top' ? fy : fy + h / 2 - BUBBLE_H / 2;
   const midY = clamp(
-    fy + h / 2 - BUBBLE_H / 2,
+    besideY,
     bubbleBounds.y,
     bubbleBounds.y + Math.max(0, bubbleBounds.h - BUBBLE_H),
   );
