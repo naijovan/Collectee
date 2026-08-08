@@ -130,6 +130,21 @@ export interface GuideOptions {
    * launcher lives.
    */
   standBeside?: boolean;
+  /**
+   * Force the bubble onto a given flank, beside her at her vertical centre,
+   * instead of letting the solver choose.
+   *
+   * The solver's default — away from the pointing arm — is right most of the
+   * time, but "most of the time" is not good enough for a stop being judged
+   * frame by frame. Two stops need an explicit answer: Import wants it on her
+   * right so it stops sitting over the Gaming Updates row, and Discover wants
+   * it on her left to keep the Verify and Reports buttons in the top-right
+   * corner clear.
+   *
+   * Still checked against the target and the safe area — this chooses between
+   * legal positions, it cannot force an illegal one.
+   */
+  bubbleSide?: 'left' | 'right';
 }
 
 export function placeGuide(
@@ -358,8 +373,16 @@ export function placeGuide(
   /* Sized to whatever the chosen side actually has, down to the minimum,
      rather than a fixed width that then fails to fit and forces the bubble
      back across her. */
+  const roomRightOfFigure = bubbleBounds.x + bubbleBounds.w - (fx + w);
+  const roomLeftOfFigure = fx - bubbleBounds.x;
   const outerRoom =
-    fx + w / 2 > holeCx ? bubbleBounds.x + bubbleBounds.w - (fx + w) : fx - bubbleBounds.x;
+    options.bubbleSide === 'right'
+      ? roomRightOfFigure
+      : options.bubbleSide === 'left'
+        ? roomLeftOfFigure
+        : fx + w / 2 > holeCx
+          ? roomRightOfFigure
+          : roomLeftOfFigure;
   const bw = clamp(BUBBLE_W, BUBBLE_MIN_W, Math.max(BUBBLE_MIN_W, outerRoom - GAP));
 
   const inBounds = (bx0: number, by0: number) =>
@@ -384,10 +407,20 @@ export function placeGuide(
   const away: [number, number] = pointsLeft ? [fx + w + GAP, midY] : [fx - GAP - bw, midY];
   const toward: [number, number] = pointsLeft ? [fx - GAP - bw, midY] : [fx + w + GAP, midY];
 
-  const candidates: [number, number][] =
-    best.side === 'beside'
-      ? [away, [centredX, fy + h + GAP], [centredX, fy - GAP - BUBBLE_H], toward]
-      : [[centredX, fy + h + GAP], [centredX, fy - GAP - BUBBLE_H], away, toward];
+  /* An explicit side wins, then the solver's own preference as fallback. */
+  const forced: [number, number] | null =
+    options.bubbleSide === 'right'
+      ? [fx + w + GAP, midY]
+      : options.bubbleSide === 'left'
+        ? [fx - GAP - bw, midY]
+        : null;
+
+  const candidates: [number, number][] = [
+    ...(forced ? [forced] : []),
+    ...(best.side === 'beside'
+      ? [away, [centredX, fy + h + GAP] as [number, number], [centredX, fy - GAP - BUBBLE_H] as [number, number], toward]
+      : [[centredX, fy + h + GAP] as [number, number], [centredX, fy - GAP - BUBBLE_H] as [number, number], away, toward]),
+  ];
 
   /* Fallback is inside the bounds too — clamping to the safe area is what let
      it drift back down over the bar. */

@@ -399,6 +399,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
      the figure's placement to disagree about where she is standing. */
   const guidePlacement = placeGuide({ width: screenW, height: screenH }, insets, hole, {
     standBeside: stop?.guide?.standBeside,
+    bubbleSide: stop?.guide?.bubbleSide,
   });
 
   /* Companion to the rect log above — what the solver DID with that rect. */
