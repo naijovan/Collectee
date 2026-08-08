@@ -2362,13 +2362,14 @@ const styles = StyleSheet.create({
     /* With `flexWrap`, `flex: 1` alone lets all three squeeze onto one line at
        any width. A floor forces the wrap instead of producing three slivers. */
     minWidth: 150,
-    height: 168,
+    /* 220, not 168. The covers are portrait-ish and were being cropped to a
+       letterbox strip — the armour and the shrine both lost their top half. */
+    height: 220,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
     backgroundColor: colors.surfaceSunken,
-    justifyContent: 'flex-end',
   },
   /* Two-pixel accent ring, not one — at card size a hairline is easy to miss,
      and this is a selection the whole flow depends on. */
@@ -2376,9 +2377,18 @@ const styles = StyleSheet.create({
   /** Three across, wrapping on a narrow window rather than squeezing to slivers. */
   gameRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   gameCardScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
-  gameCardMeta: { padding: spacing.md, gap: 2 },
+  /** On the art's lower band, where the scrim is heaviest. */
+  gameCardMeta: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.md, gap: 2 },
   gameCardName: { ...typography.overlayTitle, color: colors.textOnAccent },
-  gameArtImage: { width: '100%', height: '100%' },
+  /**
+   * Absolutely filling the card, not a flow child.
+   *
+   * As a normal child with `height: '100%'` it consumed the column and pushed
+   * the meta into its own band below — which is what put a black strip under
+   * each cover instead of laying the title over it. Absolute takes it out of
+   * the flow so the meta can sit on top.
+   */
+  gameArtImage: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   selectedGame: {
     flexDirection: 'row',
     alignItems: 'center',
