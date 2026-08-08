@@ -206,6 +206,33 @@ export const accentLink = '#A855F7';
  */
 export const tabBarWash = ['rgba(147,51,234,0.10)', 'rgba(147,51,234,0.02)'] as const;
 
+/**
+ * Frosted glass for the floating tab bar — careerlingo's `--glass-strong` plus
+ * its `backdrop-filter: blur(14px)`.
+ *
+ * `surface` at 72% rather than solid, so whatever the bar sits over tints it
+ * instead of being hidden by it. On its own that is just a see-through panel;
+ * the blur is what turns it into glass, because it stops the shapes behind from
+ * reading as shapes and leaves only their colour.
+ *
+ * ── Why the blur is web-only ──────────────────────────────────────────────
+ * `backdropFilter` is a CSS property react-native-web passes through, and web
+ * is the demo target. iOS and Android need `expo-blur` or a `GlassView`, and
+ * neither is worth a native code path for a surface nobody will demo on a
+ * phone — they get the translucency without the frost, which still reads as a
+ * light panel rather than a slab.
+ *
+ * Cast at the call site: `backdropFilter` is not in React Native's ViewStyle,
+ * because on native it is genuinely not a thing.
+ */
+export const tabBarGlass = {
+  /** `surface` at 72%. The literal is here rather than in a component so the
+   *  no-raw-hex rule holds; `colors.surface` is a CSS var on web and cannot be
+   *  given an alpha channel arithmetically. */
+  background: 'rgba(20,24,33,0.72)',
+  blur: 'blur(14px) saturate(140%)',
+} as const;
+
 export const accentGlow = {
   shadowColor: '#9333EA',
   shadowOpacity: 0.55,

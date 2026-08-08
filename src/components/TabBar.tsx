@@ -23,7 +23,8 @@ import type { SFSymbol } from 'expo-symbols';
 import { SymbolView, type AndroidSymbol } from 'expo-symbols';
 import medium from 'expo-symbols/androidWeights/medium';
 import { usePathname, useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,7 +32,7 @@ import { FEATURES } from '@/config/features';
 import * as haptics from '@/lib/haptics';
 import { useApp } from '@/state/AppContext';
 import { useTourAnchor } from '@/state/TourAnchors';
-import { accentGlow, colors, fonts, interaction, radius, spacing, tabBarWash, typography } from '@/theme/theme';
+import { accentGlow, colors, fonts, interaction, radius, spacing, tabBarGlass, tabBarWash, typography } from '@/theme/theme';
 
 import { AccentFill } from './primitives';
 
@@ -184,7 +185,16 @@ export function TabBar() {
     <View
       ref={barAnchor}
       collapsable={false}
-      style={[styles.bar, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}
+      style={[
+        styles.bar,
+        { paddingBottom: Math.max(insets.bottom, spacing.sm) },
+        /* Web only. `backdropFilter` is a CSS property react-native-web passes
+           through but React Native's types do not know, because on native it is
+           genuinely not a thing — hence the cast rather than a type widening. */
+        Platform.OS === 'web'
+          ? ({ backdropFilter: tabBarGlass.blur } as unknown as ViewStyle)
+          : null,
+      ]}
       accessibilityRole="tablist"
     >
       {/* A faint violet wash so the bar is not a flat slab. Not the button ramp
@@ -257,12 +267,18 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.surface,
+    /* Translucent, not solid — see `tabBarGlass`. The blur that makes it read
+       as glass rather than as a see-through panel is applied separately below,
+       because `backdropFilter` is web-only and not in RN's ViewStyle. */
+    backgroundColor: tabBarGlass.background,
     marginHorizontal: 14,
     marginBottom: 10,
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: colors.border,
+    /* Brighter than `border`. A glass edge catches light along its rim, and
+       that highlight is most of what sells the material — the flat border
+       colour made it look like a cut-out instead. */
+    borderColor: 'rgba(255,255,255,0.10)',
     padding: 12,
     /* The soft lift that separates the card from the content behind it. */
     shadowColor: '#000',
