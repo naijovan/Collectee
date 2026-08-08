@@ -65,7 +65,12 @@ import { ART_PLACEMENTS, GAME_COVERS } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import type { CollectionSuggestion } from '@/domain/collections';
 import { groupByRarity, rarityLabelFor } from '@/domain/rarity';
-import { CONFIDENCE_AUTO_ACCEPT, CONFIDENCE_REVIEW_FLOOR, isMatchIncluded } from '@/domain/scan';
+import {
+  CONFIDENCE_AUTO_ACCEPT,
+  CONFIDENCE_REVIEW_FLOOR,
+  foreignTitleMatches,
+  isMatchIncluded,
+} from '@/domain/scan';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import * as haptics from '@/lib/haptics';
@@ -84,15 +89,30 @@ import { colors, radius, spacing, typography } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { GameTitle, Item, ScanDetection, ScanResolution, ScanResult } from '@/types';
 
-/** The Figma's four labels. §11 F3's stepper arrays are J2's and J3's. */
-const IMPORT_STEPS = ['Upload', 'Scan', 'Review', 'Complete'] as const;
+/**
+ * The Figma's four labels, plus Verify. §11 F3's stepper arrays are J2's and J3's.
+ *
+ * Verify sits AFTER the items are written, not before, and that ordering is
+ * forced rather than chosen: `linkAccount` promotes items the inventory already
+ * holds (§9.3), so there has to be something to promote. The step is skippable
+ * by design — verification needs a linked game account, and a user who has not
+ * linked one still gets their import.
+ */
+const IMPORT_STEPS = ['Upload', 'Scan', 'Review', 'Verify', 'Complete'] as const;
 
 /**
  * `landing` sits on step 0 alongside `upload`: picking a title is part of
  * choosing what to upload, not a numbered step of its own. The Figma draws it
  * as a separate screen under the same highlighted "Upload" circle.
  */
-type Stage = 'landing' | 'upload' | 'scanning' | 'review' | 'needs-review' | 'complete';
+type Stage =
+  | 'landing'
+  | 'upload'
+  | 'scanning'
+  | 'review'
+  | 'needs-review'
+  | 'verify'
+  | 'complete';
 
 const STAGE_STEP: Record<Stage, number> = {
   landing: 0,
@@ -100,7 +120,8 @@ const STAGE_STEP: Record<Stage, number> = {
   scanning: 1,
   review: 2,
   'needs-review': 2,
-  complete: 3,
+  verify: 3,
+  complete: 4,
 };
 
 /** Each frame's own header, rather than one title for the whole flow. */
@@ -110,6 +131,7 @@ const STAGE_TITLE: Record<Stage, string> = {
   scanning: 'Scanning inventory',
   review: 'Review items',
   'needs-review': 'Confirm a match',
+  verify: 'Verify ownership',
   complete: 'Import complete',
 };
 
@@ -138,7 +160,17 @@ export default function ImportScreen() {
   const scrollRef = useTopOnFocus(stage);
 
   const [title, setTitle] = useState<GameTitle>('codm');
-  const [kind, setKind] = useState<'image' | 'video'>(FEATURES.scanVideoInput ? 'video' : 'image');
+  /**
+   * Always `image`, even when video input is available.
+   *
+   * Video defaulted here until it was watched in use: the first thing the
+   * screen showed was a large upload box that ignores taps, because the video
+   * path has no file to pick (§14 rung 4 — frame sampling is not built). People
+   * tapped it, nothing happened, and they concluded upload was broken. The
+   * source that accepts a file is the one worth landing on; video is still one
+   * chip away.
+   */
+  const [kind, setKind] = useState<'image' | 'video'>('image');
   const [upload, setUpload] = useState<PickedImage | null>(null);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -152,6 +184,11 @@ export default function ImportScreen() {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [nextUp, setNextUp] = useState<CollectionSuggestion[]>([]);
   const [suggesting, setSuggesting] = useState(false);
+
+  /** Verify step. `linkResult` is null until an account link has actually run. */
+  const [linking, setLinking] = useState(false);
+  const [linkProgress, setLinkProgress] = useState(0);
+  const [linkResult, setLinkResult] = useState<{ verified: number } | null>(null);
 
   /**
    * Incremented by "Cancel scan". The scan is a timer, not a request, so it
@@ -167,6 +204,14 @@ export default function ImportScreen() {
    * re-derived here — the flag, the endpoint and the video rule all live in
    * one place and this screen must not grow a second opinion about them.
    */
+  /**
+   * §14 rung 5: with the third title cut, MLBB has no account to connect, so
+   * the Verify step must not offer a button that cannot do anything. Same
+   * predicate as `link-account.tsx` — if that screen grows a real rule, this
+   * follows it rather than keeping a second opinion.
+   */
+  const canLinkTitle = FEATURES.thirdTitle || title !== 'mlbb';
+
   const scanMode = scanService.modeFor({
     kind,
     uri: upload?.uri ?? `demo://${title}-inventory`,
@@ -229,6 +274,37 @@ export default function ImportScreen() {
         .filter((entry): entry is { detection: ScanDetection; item: Item } => entry.item !== undefined),
     [detections, items],
   );
+
+  /**
+   * Every title's catalogue, for the wrong-game check below. Loaded once on
+   * mount rather than per scan: it is the same static catalogue every time, and
+   * fetching it while the Review screen is already on screen would make the
+   * warning appear a beat after the list it is about.
+   */
+  const [fullCatalogue, setFullCatalogue] = useState<readonly Item[]>([]);
+  useEffect(() => {
+    let live = true;
+    void catalogueService.getAllItems().then((all) => {
+      if (live) setFullCatalogue(all);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  /**
+   * "You read Valorant skins but picked CODM."
+   *
+   * The scan cannot mis-assign a game — it only ever sees the selected title's
+   * catalogue — so a wrong-game upload surfaces as a pile of unreadable items
+   * with no explanation. This finds the explanation locally (`domain/scan.ts`),
+   * with no model call.
+   */
+  const wrongGame = useMemo(() => {
+    if (fullCatalogue.length === 0) return null;
+    const readings = unmatchedEntries.map((d) => d.reading!.name);
+    return foreignTitleMatches(readings, fullCatalogue, title)[0] ?? null;
+  }, [unmatchedEntries, fullCatalogue, title]);
 
   /** Pick the screenshot to scan. The file is real even though the read is not. */
   async function chooseUpload() {
@@ -319,7 +395,14 @@ export default function ImportScreen() {
     // One of exactly three success haptics in the app — the three rungs of the
     // never-cut chain (§14). Firing it anywhere else dilutes what it means.
     haptics.success();
-    setStage('complete');
+    /**
+     * Verify, not complete. The items are written and unverified at this point,
+     * which is precisely what makes the offer meaningful — `linkAccount`
+     * promotes items that already exist, so this is the first moment the step
+     * can do anything, and the last moment the user is still thinking about
+     * these particular items.
+     */
+    setStage('verify');
 
     // The bridge into J2. Suggestions are computed from what the user now owns,
     // so this reflects the import that just happened, not a canned list.
@@ -329,10 +412,34 @@ export default function ImportScreen() {
     setSuggesting(false);
   }
 
+  /**
+   * Link the game account the items were just imported from — the ONLY path to
+   * a verified item (§9.3). Mocked, and the step says so on screen.
+   */
+  async function verifyNow() {
+    setLinking(true);
+    setLinkProgress(0);
+    const outcome = await inventoryService.linkAccount(viewerId, title, setLinkProgress);
+    // Every screen reading the viewer's inventory has to see the new trust
+    // levels, not just this one.
+    await refreshInventory();
+    setLinkResult({ verified: outcome.verified.length });
+    setLinking(false);
+  }
+
   function goBack() {
     if (stage === 'needs-review') return setStage('review');
     if (stage === 'upload') return setStage('landing');
     if (stage === 'scanning') return cancelScan();
+    /**
+     * Verify has no "back". The import is already committed by the time it
+     * renders, so Review is no longer a place that can be returned to — going
+     * there would offer to re-decide items that are already in the inventory.
+     * Back therefore means the same thing the skip button means: carry on
+     * unverified. Sending it forward rather than out of the flow keeps the
+     * import → collection bridge (§14) that Complete carries.
+     */
+    if (stage === 'verify') return setStage('complete');
     return router.back();
   }
 
@@ -466,17 +573,26 @@ export default function ImportScreen() {
               <Text style={styles.change}>Change</Text>
             </Pressable>
           ) : (
+            /*
+              Video is not an upload target and must not look like one. It has
+              no file dialog (§14 rung 4), so when it wore the same dashed drop
+              zone with the same ⇪ glyph, tapping it did nothing and read as a
+              broken upload. It keeps a distinct style, a glyph that is not an
+              upload arrow, and copy that says the recording is already
+              supplied — so there is nothing to press and nothing looks pressed.
+            */
             <Pressable
-              style={styles.dropZone}
+              style={kind === 'video' ? styles.dropStatic : styles.dropZone}
               onPress={kind === 'image' ? () => void chooseUpload() : undefined}
+              disabled={kind === 'video'}
             >
-              <Text style={styles.dropGlyph}>⇪</Text>
+              <Text style={styles.dropGlyph}>{kind === 'video' ? '▶' : '⇪'}</Text>
               <Text style={styles.body}>
                 {kind === 'video' ? 'inventory-scroll.mp4' : 'Choose a screenshot'}
               </Text>
               <Text style={styles.muted}>
                 {kind === 'video'
-                  ? 'Sampled at ~2 fps with a frame-difference filter'
+                  ? 'Prepared recording · no file needed — press Start scan'
                   : 'PNG or JPG, up to 8 MB · grid segmented into tiles'}
               </Text>
             </Pressable>
@@ -655,6 +771,49 @@ export default function ImportScreen() {
               </Text>
             ) : null}
           </View>
+
+          {/*
+            ── Wrong game ──────────────────────────────────────────────────
+            Placed directly under the counts, because it is the explanation for
+            the "not in our catalogue" line immediately above it. Read in the
+            other order it looks like two unrelated problems.
+
+            Only rendered when the readings actually matched another title's
+            catalogue (see `foreignTitleMatches` — exact name or two shared
+            significant tokens). A vaguer rule would offer to throw away a good
+            scan on a coincidence, which is worse than saying nothing.
+          */}
+          {wrongGame ? (
+            <View style={styles.wrongGame}>
+              <Text style={styles.wrongGameTitle}>
+                These look like {GAME_LABELS[wrongGame.title]} items
+              </Text>
+              <Text style={styles.body}>
+                {wrongGame.matches.length} of the {counts.unmatched} we couldn&apos;t place are in
+                the {GAME_LABELS[wrongGame.title]} catalogue — including{' '}
+                {wrongGame.matches
+                  .slice(0, 2)
+                  .map((m) => m.itemName)
+                  .join(' and ')}
+                . You picked {GAME_LABELS[title]}, and a scan only ever matches against the game you
+                chose.
+              </Text>
+              <Text style={styles.footnote}>
+                Switching re-runs the scan against {GAME_LABELS[wrongGame.title]}. Nothing has been
+                imported yet, so nothing is lost.
+              </Text>
+              <SecondaryButton
+                label={`Switch to ${GAME_LABELS[wrongGame.title]} and scan again`}
+                onPress={() => {
+                  setTitle(wrongGame.title);
+                  setResult(null);
+                  setResolutions([]);
+                  setReviewFilter('All');
+                  setStage('upload');
+                }}
+              />
+            </View>
+          ) : null}
 
           <FilterChips options={REVIEW_FILTERS} value={reviewFilter} onChange={setReviewFilter} />
 
@@ -863,6 +1022,102 @@ export default function ImportScreen() {
             {counts.confirmed}
           </Text>
           <SecondaryButton label="Back to review" onPress={() => setStage('review')} />
+        </View>
+      ) : null}
+
+      {/* ── Verify ─────────────────────────────────────────────────────────
+          Step 4 of 5. Everything here is an OFFER: the items are already in the
+          inventory, and skipping is a supported outcome rather than a failure
+          state. What it must not do is let someone skip without knowing what
+          they gave up — hence the consequences below, which are the four real
+          ones and not a generic "verify for the best experience".
+       */}
+      {stage === 'verify' ? (
+        <View style={styles.block}>
+          {linkResult ? (
+            <>
+              <Text style={styles.done}>✓</Text>
+              <Text style={styles.title}>
+                {linkResult.verified} {linkResult.verified === 1 ? 'item' : 'items'} verified
+              </Text>
+              <Text style={styles.body}>
+                {linkResult.verified > 0
+                  ? `Your ${GAME_LABELS[title]} account is connected. These items can go in a showroom, and they now count towards how other collectors match with you.`
+                  : 'Everything on this account was already verified, so nothing changed.'}
+              </Text>
+              <PrimaryButton label="Continue" onPress={() => setStage('complete')} />
+            </>
+          ) : (
+            <>
+              <Text style={styles.title}>
+                {importedCount > 0
+                  ? `${importedCount} ${importedCount === 1 ? 'item is' : 'items are'} unverified`
+                  : 'Verify your inventory'}
+              </Text>
+              <Text style={styles.body}>
+                A scan proves what an item looks like, not who owns it — so everything imported
+                lands unverified. Connecting your {GAME_LABELS[title]} account reads the inventory
+                back and confirms what is actually yours.
+              </Text>
+
+              {/* The four consequences of skipping. Each one is enforced in code. */}
+              <View style={styles.consequences}>
+                <Text style={styles.consequenceHead}>If you skip this</Text>
+                <Text style={styles.consequence}>
+                  ✗ Unverified items cannot be placed in a 3D showroom (§9.4)
+                </Text>
+                <Text style={styles.consequence}>
+                  ✗ They can only go in a normal 2D collection
+                </Text>
+                <Text style={styles.consequence}>
+                  ✗ Other collectors see them badged as unverified
+                </Text>
+                <Text style={styles.consequence}>
+                  ✗ Collections of unverified items rank below verified ones in other people&apos;s
+                  feeds
+                </Text>
+                <Text style={styles.footnote}>
+                  None of this is permanent — you can connect an account at any time from Profile,
+                  and everything you own is promoted at once.
+                </Text>
+              </View>
+
+              {linking ? (
+                <View style={styles.block}>
+                  <Text style={styles.muted}>Reading your {GAME_LABELS[title]} inventory…</Text>
+                  <View style={styles.track}>
+                    <View style={[styles.fill, { width: `${Math.round(linkProgress * 100)}%` }]} />
+                  </View>
+                </View>
+              ) : canLinkTitle ? (
+                <PrimaryButton
+                  label={`Connect ${GAME_LABELS[title]} account`}
+                  onPress={() => void verifyNow()}
+                />
+              ) : (
+                /* §14 rung 5 — MLBB is cut, so there is nothing to connect to.
+                   Saying so is better than a button that cannot work. */
+                <Text style={styles.warn}>
+                  {GAME_LABELS[title]} account linking is not available yet, so these items stay
+                  unverified for now.
+                </Text>
+              )}
+
+              <SecondaryButton
+                label={linking ? 'Verifying…' : 'Verify later'}
+                onPress={() => setStage('complete')}
+              />
+
+              {/* §12.1's honesty rule. The same words as the link-account screen,
+                  because it is the same mocked flow and a demo must not imply
+                  two different levels of realness for one mechanism. */}
+              <Text style={styles.footnote}>
+                This OAuth flow is mocked (§12.1). No publisher API is called and no credentials are
+                collected — none of the launch titles exposes a public cosmetic-inventory API, so a
+                real Verified tier is partnership-gated (§9.3).
+              </Text>
+            </>
+          )}
         </View>
       ) : null}
 
@@ -1592,6 +1847,63 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     borderWidth: 1,
     borderStyle: 'dashed',
+    borderColor: colors.border,
+    borderRadius: radius.card,
+    padding: spacing.xl,
+    backgroundColor: colors.surface,
+  },
+  /**
+   * The video source: solid border, not dashed. Dashed is this app's "drop a
+   * file here" affordance, and wearing it on a panel with no file dialog is
+   * what made the video source read as a broken upload.
+   */
+  /**
+   * The Verify step's "if you skip this" block.
+   *
+   * Bordered and set apart rather than a run of body text, because it is the
+   * one thing on the screen a user skipping the step still has to have read.
+   * Muted foreground, not red: these are consequences of a legitimate choice,
+   * not errors — the same reasoning that took the cross off the unverified
+   * badge in the inventory.
+   */
+  consequences: {
+    gap: spacing.xs,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  consequenceHead: { ...typography.cardTitle, color: colors.textPrimary },
+  consequence: { ...typography.meta, color: colors.textSecondary },
+
+  /** Link progress. Same two-part track as `link-account.tsx`. */
+  track: {
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  fill: { height: 6, borderRadius: radius.pill, backgroundColor: colors.accent },
+
+  /**
+   * The wrong-game callout. Warning colours rather than error: nothing has
+   * broken and nothing is lost — the user picked a different game than the one
+   * they uploaded, which is a correction, not a failure.
+   */
+  wrongGame: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    backgroundColor: colors.surface,
+  },
+  wrongGameTitle: { ...typography.cardTitle, color: colors.warning },
+  dropStatic: {
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.card,
     padding: spacing.xl,

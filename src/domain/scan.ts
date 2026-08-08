@@ -10,6 +10,8 @@
 
 import type {
   Confidence,
+  GameTitle,
+  Item,
   ScanCounts,
   ScanDetection,
   ScanOutcome,
@@ -206,6 +208,120 @@ export function isMatchIncluded(
 ): boolean {
   const resolution = resolutions.find((r) => r.detectionId === detectionId);
   return resolution === undefined || resolution.itemId !== null;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Wrong-game detection
+
+   The scan is already hard-scoped to the chosen title: the live path is handed
+   only that game's catalogue, and the prepared path is keyed by title. So a
+   Valorant skin in a CODM scan CANNOT be mis-matched to a CODM item — it is
+   structurally impossible, not a heuristic that might slip.
+
+   What it does instead is land in "Not in catalogue", which is correct and
+   completely unhelpful: the screen says we could not match it without saying
+   the one thing the user needs to hear, which is that they picked the wrong
+   game two screens ago.
+
+   This closes that gap, and it does so with a local catalogue lookup rather
+   than a model call. Every title's catalogue is already in memory, so an exact
+   name match answers "these are Valorant items" deterministically, offline and
+   instantly — a model would be slower, cost money, need network during a demo
+   that §12.1 says has none, and give a WORSE answer, because this is a lookup
+   against the real catalogue rather than a guess about one.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/** One title that the unread items appear to belong to instead. */
+export interface ForeignTitleMatch {
+  title: GameTitle;
+  /** The readings that matched an item in this title. */
+  matches: { reading: string; itemId: string; itemName: string }[];
+}
+
+/**
+ * Comparable form of a name: lowercase, punctuation to spaces, collapsed.
+ * "Elderflame Vandal" and "elderflame  vandal!" have to be the same string.
+ */
+function normalise(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Tokens worth comparing. Short fragments are dropped because they carry no
+ * signal and are what turn a strict match into a guess — "of", "the", and the
+ * stray one- and two-character noise OCR produces at tile edges.
+ */
+function significantTokens(name: string): string[] {
+  return normalise(name)
+    .split(' ')
+    .filter((token) => token.length >= 3);
+}
+
+/**
+ * Which other titles the unmatched readings look like they came from.
+ *
+ * Deliberately strict, and the strictness is the point. Telling someone "these
+ * are actually Valorant items, switch?" is a strong claim that moves them back
+ * two steps and re-runs the scan; a false positive there is far more expensive
+ * than staying quiet. So a reading counts only on an exact normalised name
+ * match, or on sharing at least two significant tokens with a catalogue name.
+ * One shared token would let every "… Vandal" match every other "… Vandal".
+ *
+ * `catalogue` is passed in rather than imported: this file is pure domain and
+ * the caller already has the items (CLAUDE.md — no I/O in `src/domain`).
+ *
+ * Returns at most one entry per title, ordered by how many readings matched,
+ * so the caller can name the strongest candidate without re-sorting.
+ */
+export function foreignTitleMatches(
+  readings: readonly string[],
+  catalogue: readonly Item[],
+  selected: GameTitle,
+): ForeignTitleMatch[] {
+  if (readings.length === 0) return [];
+
+  const byTitle = new Map<GameTitle, ForeignTitleMatch['matches']>();
+
+  for (const reading of readings) {
+    const readingNormal = normalise(reading);
+    if (readingNormal.length === 0) continue;
+    const readingTokens = new Set(significantTokens(reading));
+
+    for (const item of catalogue) {
+      if (item.title === selected) continue;
+
+      const itemNormal = normalise(item.name);
+      let hit = itemNormal === readingNormal;
+
+      if (!hit) {
+        let shared = 0;
+        for (const token of significantTokens(item.name)) {
+          if (readingTokens.has(token)) shared += 1;
+        }
+        hit = shared >= 2;
+      }
+
+      if (!hit) continue;
+
+      const existing = byTitle.get(item.title);
+      const match = { reading, itemId: item.id, itemName: item.name };
+      if (existing) {
+        // One entry per reading per title — the first catalogue hit wins, so a
+        // title is never credited twice for the same tile.
+        if (!existing.some((m) => m.reading === reading)) existing.push(match);
+      } else {
+        byTitle.set(item.title, [match]);
+      }
+      break;
+    }
+  }
+
+  return [...byTitle.entries()]
+    .map(([title, matches]) => ({ title, matches }))
+    .sort((a, b) => b.matches.length - a.matches.length);
 }
 
 /**
