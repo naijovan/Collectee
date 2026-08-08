@@ -212,6 +212,11 @@ export default function InventoryScreen() {
                      above sort on it and §9.4 makes it decide what can enter a
                      Showroom. Every card says which it is. */
                   trustLevel={entry.owned.trustLevel}
+                  /* Overlaid, like the collection and showroom grids. This was
+                     the last grid still printing its labels on a panel below
+                     the art, which made the same item look like two different
+                     objects depending on which screen you found it. */
+                  overlay
                   width={width < 600 ? '47%' : '30%'}
                 />
               ))}

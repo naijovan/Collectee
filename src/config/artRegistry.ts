@@ -57,8 +57,9 @@ export interface ArtEntry {
    *
    * The originals are authored at mixed aspects and drawn with `contain`, so a
    * 16:9 card showing a square render letterboxes it — correct, and the black
-   * bars people keep reporting. These are pre-cropped at the four aspects the
-   * app actually renders and draw with `cover`.
+   * bars people keep reporting. These are pre-framed at the four aspects the
+   * app actually renders: the full skin stays visible, and a softened backdrop
+   * from the same art fills any spare edge space.
    *
    * History worth keeping: Marcus stubbed this field on 8 Aug to unbreak main,
    * because `cards.tsx` read `displaySource.wide` while the registry half of

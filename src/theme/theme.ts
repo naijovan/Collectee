@@ -191,6 +191,33 @@ export const accentGradient = {
  * NOT for every accent-coloured word. Active step labels, the scan percentage
  * and the active tab are state indicators, not buttons, and they keep `accent`.
  */
+/**
+ * A colour sampled from `accentGradient` at `t` — 0 is the blue end, 1 the
+ * violet end. Clamped, so callers can pass a raw fraction.
+ *
+ * This exists so a run of separate views can read as ONE gradient. A progress
+ * rail is built from a view per segment, and giving each segment the same
+ * two-stop gradient makes it restart at every joint — the sweep reads as
+ * stripes. Sampling the ramp at each segment's own start and end fraction
+ * instead makes the seams line up exactly, and the rail looks continuous.
+ *
+ * Lives here because it returns colours, and hex belongs to the theme
+ * (CLAUDE.md). Callers pass positions, never channels.
+ */
+export function accentRampAt(t: number): string {
+  const clamped = Math.min(1, Math.max(0, t));
+  const from = accentGradient.from;
+  const to = accentGradient.to;
+  const channel = (offset: number) => {
+    const a = parseInt(from.slice(offset, offset + 2), 16);
+    const b = parseInt(to.slice(offset, offset + 2), 16);
+    return Math.round(a + (b - a) * clamped)
+      .toString(16)
+      .padStart(2, '0');
+  };
+  return `#${channel(1)}${channel(3)}${channel(5)}`;
+}
+
 export const accentLink = '#A855F7';
 
 /**
@@ -269,6 +296,28 @@ export const accentGlow = {
  * collection is a normal thing to have, and red would read as an error on a
  * state the user deliberately chose.
  */
+/**
+ * The colour a match percentage is printed in.
+ *
+ * One function so Explore and Home cannot drift: they showed the same score in
+ * different colours, which reads as two different scales rather than one number
+ * in two places.
+ *
+ * 65 / 40 are calibrated against the real spread, not picked from habit. The
+ * seeded scores run 89 down to 20, so an 80/60 split — the obvious guess —
+ * would have coloured nothing green and put most of the roster in the bottom
+ * tier. These thresholds put the near-twins in green, the genuine overlaps in
+ * amber, and the "you both own one common skin" tail in grey.
+ *
+ * Grey rather than red at the bottom: a low match is not a failure, it is a
+ * collector with different taste.
+ */
+export function matchTone(percent: number): string {
+  if (percent >= 65) return '#22C55E';
+  if (percent >= 40) return '#F5A524';
+  return '#6B7484';
+}
+
 export const visibilityColors = {
   public: '#22C55E',
   unlisted: '#F5A524',
@@ -373,6 +422,25 @@ export const gameAccents = {
      erased in the build and adds no dependency from the token file to the
      domain. */
 } as const satisfies Record<GameTitle, { base: string; secondary: string; soft: string }>;
+
+/**
+ * The accent for things that belong to no single game — a cross-game community,
+ * a room mixing three titles.
+ *
+ * Deliberately outside `gameAccents`: that map is keyed by `GameTitle` and
+ * adding a fourth key would break every exhaustive lookup over it. This is a
+ * sibling constant of the same shape, so a badge can take either.
+ *
+ * Magenta because it has to survive next to all three at once. CODM's amber,
+ * Valorant's teal and MLBB's light violet already occupy warm, cool and violet;
+ * a pink reads as distinct from every one of them on a dark card, where a
+ * fourth blue or a fourth orange would not.
+ */
+export const crossGameAccent = {
+  base: '#EC4899',
+  secondary: '#F9A8D4',
+  soft: 'rgba(236,72,153,0.14)',
+} as const;
 
 export type GameAccent = (typeof gameAccents)[keyof typeof gameAccents];
 
@@ -629,6 +697,27 @@ export const typography = {
     lineHeight: 28,
     fontFamily: fonts.display,
     letterSpacing: -0.4,
+    textShadowColor: 'rgba(0,0,0,0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  /**
+   * `overlayTitle` for cards too small to carry it at full size — an item tile
+   * is a third the width of a collection cover, and 23px there wraps a two-word
+   * skin name onto three lines.
+   *
+   * Same display face, tracking and shadow, so a grid of items and a grid of
+   * collections still read as the same family; only the size steps down.
+   *
+   * The weight is baked into `fonts.display` (SpaceGrotesk 700) — do NOT add a
+   * `fontWeight` on top. Android synthesises a second bold over an already-bold
+   * cut and the result smears at this size.
+   */
+  overlayTitleSmall: {
+    fontSize: 20,
+    lineHeight: 25,
+    fontFamily: fonts.display,
+    letterSpacing: -0.3,
     textShadowColor: 'rgba(0,0,0,0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,

@@ -52,7 +52,7 @@ import {
   socialService,
 } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, rarityColors, spacing, typography } from '@/theme/theme';
+import { colors, radius, rarityColors, spacing, typography, visibilityColors } from '@/theme/theme';
 import type { Collection, Comment, Item, Room, RoomTheme, User } from '@/types';
 
 export default function RoomScreen() {
@@ -299,9 +299,15 @@ export default function RoomScreen() {
 
       <View style={styles.statRow}>
         <Pressable style={styles.stat} onPress={() => setLiked((prev) => !prev)}>
-          {/* Optimistic only — there is no like endpoint until phase 2. */}
-          <Text style={[styles.statValue, liked && styles.liked]}>
-            ♥ {(room.likeCount + (liked ? 1 : 0)).toLocaleString()}
+          {/* Optimistic only — there is no like endpoint until phase 2.
+
+              Always red, so likes read as likes at a glance. Colour used to be
+              what marked the viewer's own like, which meant the count sat in
+              plain body text until you pressed it; the filled vs hollow heart
+              carries that state now, which is the more conventional signal
+              anyway. */}
+          <Text style={[styles.statValue, styles.liked]}>
+            {liked ? '♥' : '♡'} {(room.likeCount + (liked ? 1 : 0)).toLocaleString()}
           </Text>
           <Text style={styles.muted}>likes</Text>
         </Pressable>
@@ -310,7 +316,12 @@ export default function RoomScreen() {
           <Text style={styles.muted}>comments</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={styles.statValue}>{VISIBILITY_LABELS[room.visibility]}</Text>
+          {/* The same green/grey scale the collection cards print, so "Public"
+              means one thing across the app rather than being neutral here and
+              coloured there. */}
+          <Text style={[styles.statValue, { color: visibilityColors[room.visibility] }]}>
+            {VISIBILITY_LABELS[room.visibility]}
+          </Text>
           <Text style={styles.muted}>visibility</Text>
         </View>
       </View>

@@ -118,6 +118,8 @@ export function ItemArt({
   }, []);
   const art = artFor(seed);
   if (art !== null) {
+    const resolvedFit = fit ?? art.fit;
+    const useDisplaySource = art.displaySource !== undefined;
     /* Select by the rendered box, not by the window. A 180px phone card only
        needs the 600px texture, while a full-width hero on that same 3x phone
        needs the 1200px one. This also handles tablets, split windows and large
@@ -137,7 +139,7 @@ export function ItemArt({
       frame.height > 0 &&
       frame.width * density <= compactWidth &&
       frame.height * density <= 400;
-    const displaySource = art.displaySource
+    const displaySource = useDisplaySource
       ? frame.width === 0
         ? viewportWidth < 600
           ? compactSource
@@ -151,8 +153,9 @@ export function ItemArt({
     // does the clipping. Styling the Image directly does not typecheck —
     // callers pass ViewStyle, and ImageStyle has no `overflow: 'scroll'`.
     //
-    // The generated display asset is one continuous picture with no blurred
-    // duplicate panels. Originals still use the registry's safe fit.
+    // Card UI uses baked display renditions so the image fills its boundary
+    // without letterbox bars. 3D/depth paths do not use ItemArt and keep the
+    // original PNG through artRegistry directly.
     return (
       <View
         onLayout={onLayout}
@@ -160,7 +163,7 @@ export function ItemArt({
       >
         <ResolvedItemImage
           source={displaySource ?? art.source}
-          fit={displaySource ? 'cover' : (fit ?? art.fit)}
+          fit={displaySource ? 'cover' : resolvedFit}
           alt={art.alt}
         />
       </View>
@@ -260,12 +263,28 @@ export function RarityBadge({
  * is the one that fails that test.
  */
 export function GameBadge({ title }: { title: GameTitle }) {
-  const accent = gameAccents[title];
+  return <TagBadge label={GAME_SHORT_LABELS[title]} accent={gameAccents[title]} />;
+}
+
+/**
+ * The same chip, for a label that is not one of the three games — a community's
+ * leading tag, which may be 'CODM' but may equally be 'cross-game'.
+ *
+ * Split out rather than widening `GameBadge`'s prop to a string: `GameBadge`
+ * taking a `GameTitle` is what guarantees a game chip can never be given a
+ * colour that does not belong to that game. This takes the accent explicitly,
+ * so the caller owns the mapping and the two cannot be confused.
+ */
+export function TagBadge({
+  label,
+  accent,
+}: {
+  label: string;
+  accent: { base: string; secondary: string };
+}) {
   return (
     <View style={[styles.gameBadge, { borderColor: accent.base }]}>
-      <Text style={[styles.gameBadgeText, { color: accent.secondary }]}>
-        {GAME_SHORT_LABELS[title]}
-      </Text>
+      <Text style={[styles.gameBadgeText, { color: accent.secondary }]}>{label}</Text>
     </View>
   );
 }

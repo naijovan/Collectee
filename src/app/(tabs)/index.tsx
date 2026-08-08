@@ -125,9 +125,38 @@ function Hoverable({
   );
 }
 
+/**
+ * Horizontal crop offset per hero panel, as a fraction of the panel width.
+ *
+ * The art is drawn at 128% width inside a narrower window, so the margin
+ * chooses WHICH 78% of each piece you see. One shared value centred every crop,
+ * which is only right when every subject is centred in its own art — and these
+ * four are not: two are framed left of centre and two right, so a single offset
+ * pushed half of them off their own faces.
+ *
+ * More negative moves the art LEFT in its window (revealing more of the right
+ * side of the picture); less negative moves it right.
+ *
+ * Keyed by item id, not index, so reordering `home.heroMosaic` moves each
+ * crop with its artwork instead of silently reassigning them.
+ */
+const HERO_PANEL_OFFSETS: Record<string, `${number}%`> = {
+  /* Centred already — the whole subject is in frame. */
+  'mlbb-zodiac-aquarius': '-14%',
+  /* Subject sits left in its art; nudged right so she is not cropped at the shoulder. */
+  'mlbb-slipstream-pilot': '-4%',
+  /* Both of these are framed right of centre and were running off the panel. */
+  'mlbb-emberfall-warlord': '-24%',
+  'mlbb-shadow-protocol': '-24%',
+};
+
+/** For any panel not listed above — the old shared value, i.e. centred. */
+const HERO_PANEL_OFFSET_DEFAULT: `${number}%` = '-14%';
+
 export default function HomeScreen() {
   const router = useRouter();
   const { width: viewportWidth } = useWindowDimensions();
+  const isPhone = viewportWidth < 600;
   const { viewer, viewerId, inventory, unreadNotifications, loading } = useApp();
   const { openPanel } = useAssistantDock();
 
@@ -320,21 +349,24 @@ export default function HomeScreen() {
         3 — Hero banner
 
         Copy left, artwork filling the right and running under it. The art stays
-        as separate panels so each skin can contain-fit inside its own boundary
-        instead of being cropped into a decorative strip.
+        as separate sheared panels so the banner reads like the reference while
+        each crop still has enough bleed to reach its clipped boundary.
 
         ⚠️ No publisher logos. The reference for this layout carries a row of
         real game marks, and those are exactly the third-party assets §11 F4 and
         the art rules forbid — everything rendered here is our own baked art.
       */}
-      <View style={[styles.hero, viewportWidth < 600 && styles.heroPhone]}>
+      <View style={[styles.hero, isPhone && styles.heroPhone]}>
         <View style={styles.heroArtLayer} pointerEvents="none">
           {ART_PLACEMENTS['home.heroMosaic'].map((itemId, index) => (
             <View
               key={itemId}
               style={[
                 styles.heroPanel,
-                index === 0 ? null : styles.heroPanelDivider,
+                {
+                  marginLeft: index === 0 ? 0 : -12,
+                  transform: [{ skewX: '-9deg' }],
+                },
               ]}
             >
               <ItemArt
@@ -342,7 +374,11 @@ export default function HomeScreen() {
                 tier={
                   inventory.find((entry) => entry.item.id === itemId)?.item.rarityTier ?? 'mythic'
                 }
-                style={styles.heroPanelArt}
+                style={[
+                  styles.heroPanelArt,
+                  { marginLeft: HERO_PANEL_OFFSETS[itemId] ?? HERO_PANEL_OFFSET_DEFAULT },
+                  { transform: [{ skewX: '9deg' }] },
+                ]}
               />
             </View>
           ))}
@@ -375,10 +411,10 @@ export default function HomeScreen() {
           pointerEvents="none"
         />
 
-        <View style={styles.heroCopy}>
+        <View style={[styles.heroCopy, isPhone && styles.heroCopyPhone]}>
           <Text style={styles.eyebrow}>✦ Collections made for you</Text>
           <Text style={styles.heroHeadline}>Epic skins.{'\n'}Endless legends.</Text>
-          <View style={styles.heroRow}>
+          <View style={[styles.heroRow, isPhone && styles.heroRowPhone]}>
             <PrimaryButton label="Explore" onPress={() => router.navigate('/explore')} />
             {/*
               The titles Collectee actually supports, as our own wordmarks.
@@ -391,9 +427,9 @@ export default function HomeScreen() {
               supported without borrowing anyone's brand — and they stay honest,
               because these three are the games the catalogue actually has.
             */}
-            <View style={styles.heroGames}>
+            <View style={[styles.heroGames, isPhone && styles.heroGamesPhone]}>
               {GAME_TITLES.map((title, index) => (
-                <View key={title} style={styles.heroGames}>
+                <View key={title} style={[styles.heroGameItem, isPhone && styles.heroGameItemPhone]}>
                   {/* A rule between titles, not just a gap. Three long game
                       names set in the same weight ran together as one string —
                       "MOBILE" reads as the end of VALORANT's name before the
@@ -416,7 +452,13 @@ export default function HomeScreen() {
                     rather than worked around at this one call site — the same
                     collision was showing on every game badge in the app.
                   */}
-                  <Text style={[styles.heroGame, { color: gameAccents[title].secondary }]}>
+                  <Text
+                    style={[
+                      styles.heroGame,
+                      isPhone && styles.heroGamePhone,
+                      { color: gameAccents[title].secondary },
+                    ]}
+                  >
                     {GAME_LABELS[title]}
                   </Text>
                 </View>
@@ -717,21 +759,21 @@ const styles = StyleSheet.create({
   /* A fixed height, because the art is absolutely positioned behind the copy
      and can no longer size the banner itself. Tall enough for a portrait crop
      to read as a portrait. */
-  heroPhone: { height: 300 },
+  heroPhone: { height: 320 },
 
-  /* Edge to edge. The art fills the entire banner and the gradient above
-     dissolves it under the copy — each panel contain-fits the whole PNG. */
+  /* Overscanned in every direction so the angled panels still fill the rounded
+     banner after clipping, including wide monitors and narrow phone widths. */
   heroArtLayer: {
     position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
+    top: -14,
+    bottom: -14,
+    left: -34,
+    right: -34,
     flexDirection: 'row',
   },
   heroPanel: { flex: 1, overflow: 'hidden' },
-  heroPanelDivider: { marginLeft: 1 },
-  heroPanelArt: { width: '100%', height: '100%', borderRadius: 0 },
+  /* `marginLeft` is set per panel — see `HERO_PANEL_OFFSETS`. */
+  heroPanelArt: { width: '128%', height: '100%', borderRadius: 0 },
 
   heroFade: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
   heroFadeFoot: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '42%' },
@@ -755,6 +797,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.xs,
   },
+  heroCopyPhone: {
+    padding: spacing.md,
+    paddingBottom: spacing.lg,
+    gap: 2,
+  },
   /* Explore and the supported titles share the bottom line, the way the
      reference puts its logo row level with the button. */
   heroRow: {
@@ -764,7 +811,22 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     flexWrap: 'wrap',
   },
-  heroGames: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap' },
+  heroRowPhone: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  heroGames: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flexWrap: 'wrap',
+    flexShrink: 1,
+  },
+  heroGamesPhone: { alignSelf: 'stretch', gap: spacing.sm },
+  heroGameItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  heroGameItemPhone: { gap: spacing.xs },
   heroGameRule: { ...typography.meta, color: colors.textOnAccent, opacity: 0.4 },
   heroGame: {
     ...typography.meta,
@@ -773,6 +835,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     opacity: 0.85,
   },
+  heroGamePhone: { fontSize: 11, lineHeight: 15, letterSpacing: 0.8 },
   /* Not `accent`. The accent blue is tuned to sit on `background`, and on this
      banner it lands over dark navy and violet artwork where it has almost no
      separation from what is behind it — the one line on the hero that was hard

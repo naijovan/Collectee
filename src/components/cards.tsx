@@ -22,14 +22,16 @@ import { FEATURES } from '@/config/features';
 import { newsThumbFor } from '@/config/newsThumbs';
 import { VISIBILITY_LABELS } from '@/domain/collections';
 import { rarityLabelFor } from '@/domain/rarity';
-import { GAME_LABELS, GAME_SHORT_LABELS } from '@/types';
+import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
 import type { Article, Collection, Community, Item, TrustLevel, User } from '@/types';
 
 import { useHoverLift } from './primitives';
 import {
   colors,
   fonts,
+  crossGameAccent,
   gameAccents,
+  matchTone,
   interaction,
   radius,
   rarityColors,
@@ -41,7 +43,7 @@ import {
 } from '@/theme/theme';
 
 import { CollectionCoverMosaic } from './CollectionCoverMosaic';
-import { Avatar, GameBadge, ItemArt, RarityBadge } from './primitives';
+import { Avatar, GameBadge, ItemArt, RarityBadge, TagBadge } from './primitives';
 
 /** Fixtures use absolute dates so nothing drifts at demo time (§12.3). */
 export function timeAgo(iso: string, now: number = Date.now()): string {
@@ -136,12 +138,8 @@ export function ItemCard({
           seed={item.id}
           tier={item.rarityTier}
           renderUrl={item.renderUrl}
-          /* `cover` on the overlay variant so the subject fills the tile.
-             The registry's default is `contain`, which is right for a small
-             grid thumbnail — nothing is ever cut — but on a 168x200 card it
-             letterboxed the character portraits and left them floating to one
-             side inside their own box. */
-          fit={overlay ? 'cover' : undefined}
+          /* ItemArt picks the card-safe filled rendition when one exists, so
+             the tile reaches every edge without falling back to black bars. */
           style={artHeight === undefined ? styles.itemArt : { height: artHeight }}
         />
         {/* Compact — the full native label ("Legendary", "Epic Skin", …) does
@@ -442,6 +440,34 @@ export function CommunityArt({
  * list needs one, the "your communities" list does not, and the detail screen
  * has its own.
  */
+/**
+ * A community's leading tag, resolved to the badge the rest of the app draws
+ * for that game.
+ *
+ * The tags are free text in the fixtures — 'CODM', 'Valorant', 'MLBB',
+ * 'cross-game' — so the match is case-insensitive against `GameTitle` and
+ * anything unrecognised falls through to the cross-game accent rather than
+ * disappearing. That fallback is deliberate: a tag we do not have a colour for
+ * is still a tag worth printing.
+ *
+ * Titles print through `GAME_SHORT_LABELS`, so a community tagged 'Valorant'
+ * shows the same "VALORANT" as every collection and news card. Everything else
+ * is title-cased, which is what turns 'cross-game' into 'Cross-Game'.
+ */
+function communityTagFor(tag: string | undefined) {
+  if (!tag) return null;
+
+  const title = GAME_TITLES.find((candidate) => candidate === tag.toLowerCase());
+  if (title) return { label: GAME_SHORT_LABELS[title], accent: gameAccents[title] };
+
+  return { label: titleCase(tag), accent: crossGameAccent };
+}
+
+/** 'cross-game' → 'Cross-Game'. Hyphens and spaces both start a new word. */
+function titleCase(value: string): string {
+  return value.replace(/(^|[\s-])(\p{Ll})/gu, (_, lead: string, letter: string) => lead + letter.toUpperCase());
+}
+
 export function CommunityCard({
   community,
   memberCount,
@@ -460,6 +486,7 @@ export function CommunityCard({
   action?: React.ReactNode;
 }) {
   const [hovered, setHovered] = useState(false);
+  const tag = communityTagFor(community.tags[0]);
 
   /**
    * The card and its action are SIBLINGS, not parent and child.
@@ -490,31 +517,52 @@ export function CommunityCard({
       ]}
     >
       <View>
-        <CommunityArt communityId={community.id} name={community.name} />
+        <CommunityArt
+          communityId={community.id}
+          name={community.name}
+          style={styles.communityArtTall}
+        />
         <LinearGradient
           colors={[scrim.medium, scrim.clear]}
           style={styles.coverScrim}
           pointerEvents="none"
         />
-        {community.tags[0] ? (
+        {tag ? (
           <View style={styles.badgeOverlay}>
-            <View style={styles.communityTag}>
-              <Text style={styles.communityTagText}>{community.tags[0]}</Text>
-            </View>
+            <TagBadge label={tag.label} accent={tag.accent} />
           </View>
         ) : null}
-      </View>
 
-      <View style={styles.collectionBody}>
-        <Text style={styles.collectionName} numberOfLines={2}>
-          {community.name}
-        </Text>
-        <Text style={styles.ownerName}>{memberCount.toLocaleString()} members</Text>
-        {reason ? (
-          <Text style={styles.communityReason} numberOfLines={2}>
-            {reason}
-          </Text>
-        ) : null}
+        {/* ── Overlaid, exactly as on a collection card ────────────────────
+            This was a body panel under a short 148px cover, so a community
+            read as a lesser kind of tile than the collections beside it. The
+            art now gets the card's whole height and the text sits on it.
+
+            The reason came along: these strings are one short clause ("You
+            own verified CODM items"), and the scrim reaches `heavy` at the
+            bottom edge, so it stays legible over any artwork. */}
+        <LinearGradient
+          colors={[scrim.clear, scrim.medium, scrim.heavy]}
+          locations={[0, 0.45, 1]}
+          style={styles.metaScrim}
+          pointerEvents="none"
+        />
+
+        <View style={styles.metaOverlay} pointerEvents="none">
+          <View style={styles.metaLeft}>
+            <Text style={styles.metaName} numberOfLines={2}>
+              {community.name}
+            </Text>
+            {reason ? (
+              <Text style={styles.metaReason} numberOfLines={2}>
+                {reason}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.metaCounts}>
+            <Text style={styles.metaItems}>{memberCount.toLocaleString()} members</Text>
+          </View>
+        </View>
       </View>
     </Pressable>
     {/* Over the image, opposite the tag. Outside the Pressable above, so it is
@@ -540,7 +588,9 @@ export function CollectorCard({
   percent?: number;
   reason?: string;
   itemCount?: number;
-  width?: number;
+  /** `DimensionValue`, like every other card here, so a grid cell can pass
+      '100%' and let the row decide the width. */
+  width?: DimensionValue;
   onPress?: () => void;
 }) {
   const hover = useHoverLift();
@@ -570,8 +620,11 @@ export function CollectorCard({
         <Text style={styles.collectorName} numberOfLines={1}>
           {user.displayName}
         </Text>
+        {/* Tier-coloured, from the shared `matchTone` — the same scale Explore
+            prints. It used to be flat `accent` here, so one score looked like
+            two different measurements depending on which screen showed it. */}
         {percent !== undefined ? (
-          <Text style={styles.matchPercent}>{percent}% match</Text>
+          <Text style={[styles.matchPercent, { color: matchTone(percent) }]}>{percent}% match</Text>
         ) : null}
       </View>
       {reason ? (
@@ -642,9 +695,6 @@ function ArticleThumb({
         : styles.articleThumb;
 
   if (art) {
-    /* Hero thumbnails can span a phone or a desktop card and therefore use the
-       full rendition. The 88px and 56px thumbnails remain sharp at high pixel
-       density with the compact rendition, regardless of viewport width. */
     const source = art.displaySource
       ? variant === 'hero'
         ? art.displaySource.wide
@@ -655,8 +705,8 @@ function ArticleThumb({
       <View style={box}>
         <Image
           source={source}
-          /* Generated display art carries crop-safe scenery around the sharp
-             collectible. Legacy originals keep their inset, safe-fit rule. */
+          /* Use the baked card-safe rendition where available so news images
+             fill their boxes edge to edge instead of showing letterbox bars. */
           style={fit === 'contain' ? styles.articleThumbInset : styles.articleThumbFill}
           resizeMode={fit}
           accessible
@@ -939,7 +989,10 @@ const styles = StyleSheet.create({
      so the same fraction covered noticeably more of the subject. */
   itemScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '52%' },
   itemOverlayBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.sm, gap: 2 },
-  itemOverlayName: { ...typography.cardTitle, color: colors.textOnAccent },
+  /* The display face, not the body one — this is a cover title like the
+     collection and showroom cards carry, and it was the only overlaid heading
+     in the app still set in body semibold at 15px. */
+  itemOverlayName: { ...typography.overlayTitleSmall, color: colors.textOnAccent },
   /* Tier-coloured, matching every other rarity treatment in the app (§12.2) —
      a legendary should not read the same weight as a common here either. */
   itemOverlayMeta: { ...typography.meta },
@@ -1006,14 +1059,6 @@ const styles = StyleSheet.create({
   communityArtFill: { width: '100%', height: '100%' },
   communityStripe: { position: 'absolute', width: '150%', height: 26 },
   communityGlow: { position: 'absolute', width: 90, height: 90, borderRadius: 45 },
-  communityTag: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: radius.pill,
-    backgroundColor: scrim.heavy,
-  },
-  communityTagText: { ...typography.meta, color: colors.textPrimary },
-  communityReason: { ...typography.meta, color: colors.textTertiary },
   /* `relative` so the absolutely-positioned action anchors to the card and not
      to whatever scroll container happens to be above it. */
   communityWrap: { position: 'relative' },
@@ -1059,6 +1104,12 @@ const styles = StyleSheet.create({
   // Bigger and heavier than cardTitle: on a browse grid the collection name is
   // the thing being chosen between, so it should win the card outright.
   metaLeft: { flex: 1, gap: 2 },
+  /* Matches `collectionArt`'s 210 so a community and a collection are the same
+     shape when they sit in the same grid. */
+  communityArtTall: { height: 210 },
+  /* §11 F5 — the reason is the feature. On the scrim it needs the light colour
+     the rest of the overlay uses, not the tertiary grey it had on a surface. */
+  metaReason: { ...typography.meta, color: colors.textOnAccent, opacity: 0.8 },
   /* The shared overlay treatment — bigger, tighter, and shadowed so it lifts
      off the artwork instead of sinking into it. See `typography.overlayTitle`. */
   metaName: { ...typography.overlayTitle, color: colors.textOnAccent },
@@ -1071,20 +1122,8 @@ const styles = StyleSheet.create({
   metaLike: { ...typography.meta, color: colors.danger },
   metaItems: { ...typography.meta, color: colors.textOnAccent, opacity: 0.75 },
 
-  /* Still used by CommunityCard, which keeps a body panel: it carries a reason
-     line that would not survive being overlaid on artwork. Named for the
-     collection card only because that is where they started. */
-  collectionBody: { padding: spacing.md, gap: spacing.sm },
-  collectionName: {
-    ...typography.sectionHeader,
-    fontSize: 21,
-    lineHeight: 27,
-    fontFamily: fonts.display,
-    color: colors.textPrimary,
-  },
 
   ownerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  ownerName: { ...typography.meta, color: colors.textSecondary, flexShrink: 1 },
 
   collectorCard: {
     backgroundColor: colors.surface,
@@ -1102,7 +1141,6 @@ const styles = StyleSheet.create({
   matchPercent: {
     ...typography.meta,
     ...typography.numeric,
-    color: colors.accent,
     fontFamily: fonts.bodySemiBold,
   },
   collectorReason: { ...typography.meta, color: colors.textSecondary },

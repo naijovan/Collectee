@@ -2,7 +2,7 @@
  * The 14 shared components from PRD §13.3, in one import surface.
  *
  * `ItemCard` · `CollectionCard` · `CollectorCard` · `ArticleCard` ·
- * `RarityBadge` · `GameBadge` · `SectionHeader` · `FilterChips` ·
+ * `RarityBadge` · `GameBadge` · `TagBadge` · `SectionHeader` · `FilterChips` ·
  * `StepperHeader` · `PrimaryButton` / `SecondaryButton` · `Avatar` ·
  * `EmptyState` · `LoadingState` · `TabBar`
  *
@@ -31,6 +31,7 @@ export {
   FadeInView,
   FilterChips,
   GameBadge,
+  TagBadge,
   ItemArt,
   LoadingState,
   AccentFill,

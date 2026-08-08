@@ -8,13 +8,13 @@
  * so `reason` is rendered on every card here, not behind a tap.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import {
   ASSISTANT_CLEARANCE,
-  Avatar,
   CollectorCard,
   CommunityCard,
   EmptyState,
@@ -97,15 +97,50 @@ function HeaderAction({
  * Deliberately not `accent`. Blue is this app's "tappable" colour, and a
  * number wearing it looked like a button that did nothing.
  */
-function MatchBadge({ percent }: { percent: number }) {
-  const tone =
-    percent >= 65 ? colors.success : percent >= 40 ? colors.warning : colors.textTertiary;
-  return (
-    <View style={[styles.matchBadge, { borderColor: tone }]}>
-      <Text style={[styles.matchValue, { color: tone }]}>{percent}%</Text>
-      <Text style={styles.matchLabel}>match</Text>
-    </View>
+/**
+ * Narrowest a collector card may get before the grid drops a column.
+ *
+ * 200 is set by the content, not by taste: the card centres an 84px avatar over
+ * a display name, and below this the longer handles in the seeded roster start
+ * ellipsing on the first row rather than the last.
+ */
+const COLLECTOR_MIN_WIDTH = 200;
+
+/** Matches `communityCell`'s `minWidth`. */
+const COMMUNITY_MIN_WIDTH = 220;
+
+/**
+ * Invisible cells to finish a wrapped grid's last row.
+ *
+ * `flexGrow` on the cells is what pulls the cards out to a flush right edge —
+ * without it the grid leaves a ragged gap down the right of the page. The cost
+ * is that a short final row stretches to fill the width, so a lone card ends up
+ * twice the size of the ones above it. Padding the row with empty cells keeps
+ * every card the same width and left-aligned.
+ *
+ * The column count is MEASURED rather than derived from the window: these grids
+ * sit inside the page's padding, so window width over-counts columns on a wide
+ * monitor and would pad the wrong number of cells.
+ */
+function useGridFillers(count: number, minWidth: number) {
+  const [columns, setColumns] = useState(1);
+
+  const onLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const next = Math.max(1, Math.floor(event.nativeEvent.layout.width / minWidth));
+      setColumns((current) => (current === next ? current : next));
+    },
+    [minWidth],
   );
+
+  /* None at one column, where there is no slack to absorb. */
+  const fillers = useMemo(() => {
+    const remainder = count % columns;
+    const missing = remainder === 0 || columns === 1 ? 0 : columns - remainder;
+    return Array.from({ length: missing }, (_, index) => `filler-${index}`);
+  }, [count, columns]);
+
+  return { onLayout, fillers };
 }
 
 export default function ExploreScreen() {
@@ -126,6 +161,10 @@ export default function ExploreScreen() {
   const [joined, setJoined] = useState<ReadonlySet<string>>(new Set());
   const [matchState, setMatchState] = useState<ViewerMatchState>('ready');
   const [busy, setBusy] = useState(true);
+
+  const collectorGrid = useGridFillers(collectors.length, COLLECTOR_MIN_WIDTH);
+  const mineGrid = useGridFillers(mine.length, COMMUNITY_MIN_WIDTH);
+  const forYouGrid = useGridFillers(communities.length, COMMUNITY_MIN_WIDTH);
 
   const load = useCallback(async () => {
     const [people, groups, all, state] = await Promise.all([
@@ -241,35 +280,33 @@ export default function ExploreScreen() {
               No collectors share a verified item with you yet.
             </Text>
           ) : null}
-          {collectors.map((entry) => (
-            <Pressable
-              key={entry.user.id}
-              onPress={() =>
-                router.push({ pathname: '/collector/[id]', params: { id: entry.user.id } })
-              }
-              style={styles.row}
-            >
-              <Avatar
-                name={entry.user.displayName}
-                avatarId={entry.user.avatar}
-                verified={entry.user.isAccountVerified}
-                size={44}
-              />
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
-                  {entry.user.displayName}
-                </Text>
-                {/* §11 F5 — the reason is the feature, not decoration. */}
-                <Text style={styles.reason}>{entry.reason}</Text>
-                <Text style={styles.muted}>@{entry.user.handle}</Text>
+          {/* The same CollectorCard Home shows, in a grid rather than a rail.
+              These were full-width rows, which made a person read as a line
+              item in a table — and made the identical data look like two
+              different features on two screens. */}
+          <View style={styles.collectorGrid} onLayout={collectorGrid.onLayout}>
+            {collectors.map((entry) => (
+              <View key={entry.user.id} style={styles.collectorCell}>
+                <CollectorCard
+                  user={entry.user}
+                  percent={entry.percent}
+                  /* §11 F5 — the reason is the feature, not decoration. */
+                  reason={entry.reason}
+                  width="100%"
+                  onPress={() =>
+                    router.push({ pathname: '/collector/[id]', params: { id: entry.user.id } })
+                  }
+                />
               </View>
-
-              {/* A sibling of the avatar and body rather than a line inside the
-                  body, so the row's `alignItems: center` centres it against the
-                  whole card instead of pinning it to the first line of text. */}
-              <MatchBadge percent={entry.percent} />
-            </Pressable>
-          ))}
+            ))}
+            {/* Invisible cells finishing the last row. `flexGrow` is what pulls
+                the cards out to a flush right edge, but it also stretches a
+                short final row across the full width — so the leftovers get
+                filled with nothing rather than with slack. */}
+            {collectorGrid.fillers.map((key) => (
+              <View key={key} style={styles.collectorCell} pointerEvents="none" />
+            ))}
+          </View>
         </View>
       ) : null}
 
@@ -278,7 +315,7 @@ export default function ExploreScreen() {
           <SectionHeader title="Your Communities" />
           {/* Two across, like the collection grid — communities and collections
               are both browsable tiles and should not be two tiers of content. */}
-          <View style={styles.communityGrid}>
+          <View style={styles.communityGrid} onLayout={mineGrid.onLayout}>
             {mine.map((community) => (
               <View key={community.id} style={styles.communityCell}>
                 <CommunityCard
@@ -291,6 +328,9 @@ export default function ExploreScreen() {
                 />
               </View>
             ))}
+            {mineGrid.fillers.map((key) => (
+              <View key={key} style={styles.communityCell} pointerEvents="none" />
+            ))}
           </View>
         </View>
       ) : null}
@@ -298,7 +338,7 @@ export default function ExploreScreen() {
       {!busy && tab === 'Communities' ? (
         <View style={styles.list}>
           <SectionHeader title="Communities for You" />
-          <View style={styles.communityGrid}>
+          <View style={styles.communityGrid} onLayout={forYouGrid.onLayout}>
           {communities.map(({ community, reason }) => {
             const isMember = joined.has(community.id);
             return (
@@ -333,6 +373,9 @@ export default function ExploreScreen() {
               </View>
             );
           })}
+          {forYouGrid.fillers.map((key) => (
+            <View key={key} style={styles.communityCell} pointerEvents="none" />
+          ))}
           </View>
           {communities.length === 0 ? (
             <Text style={styles.muted}>
@@ -385,32 +428,10 @@ const styles = StyleSheet.create({
      of the same weight, not a denser list beneath them. */
   communityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   communityCell: { width: '48%', flexGrow: 1, minWidth: 220 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-  },
-  rowBody: { flex: 1, gap: 2 },
-  rowTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  rowTitle: { ...typography.cardTitle, color: colors.textPrimary, flexShrink: 1 },
-  matchBadge: {
-    minWidth: 58,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    backgroundColor: colors.surfaceSunken,
-  },
-  matchValue: { ...typography.cardTitle, fontSize: 16, lineHeight: 20 },
-  matchLabel: { ...typography.meta, fontSize: 10, lineHeight: 13, color: colors.textTertiary },
-  reason: { ...typography.meta, color: colors.textSecondary },
+  /* Four across on a desktop, two on a phone — `COLLECTOR_MIN_WIDTH` decides,
+     and the same constant drives the filler count so the two never disagree. */
+  collectorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  collectorCell: { flexGrow: 1, flexBasis: '23%', minWidth: COLLECTOR_MIN_WIDTH },
   muted: { ...typography.meta, color: colors.textTertiary },
   chevron: { fontSize: 22, color: colors.textTertiary },
   join: {

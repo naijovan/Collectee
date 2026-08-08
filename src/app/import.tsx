@@ -81,7 +81,17 @@ import {
 } from '@/services';
 import type { PickedImage } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, gameAccents, radius, scrim, spacing, typography, accentLink } from '@/theme/theme';
+import {
+  colors,
+  gameAccents,
+  radius,
+  scrim,
+  spacing,
+  typography,
+  accentGlow,
+  accentLink,
+  accentRampAt,
+} from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { GameTitle, Item, ScanDetection, ScanResolution, ScanResult } from '@/types';
 
@@ -1163,9 +1173,17 @@ export default function ImportScreen() {
                           : 'Matched from the picture rather than a label'}
                       </Text>
                     </View>
-                    <Text style={confirmed ? styles.create : styles.chevron}>
-                      {confirmed ? '✓' : '+'}
-                    </Text>
+                    {/* The same labelled chip the block above uses. This one
+                        kept the bare "+" — two sibling cards asking for the
+                        same decision, one of them wearing an icon that reads
+                        as "add another". A View, not a Pressable: the whole
+                        row is the target, and nesting a second control inside
+                        it would be a button inside a button. */}
+                    <View style={[styles.confirmChip, confirmed && styles.confirmChipOn]}>
+                      <Text style={[styles.confirmChipText, confirmed && styles.confirmChipTextOn]}>
+                        {confirmed ? '✓ Added' : 'Confirm'}
+                      </Text>
+                    </View>
                   </Pressable>
                 );
               })}
@@ -1721,31 +1739,84 @@ function SuggestionCard({
  * else's name. J2 carries the same component for the same reason; when Jovan
  * takes the numbered style into `StepperHeader`, both callers collapse into it.
  */
+/**
+ * The step rail across the top of the Import flow.
+ *
+ * ── The rail is 2N half-segments, not N ───────────────────────────────────
+ * Each column draws a connector, its circle, then another connector, so a
+ * five-step rail is ten halves. Numbering them that way is what lets the
+ * gradient below line up: half `k` spans `k/2N` to `(k+1)/2N`, and circle `i`
+ * sits exactly on the boundary at `(2i+1)/2N`.
+ *
+ * ── Why each half samples the ramp instead of drawing its own gradient ────
+ * Giving every segment the same blue→violet gradient restarts the sweep at
+ * every joint and the rail reads as stripes. Each half instead takes the two
+ * ramp colours at its own ends, so neighbouring segments meet on an identical
+ * colour and the whole rail reads as one continuous sweep. See `accentRampAt`.
+ */
 function FlowStepper({ steps, current }: { steps: readonly string[]; current: number }) {
+  const slots = steps.length * 2;
+  const at = (slot: number) => accentRampAt(slot / slots);
+
   return (
     <View style={styles.stepperRow}>
       {steps.map((label, index) => {
         const done = index < current;
         const active = index === current;
+
+        /*
+         * The connector arriving at this circle is filled once the step has
+         * been REACHED, not once it has been completed — it used to test
+         * `done`, which is false for the step you are on, so the fill always
+         * stopped one segment short of where you actually were.
+         */
+        const arrivesOn = index > 0 && index <= current;
+        const leavesOn = index < steps.length - 1 && index < current;
+
         return (
           <View key={label} style={styles.stepCol}>
             <View style={styles.stepLine}>
-              <View style={[styles.connector, index > 0 && done && styles.connectorOn]} />
+              {arrivesOn ? (
+                <LinearGradient
+                  colors={[at(2 * index), at(2 * index + 1)]}
+                  start={RAIL_START}
+                  end={RAIL_END}
+                  style={styles.connector}
+                />
+              ) : (
+                <View style={styles.connector} />
+              )}
+
               <View
-                style={[styles.circle, active && styles.circleActive, done && styles.circleDone]}
+                style={[
+                  styles.circle,
+                  (active || done) && {
+                    backgroundColor: at(2 * index + 1),
+                    borderColor: at(2 * index + 1),
+                  },
+                  active && styles.circleActive,
+                ]}
               >
                 <Text style={[styles.circleText, (active || done) && styles.circleTextOn]}>
                   {done ? '✓' : index + 1}
                 </Text>
               </View>
-              <View
-                style={[
-                  styles.connector,
-                  index < steps.length - 1 && index < current && styles.connectorOn,
-                ]}
-              />
+
+              {leavesOn ? (
+                <LinearGradient
+                  colors={[at(2 * index + 1), at(2 * index + 2)]}
+                  start={RAIL_START}
+                  end={RAIL_END}
+                  style={styles.connector}
+                />
+              ) : (
+                <View style={styles.connector} />
+              )}
             </View>
-            <Text style={[styles.stepLabel, active && styles.stepLabelActive]} numberOfLines={1}>
+            <Text
+              style={[styles.stepLabel, active && { color: at(2 * index + 1) }]}
+              numberOfLines={1}
+            >
               {label}
             </Text>
           </View>
@@ -1754,6 +1825,11 @@ function FlowStepper({ steps, current }: { steps: readonly string[]; current: nu
     </View>
   );
 }
+
+/* Horizontal, centred on the 2px rail — the default is a diagonal, which on a
+   segment this thin shows as a colour break rather than a sweep. */
+const RAIL_START = { x: 0, y: 0.5 };
+const RAIL_END = { x: 1, y: 0.5 };
 
 /* ────────────────────────────────────────────────────────────────────────────
  * The Scan frame's hero: inventory screenshots floating in depth, with a thin
@@ -2327,7 +2403,7 @@ const styles = StyleSheet.create({
   stepCol: { flex: 1, alignItems: 'center', gap: spacing.xs },
   stepLine: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch' },
   connector: { flex: 1, height: 2, backgroundColor: colors.border },
-  connectorOn: { backgroundColor: colors.accent },
+
   circle: {
     width: 26,
     height: 26,
@@ -2338,12 +2414,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  circleActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  circleDone: { backgroundColor: colors.accentMuted, borderColor: colors.accent },
+  /* Fill comes from the ramp inline; this only marks the step you are ON, and
+     the glow is what does that — a colour change alone was too quiet next to
+     four other filled circles. */
+  circleActive: { ...accentGlow },
   circleText: { ...typography.meta, color: colors.textSecondary },
   circleTextOn: { color: colors.textOnAccent },
   stepLabel: { ...typography.meta, color: colors.textTertiary },
-  stepLabelActive: { color: colors.accent },
+
 
   title: { ...typography.screenTitle, color: colors.textPrimary },
   label: { ...typography.sectionHeader, color: colors.textPrimary, marginTop: spacing.sm },
@@ -2868,7 +2946,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
   },
-  create: { ...typography.cardTitle, color: colors.accent },
 
   suggested: {
     flexDirection: 'row',

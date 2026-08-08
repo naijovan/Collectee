@@ -106,12 +106,77 @@ export const COMMUNITIES = [
     memberIds: ['user-arya', 'user-jovan'],
     memberCount: 1487,
   },
+
+  /*
+   * ── Added 8 Aug, to fill out both Explore sections ──────────────────────
+   * The first two carry `user-jovan`, so they land in "Your Communities"; the
+   * last three deliberately do not, so they have somewhere to be recommended
+   * FROM. `getRecommendedCommunities` filters on live membership, so a join
+   * during the demo moves a card from the second list to the first.
+   *
+   * The leading tag is what the card prints, and `getRecommendedCommunities`
+   * matches it against the titles the viewer owns verified items in — so a tag
+   * of 'MLBB' is load-bearing, not decoration, and the spread across the three
+   * games is what makes the recommendation reasons differ from each other.
+   *
+   * No art yet: `communityArtFor` returns null for these ids and the card draws
+   * its deterministic tinted block instead, which is exactly what that fallback
+   * is for. Dropping five 1200x800 files into assets/collectee/communities/
+   * named for these ids is the only step to art, per `config/communityArt`.
+   */
+  {
+    id: 'comm-mythic-drop',
+    name: 'Mythic Drop',
+    description: 'CODM Mythic and Legendary pulls. Screenshots or it did not happen.',
+    avatarUrl: 'communities/mythic-drop.png',
+    tags: ['CODM', 'Mythic'],
+    memberIds: ['user-jovan', 'user-zennx', 'user-syafiq', 'user-bo'],
+    memberCount: 3345,
+  },
+  {
+    id: 'comm-hero-skins',
+    name: 'Hero Skins SEA',
+    description: 'MLBB Collector, Legend and Epic skins, from the SEA servers out.',
+    avatarUrl: 'communities/hero-skins.png',
+    tags: ['MLBB', 'Epic'],
+    memberIds: ['user-jovan', 'user-danish', 'user-nadia', 'user-priya'],
+    memberCount: 5290,
+  },
+  {
+    id: 'comm-vandal-club',
+    name: 'Vandal Club',
+    description: 'Every Valorant Vandal line, ranked and argued about.',
+    avatarUrl: 'communities/vandal-club.png',
+    tags: ['Valorant', 'rifles'],
+    memberIds: ['user-mei', 'user-tarek', 'user-arya'],
+    memberCount: 2154,
+  },
+  {
+    id: 'comm-epic-nights',
+    name: 'Epic Nights',
+    description: 'MLBB Epic and Special skins. Squad-ups optional, screenshots not.',
+    avatarUrl: 'communities/epic-nights.png',
+    tags: ['MLBB', 'Special'],
+    memberIds: ['user-nadia', 'user-iman', 'user-rei'],
+    memberCount: 1876,
+  },
+  {
+    id: 'comm-shelf-tours',
+    name: 'Shelf Tours',
+    description: 'Showroom walkthroughs from every game. Post yours, tour theirs.',
+    avatarUrl: 'communities/shelf-tours.png',
+    tags: ['cross-game', 'showrooms'],
+    memberIds: ['user-nova', 'user-kai', 'user-arya', 'user-iman'],
+    memberCount: 998,
+  },
 ] as const satisfies readonly Community[];
 
 export const COMMUNITY_MEMBERSHIPS = [
   { userId: 'user-jovan', communityId: 'comm-blueprint-vault', notificationPref: 'all' },
   { userId: 'user-jovan', communityId: 'comm-knife-collectors', notificationPref: 'highlights' },
   { userId: 'user-jovan', communityId: 'comm-cross-game', notificationPref: 'all' },
+  { userId: 'user-jovan', communityId: 'comm-mythic-drop', notificationPref: 'all' },
+  { userId: 'user-jovan', communityId: 'comm-hero-skins', notificationPref: 'highlights' },
 ] as const satisfies readonly CommunityMembership[];
 
 export const COMMENTS = [
