@@ -100,7 +100,11 @@ export default function SettingsScreen() {
                 ? mode === 'dark'
                   ? 'Dark — tap to switch to light'
                   : 'Light — tap to switch to dark'
-                : 'Dark. Light mode is web-only in this build.'}
+                : /* Locked for the demo — see the header of theme/ThemeMode.
+                     The row stays visible rather than disappearing, because a
+                     missing control reads as a missing feature; a disabled one
+                     that says why reads as a decision. */
+                  'Dark, locked. The art, scrims and rarity colours are all authored dark-first.'}
             </Text>
           </View>
           <View style={[styles.pill, !supported && styles.pillDisabled]}>

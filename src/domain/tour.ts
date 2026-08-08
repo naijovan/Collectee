@@ -74,6 +74,21 @@ export interface TourStop {
   guide?: {
     pose: GuidePose;
     line: string;
+    /**
+     * Let her stand beside this target even though it is pinned to the bottom.
+     *
+     * The midline rule assumes a bottom target is wide — the tab bar spans the
+     * screen, so "beside" is also "on top of". The launcher is 56pt in a
+     * corner with the whole row free, so the assumption does not hold and the
+     * rule would cost the finale its composition.
+     */
+    standBeside?: boolean;
+    /** Pin the bubble to one flank — see `GuideOptions.bubbleSide`. */
+    bubbleSide?: 'left' | 'right';
+    /** Line the bubble up with her head rather than her waist. */
+    bubbleAlign?: 'top' | 'centre';
+    /** Hard ceiling for everything in the guided layer, as a fraction. */
+    maxBottomFraction?: number;
   };
 }
 
@@ -95,7 +110,8 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'Start with a screenshot',
       body:
         'Import scans a screenshot of your in-game inventory and matches what it finds against the catalogue. Anything it is unsure about goes to a review step rather than straight into your account.',
-      guide: { pose: 'pointing', line: 'Start here! Snap your in-game inventory and I will match it against the catalogue. Anything I am unsure about goes to a review step, never straight in.' },
+      /* Right of her: on her left the bubble sat over the Gaming Updates row. */
+      guide: { pose: 'pointing', bubbleSide: 'right', maxBottomFraction: 0.6, line: 'Start here! Snap your in-game inventory and I will match it against the catalogue. Anything I am unsure about goes to a review step, never straight in.' },
     },
     {
       id: 'discover',
@@ -104,7 +120,9 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'Find people with your taste',
       body:
         'Collectors whose inventories overlap yours, and the communities around them. Every match shows the reason it scored — a percentage on its own is not much of an argument.',
-      guide: { pose: 'pointing', line: 'This is where you find people with your taste. Every match shows why it scored — a percentage on its own is not much of an argument.' },
+      /* Left of her, keeping the Verify and Reports buttons in the top-right
+         corner clear on this stop. */
+      guide: { pose: 'pointing', bubbleSide: 'left', bubbleAlign: 'top', line: 'This is where you find people with your taste. Every match shows why it scored — a percentage on its own is not much of an argument.' },
     },
     {
       id: 'news',
@@ -130,6 +148,9 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
         'Try "Who is my top match, and why?" — it answers from your actual inventory and tells you which items you have in common.',
       guide: {
         pose: 'happy',
+        /* Small, cornered target — she stands next to it rather than being
+           pushed to the upper half. See `standBeside`. */
+        standBeside: true,
         line:
           'And that\u2019s me! Anytime you need me, I\u2019m right here at the bottom right — ' +
           'ask me anything about your collection.',

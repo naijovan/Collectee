@@ -15,13 +15,32 @@
  * No custom properties, so native takes the dark palette and the toggle hides
  * itself. Stated plainly rather than shipped as a button that does nothing.
  *
- * ── Persistence ───────────────────────────────────────────────────────────
- * `localStorage`, read synchronously before first paint, so a reload does not
- * flash dark before switching. In-memory would reset on every refresh, which
- * during a demo means the presenter's choice does not survive a page reload.
+ * ── LOCKED TO DARK FOR THE DEMO (8 Aug) ───────────────────────────────────
+ * The app is dark-first and only dark-first. The item art, the room backdrops,
+ * every scrim, the news banners, the tour's indigo field and Colly's own poses
+ * are all authored against a near-black background, and the identity colours —
+ * the five rarity hues and the three game accents — are fixed hex that do not
+ * re-theme by design (§12.2). Light mode therefore covered the token surfaces
+ * and nothing else, which is why it read as half-themed rather than light.
+ *
+ * A judge on a light-mode laptop seeing that two days from submission is not a
+ * risk worth a toggle nobody asked for, so `mode` is now a constant.
+ *
+ * ── Why the machinery stays ───────────────────────────────────────────────
+ * `applyPalette` is NOT dead code — on web every `StyleSheet.create` in the app
+ * points at `var(--c-…)`, and something has to write those properties onto
+ * <html> or the whole app renders with unresolved variables. It just always
+ * writes the dark palette now.
+ *
+ * ── The stored value is actively cleared ──────────────────────────────────
+ * This is what actually caused the report. Nothing here ever read the system
+ * colour scheme; the Settings screen had an Appearance toggle, someone used it,
+ * and `localStorage` kept serving 'light' on every reload afterwards. Removing
+ * the read is not enough — the key is deleted on boot, so re-enabling the
+ * feature later cannot resurrect a months-old choice.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo } from 'react';
 import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 
 import { cssVarName, DARK_PALETTE, LIGHT_PALETTE, radius, spacing, typography } from './theme';
@@ -29,7 +48,18 @@ import { cssVarName, DARK_PALETTE, LIGHT_PALETTE, radius, spacing, typography } 
 export type ThemeMode = 'dark' | 'light';
 
 const STORAGE_KEY = 'collectee.theme';
-const SUPPORTED = Platform.OS === 'web';
+
+/**
+ * Whether the app can be switched at all. Locked off — see the header.
+ *
+ * `supported: false` is the same signal native already used, so the Settings
+ * row and the floating toggle both hide themselves without either file
+ * changing: they already handled a platform that cannot switch.
+ */
+const SUPPORTED = false;
+
+/** Web still needs the custom properties written, switchable or not. */
+const CAN_WRITE_VARS = Platform.OS === 'web';
 
 interface ThemeModeValue {
   mode: ThemeMode;
@@ -46,29 +76,32 @@ const ThemeModeContext = createContext<ThemeModeValue>({
 
 export const useThemeMode = (): ThemeModeValue => useContext(ThemeModeContext);
 
-/** Reads the stored choice before first paint so a reload does not flash. */
-function initialMode(): ThemeMode {
-  if (!SUPPORTED) return 'dark';
-
-  // `?theme=light` wins over the stored choice. Useful for a demo that must
-  // open in a known state regardless of what the last person clicked, and it
-  // is the only way to screenshot a mode without driving the button.
-  const fromUrl = new URLSearchParams(globalThis.location?.search ?? '').get('theme');
-  if (fromUrl === 'light' || fromUrl === 'dark') return fromUrl;
-
+/**
+ * Forget any previously stored choice.
+ *
+ * A browser that switched to light before the lock landed still holds
+ * 'light' under this key. Nothing reads it now, but leaving it there means a
+ * future re-enable silently reinstates a choice made weeks earlier by someone
+ * who is not in the room.
+ */
+function clearStoredMode() {
+  if (!CAN_WRITE_VARS) return;
   try {
-    return globalThis.localStorage?.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark';
+    globalThis.localStorage?.removeItem(STORAGE_KEY);
   } catch {
-    // Private browsing throws on access. Dark is the documented default.
-    return 'dark';
+    // Private browsing throws on access. Nothing reads the key anyway.
   }
 }
 
 function applyPalette(mode: ThemeMode) {
-  if (!SUPPORTED) return;
+  if (!CAN_WRITE_VARS) return;
   const root = globalThis.document?.documentElement;
   if (!root) return;
 
+  /* The ternary stays rather than hardcoding DARK_PALETTE: re-enabling the
+     switch should be a change to `mode`, not a hunt for places that assumed
+     it. LIGHT_PALETTE is therefore still exercised by the type system and
+     still correct if anyone turns this back on. */
   const palette = mode === 'light' ? LIGHT_PALETTE : DARK_PALETTE;
   for (const [token, value] of Object.entries(palette)) {
     root.style.setProperty(cssVarName(token as keyof typeof DARK_PALETTE), value);
@@ -79,29 +112,35 @@ function applyPalette(mode: ThemeMode) {
   root.dataset.theme = mode;
 }
 
-export function ThemeModeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>(initialMode);
+/**
+ * Write the variables at MODULE LOAD, before React renders anything.
+ *
+ * They used to be written in an effect, which runs after the first paint — so
+ * frame one had unresolved `var(--c-…)`. An invalid custom property does not
+ * fall back to a sensible colour, it drops the declaration, which means every
+ * themed surface painted transparent over the browser's white body. That is a
+ * white, half-styled first frame on every load, and on a slow start it is what
+ * a judge sees.
+ *
+ * This module is imported by the root layout, so the assignment lands before
+ * the tree mounts. The effect below stays as a belt-and-braces re-apply.
+ */
+applyPalette('dark');
 
-  // Layout-time rather than after paint: the variables must exist before the
-  // first frame or the app renders with unresolved var() and falls back to
-  // transparent.
+export function ThemeModeProvider({ children }: { children: React.ReactNode }) {
+  /* Not state. There is nothing to change it to. */
+  const mode: ThemeMode = 'dark';
+
+  // The variables must exist before the first frame, or the app renders with
+  // unresolved var() and every themed colour falls back to transparent.
   useEffect(() => {
     applyPalette(mode);
-    try {
-      globalThis.localStorage?.setItem(STORAGE_KEY, mode);
-    } catch {
-      // Non-fatal — the mode still applies for this session.
-    }
+    clearStoredMode();
   }, [mode]);
 
-  const toggle = useCallback(
-    () => setMode((current) => (current === 'dark' ? 'light' : 'dark')),
-    [],
-  );
-
   const value = useMemo(
-    () => ({ mode, toggle, supported: SUPPORTED }),
-    [mode, toggle],
+    () => ({ mode, toggle: () => {}, supported: SUPPORTED }),
+    [mode],
   );
 
   return <ThemeModeContext.Provider value={value}>{children}</ThemeModeContext.Provider>;

@@ -170,8 +170,8 @@ export const FEATURES = {
   /**
    * Tour v2 — the walkthrough guided by the Colly character rather than a card.
    *
-   * OFF pending Marcus's verdict on the placement rework. All three poses are
-   * wired, so flipping this to true is the only step left. With it off the
+   * ON for the live verdict run, 8 Aug. All three poses are wired and the
+   * placement solver is in. With it off the
    * tour is byte-identical to the card version: the guide path is additive and
    * the card path is untouched, so this stays a real switch rather than a
    * half-migration, and flipping back is a safe response to trouble.
@@ -180,7 +180,7 @@ export const FEATURES = {
    * this on against a partial art pack still falls back to the card instead of
    * showing a character-shaped hole.
    */
-  tourGuideColly: false,
+  tourGuideColly: true,
 
   /** [ROADMAP] §11 F2 — Collection Insights. Build only if all four flows land early. */
   collectionInsights: false,

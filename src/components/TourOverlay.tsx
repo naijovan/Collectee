@@ -293,6 +293,22 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
              card shows centred with no cutout rather than a hole in the wrong
              place. A misaligned spotlight is worse than none — it points
              confidently at nothing. */
+          /* DEV ONLY. Placement bugs on this overlay are geometry bugs, and
+             geometry cannot be reasoned about from a screenshot — the Import
+             tab was buried for two rounds because the rect was being guessed
+             at rather than read. This prints what the anchors actually
+             reported, so the next one is a number and not an argument.
+             Stripped from production builds by the __DEV__ guard. */
+          if (__DEV__) {
+            // eslint-disable-next-line no-console
+            console.log(
+              `[tour] ${target.id} target=${target.targetIds.join('+')} rect=`,
+              rect
+                ? `${Math.round(rect.x)},${Math.round(rect.y)} ${Math.round(rect.width)}x${Math.round(rect.height)}`
+                : 'NOT MEASURED (falling back to no cutout)',
+              `screen=${Math.round(screenW)}x${Math.round(screenH)}`,
+            );
+          }
           setHole(rect);
           setPhase('shown');
           Animated.timing(fade, {
@@ -314,15 +330,29 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     if (phase !== 'shown' || !stop || !hole) return;
 
-    const timer = setInterval(async () => {
+    let live = true;
+    const remeasure = async () => {
       let rect = await measureUnion(stop.targetIds);
       if (!rect && stop.fallbackTargetIds) rect = await measureUnion(stop.fallbackTargetIds);
+      if (!live) return;
       // Only when it actually moved, so this is not a 2Hz re-render.
       setHole((current) => (sameRect(current, rect) ? current : rect));
-    }, REMEASURE_MS);
+    };
 
-    return () => clearInterval(timer);
-  }, [phase, stop, hole, measureUnion]);
+    /* Once immediately, not only on the next tick.
+       `screenW`/`screenH` are in the deps, so a resize re-runs this — and
+       without a leading measure the guide would lay out against a rect up to
+       REMEASURE_MS stale, i.e. positioned for the old window. That is the same
+       class of bug as the transition flash: painting at coordinates that are
+       no longer true. */
+    void remeasure();
+    const timer = setInterval(() => void remeasure(), REMEASURE_MS);
+
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [phase, stop, hole, measureUnion, screenW, screenH]);
 
   /* Reduce Motion means reduce, not remove: the ring still marks the target,
      it just stops repeating. The pulse is pure decoration — removing it loses
@@ -381,7 +411,39 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
 
   /* Computed once. Two calls would be two chances for the wrapper's anchor and
      the figure's placement to disagree about where she is standing. */
-  const guidePlacement = placeGuide({ width: screenW, height: screenH }, insets, hole);
+  const guidePlacement = placeGuide({ width: screenW, height: screenH }, insets, hole, {
+    standBeside: stop?.guide?.standBeside,
+    bubbleSide: stop?.guide?.bubbleSide,
+    bubbleAlign: stop?.guide?.bubbleAlign,
+    maxBottomFraction: stop?.guide?.maxBottomFraction,
+  });
+
+  /* Companion to the rect log above — what the solver DID with that rect. */
+  useEffect(() => {
+    if (!__DEV__ || !guided || phase !== 'shown' || !stop) return;
+    const f = guidePlacement.figure;
+    const line =
+      `[tour] ${stop.id} fit=${guidePlacement.fit} flipped=${guidePlacement.flipped} ` +
+      (f
+        ? `colly=${Math.round(f.x)},${Math.round(f.y)} ${Math.round(f.width)}x${Math.round(f.height)}`
+        : 'colly=HIDDEN') +
+      ` bubble=${Math.round(guidePlacement.bubble.x)},${Math.round(guidePlacement.bubble.y)}`;
+
+    if (guidePlacement.fit === 'bubbleOnly') {
+      /* Loud on purpose. Dropping the guide is the last rung of the ladder and
+         it is silent on screen — the stop still looks deliberate, just without
+         a character — so it has to be noisy here or it goes unnoticed until
+         someone demos on a short window. */
+      // eslint-disable-next-line no-console
+      console.warn(
+        `${line}\n[tour] ^^ GUIDE DROPPED — no region fits her above the floor without covering the target. ` +
+          `Viewport ${Math.round(screenW)}x${Math.round(screenH)} is too short for this stop.`,
+      );
+    } else {
+      // eslint-disable-next-line no-console
+      console.log(line);
+    }
+  }, [guided, phase, stop, guidePlacement]);
 
   // ── The prompt ──────────────────────────────────────────────────────────
   if (index === -1) {
@@ -600,7 +662,24 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
            than sitting beside the hole like the card does — she is the subject,
            not an annotation. Everything above this point is shared with the
            card path, so the cutout, the ring and the pulse are literally the
-           same nodes. */
+           same nodes.
+ 
+           ── Nothing is painted until the new stop is measured ──────────────
+           `phase === 'shown'` is the whole fix for the transition flash. On
+           Next the handler clears the hole immediately, and with no hole
+           `placeGuide` returns its SOLO composition — centre-LOWER, which is
+           squarely over the tab bar. She was jumping there for the 140ms
+           fade-out before the new rect arrived, every single time.
+ 
+           Unmounting for the moving phase means the only positions she is ever
+           painted at are resolved ones. The gap is the settle beat that already
+           exists, so this costs no extra time, and her entrance spring plays on
+           mount and doubles as the fade-in. A brief absence reads as a
+           transition; a jump reads as a bug.
+ 
+           The card path below is deliberately NOT gated this way — it fades
+           across the move as it always has, so flag-off is unchanged. */
+        phase !== 'shown' ? null : (
         <Animated.View
           style={[StyleSheet.absoluteFill, { opacity: fade }]}
           pointerEvents={phase === 'shown' ? 'box-none' : 'none'}
@@ -618,6 +697,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
             nextLabel={index === total - 1 ? 'Done' : 'Next'}
           />
         </Animated.View>
+        )
       ) : (
       <Animated.View
         style={[styles.cardWrap, cardPosition, { opacity: fade }]}
