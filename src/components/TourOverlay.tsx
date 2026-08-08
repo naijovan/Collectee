@@ -362,18 +362,23 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
       pulse.setValue(0);
       return;
     }
+    /* `motion.breath`, not a local number, and `sin`, not `quad`.
+       At 900ms with a quad ease the glow hit its ends hard and paused there,
+       which is what made it read as a blink around the target rather than a
+       highlight of it — Jovan's note. A sine ease has no flat top, so the
+       brightest and dimmest moments are instants rather than beats. */
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
           toValue: 1,
-          duration: 900,
-          easing: Easing.inOut(Easing.quad),
+          duration: motion.breath,
+          easing: Easing.inOut(Easing.sin),
           useNativeDriver: NATIVE_DRIVER,
         }),
         Animated.timing(pulse, {
           toValue: 0,
-          duration: 900,
-          easing: Easing.inOut(Easing.quad),
+          duration: motion.breath,
+          easing: Easing.inOut(Easing.sin),
           useNativeDriver: NATIVE_DRIVER,
         }),
       ]),
@@ -615,7 +620,14 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
             ]}
           />
           {/* A second ring outside the first, scaling and fading — the glow.
-              Separate node so the solid edge stays crisp while this breathes. */}
+              Separate node so the solid edge stays crisp while this breathes.
+
+              Amplitudes are deliberately small. The old 0.55→0.12 swing was
+              wider than the ring's own opacity, so the decoration moved more
+              than the thing it decorated; and 6% of scale on a card-sized
+              target is several pixels of edge travel, which reads as the target
+              itself twitching. The solid ring is what MARKS the target — this
+              only has to suggest it is live. */}
           <Animated.View
             pointerEvents="none"
             style={[
@@ -628,10 +640,10 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
                 borderRadius: ringRadius,
                 opacity: Animated.multiply(
                   fade,
-                  pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.12] }),
+                  pulse.interpolate({ inputRange: [0, 1], outputRange: [0.34, 0.16] }),
                 ),
                 transform: [
-                  { scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) },
+                  { scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.02] }) },
                 ],
               },
             ]}

@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   Image,
   PixelRatio,
   Platform,
@@ -445,7 +446,19 @@ export function useHoverLift() {
  * (`({ pressed }) => …`) intact. Hover still fires on the inner element, and
  * since the wrapper only grows, the pointer stays inside it throughout.
  */
-export function useHoverPop({ scale = 1.06, lift = -2 }: { scale?: number; lift?: number } = {}) {
+/**
+ * Default scale softened 1.06 → 1.035, and the spring damped past the house
+ * one.
+ *
+ * The overshoot is still the effect — see the note above — but at 1.06 with
+ * `motion.spring` a standalone button visibly jumped and rang on nothing more
+ * than a pointer crossing it, which is the "flashy" end of the range rather
+ * than the responsive one. Friction 14 against the same tension keeps a single
+ * soft settle and drops the second bounce.
+ *
+ * Callers may still pass a larger scale explicitly; none currently do.
+ */
+export function useHoverPop({ scale = 1.035, lift = -2 }: { scale?: number; lift?: number } = {}) {
   const reduceMotion = useReduceMotion();
   const progress = useRef(new Animated.Value(0)).current;
 
@@ -457,7 +470,10 @@ export function useHoverPop({ scale = 1.06, lift = -2 }: { scale?: number; lift?
       }
       Animated.spring(progress, {
         toValue: to,
-        friction: motion.spring.friction,
+        /* Damped past `motion.spring.friction` on purpose — hover fires on
+           pointer movement, so a ringing spring here re-triggers constantly as
+           the pointer crosses a grid. Entrances keep the house spring. */
+        friction: 14,
         tension: motion.spring.tension,
         /* Web has no native driver for transforms in RN Web; everywhere else
            this keeps the spring off the JS thread. */
@@ -824,16 +840,25 @@ export function LoadingState({ height = 120 }: { height?: number }) {
       pulse.setValue(1);
       return;
     }
+    /* It still has to read as loading, so this is slower and shallower — not
+       removed. Two things made it read as a blink rather than a breath: no
+       easing at all, so it moved at a constant rate and stopped dead at each
+       end, and a 0.45→1 swing, which is more contrast than most real content
+       has against this background. Sine easing and a narrower band fix both,
+       and `motion.breath` puts it on the same rate as every other ambient loop
+       so a skeleton next to the tour glow no longer beats against it. */
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
           toValue: 1,
-          duration: motion.slow * 2,
+          duration: motion.breath,
+          easing: Easing.inOut(Easing.sin),
           useNativeDriver: Platform.OS !== 'web',
         }),
         Animated.timing(pulse, {
           toValue: 0,
-          duration: motion.slow * 2,
+          duration: motion.breath,
+          easing: Easing.inOut(Easing.sin),
           useNativeDriver: Platform.OS !== 'web',
         }),
       ]),
@@ -848,7 +873,7 @@ export function LoadingState({ height = 120 }: { height?: number }) {
       accessibilityLabel="Loading"
       style={[
         styles.skeleton,
-        { height, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) },
+        { height, opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 0.92] }) },
       ]}
     />
   );

@@ -23,6 +23,7 @@ import type { PointerEvent as NativePointerEvent, ViewStyle } from 'react-native
 
 import { backdropFor } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { cameraTargetFor, parallaxOffset } from '@/domain/room';
 import { rarityLabelFor } from '@/domain/rarity';
 import {
@@ -167,7 +168,13 @@ export function RoomScene({
    * wash when the flag is off. That is §14 rung 2 working as designed.
    */
   const pulse = useRef(new Animated.Value(0)).current;
-  const animateLighting = FEATURES.roomLightingControls && room.settings.animatedLighting;
+  const reduceMotion = useReduceMotion();
+  /* Reduce Motion cuts it, which it did not before: this was the one repeating
+     animation in the app with no such check, so a room kept breathing for a
+     user who had asked the OS for stillness. Parking at 0 leaves the static
+     wash the flag-off path already renders, so nothing goes dark. */
+  const animateLighting =
+    FEATURES.roomLightingControls && room.settings.animatedLighting && !reduceMotion;
 
   useEffect(() => {
     if (!animateLighting) {

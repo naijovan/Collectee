@@ -151,7 +151,11 @@ export function TourGuide({
       Animated.timing(cheer, {
         toValue: 1,
         duration: motion.base,
-        easing: Easing.out(Easing.back(2)),
+        /* back(1.1), was back(2). Kept — this is the finale and it should feel
+           like one — but 2 is a hard overshoot, and stacked on the entrance
+           spring already running underneath it the two read as a lurch rather
+           than a beat. */
+        easing: Easing.out(Easing.back(1.1)),
         useNativeDriver: NATIVE_DRIVER,
       }),
       Animated.spring(cheer, {
@@ -171,7 +175,9 @@ export function TourGuide({
 
   const scale = Animated.add(
     enter,
-    cheer.interpolate({ inputRange: [0, 1], outputRange: [0, 0.06] }),
+    /* +4%, was +6%. She is ~230px tall at this point, so 6% moved her outline
+       by about 14px in 220ms — a jump, where the beat only needs to register. */
+    cheer.interpolate({ inputRange: [0, 1], outputRange: [0, 0.04] }),
   );
 
   const { figure, bubble } = placement;

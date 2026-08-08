@@ -25,6 +25,7 @@ import { AdditiveBlending, BackSide } from 'three';
 import type { Group, Points } from 'three';
 
 import { atmosphereFallback } from '@/theme/theme';
+import { useReduceMotion } from '@/hooks/useReduceMotion';
 
 /** Dust motes. Enough to catch the light, few enough to stay cheap. */
 const MOTE_COUNT = 220;
@@ -80,9 +81,19 @@ function DustMotes({ colour, intensity }: { colour: string; intensity: number })
     return array;
   }, []);
 
+  const reduceMotion = useReduceMotion();
+
   useFrame(({ clock }) => {
     const cloud = points.current;
     if (!cloud) return;
+    /* Reduce Motion keeps the motes and stops their travel: a field of dust is
+       part of how the room is lit, and deleting it changes the composition,
+       where freezing it does not. */
+    if (reduceMotion) {
+      cloud.position.y = 0;
+      cloud.rotation.y = 0;
+      return;
+    }
     const t = clock.elapsedTime;
     // Rise and wrap. Motes climb slowly and reset at the top of the field.
     cloud.position.y = ((t * 0.08) % FIELD.y) - FIELD.y / 2;
@@ -125,9 +136,19 @@ function LightShaft({
   intensity: number;
 }) {
   const shaft = useRef<Group>(null);
+  const reduceMotion = useReduceMotion();
 
   useFrame(({ clock }) => {
     if (!shaft.current) return;
+    /* Reduce Motion parks it at the middle of its own range rather than at an
+       end, so a still room is lit the way the composition was designed for.
+       This is a `useFrame` loop, not an `Animated.loop`, which is why it was
+       missed when the rest of the app was wired for Reduce Motion — the grep
+       for one does not find the other. */
+    if (reduceMotion) {
+      shaft.current.scale.set(0.88, 1, 0.88);
+      return;
+    }
     // Barely-there breathing, so the room is never completely static.
     const pulse = 0.88 + Math.sin(clock.elapsedTime * 0.55 + position[0]) * 0.12;
     shaft.current.scale.set(pulse, 1, pulse);
