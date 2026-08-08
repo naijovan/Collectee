@@ -194,21 +194,27 @@ export const COLLECTIONS = [
    * this is the collection that demonstrates §9.4 on the viewer's own page —
    * six items, three eligible for a showroom, and the room picker will say so
    * rather than silently offering half.
+   *
+   * ⚠️ ZERO overlap with "Neon Legends", and that is a constraint rather than a
+   * coincidence. The first draft shared three of six items with it, and since
+   * `CollectionCoverMosaic` builds a cover from the collection's own members,
+   * two sets sharing half their contents produced two covers that looked the
+   * same on the same screen. Anything added here has to stay out of that list.
    */
   {
     id: 'col-jovan-land-of-dawn',
     userId: 'user-jovan',
     name: 'Land of Dawn Nights',
-    description: 'The MLBB half of the shelf. Neon, void and everything that glows after dark.',
+    description: 'The MLBB half of the shelf — rifts, empresses and the light that holds them off.',
     coverUrl: '',
     themeTags: ['mlbb', 'collector'],
     itemIds: [
-      'mlbb-neon-ronin',
-      'mlbb-cyber-breacher',
+      'mlbb-manifold-rift',
+      'mlbb-void-empress',
       'mlbb-lightborn-defender',
-      'mlbb-voidstorm-spirit',
-      'mlbb-arcane-revenant',
-      'mlbb-neon-encore',
+      'mlbb-radiant-huntress',
+      'mlbb-solar-paladin',
+      'mlbb-emberfall-warlord',
     ],
     visibility: 'public',
     allowComments: true,
