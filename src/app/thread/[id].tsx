@@ -534,10 +534,22 @@ const styles = StyleSheet.create({
     minWidth: 22,
     textAlign: 'center',
   },
+  /**
+   * The two active states, and they are deliberately symmetrical: one colour
+   * token each, same weight, same treatment, applied to both the arrow and the
+   * score. Anything that made one louder than the other would read as the app
+   * having an opinion about which way you should vote.
+   *
+   * This comment used to argue AGAINST red here — that a downvote is
+   * disagreement rather than a warning, and that the report path should own the
+   * alarming colour. Overruled, and on reflection the objection was answering
+   * the wrong question: red is the near-universal convention for the down half
+   * of a vote control, and a downvote that stayed grey when active was
+   * indistinguishable from one that had not registered. Legibility of state
+   * beats semantic tidiness. Report keeps its own separate control regardless.
+   */
   voteUpOn: { color: colors.accent },
-  /* Not `danger`. A downvote is disagreement, not a warning, and the report
-     path is the one that should own an alarming colour. */
-  voteDownOn: { color: colors.textSecondary },
+  voteDownOn: { color: colors.danger },
 
   buried: {
     paddingVertical: spacing.sm,
