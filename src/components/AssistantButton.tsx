@@ -59,6 +59,20 @@ const GREETING_MS = 4000;
  *  remount on navigation; without this the pill would pop on every return. */
 let greetedThisSession = false;
 
+/**
+ * The only route the pill introduces itself on, uninvited.
+ *
+ * Everywhere else it waits to be hovered. The dock floats over a full-bleed
+ * layout, so an unrequested pill is ~190px of content covered on whatever
+ * screen the user happens to be looking at — over News media cards and Explore
+ * grids that reads as breakage, and over the sign-in form it is simply wrong.
+ * Home is the ground state and where the first run lands, so a greeting there
+ * is a greeting on arrival.
+ *
+ * Hover is exempt because the user asked for it.
+ */
+const GREETS_ON = '/';
+
 export function AssistantButton() {
   const pathname = usePathname();
   const reduceMotion = useReduceMotion();
@@ -76,10 +90,16 @@ export function AssistantButton() {
   /* First-render greeting, then it retreats. Runs once per session. */
   useEffect(() => {
     if (greetedThisSession) return;
+    if (pathname !== GREETS_ON) {
+      /* Not the ground state — say nothing, and leave the one greeting
+         unspent so it still happens when they reach Home. */
+      setGreeting(false);
+      return;
+    }
     greetedThisSession = true;
     const t = setTimeout(() => setGreeting(false), GREETING_MS);
     return () => clearTimeout(t);
-  }, []);
+  }, [pathname]);
 
   /**
    * The wave. A short rotate out-and-back that settles, not a loop.
@@ -208,9 +228,11 @@ export function AssistantButton() {
 const styles = StyleSheet.create({
   dock: {
     position: 'absolute',
-    /* xl rather than lg: at lg the 56pt bubble sat visually tight to the edge
-       on web, where there is no safe-area inset to buy margin. */
-    right: spacing.xl,
+    /* lg, not xl. The screens are full-bleed — there is no gutter to move
+       into — so every extra pixel of right margin pushes the bubble further
+       ACROSS the content rather than away from it. xl was tried and put the
+       bubble on top of article media cards. */
+    right: spacing.lg,
     bottom: BUBBLE_BOTTOM,
     flexDirection: 'row',
     alignItems: 'center',

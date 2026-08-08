@@ -13,6 +13,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import {
+  ASSISTANT_CLEARANCE,
   Avatar,
   CollectorCard,
   CommunityCard,
@@ -337,7 +338,9 @@ export default function ExploreScreen() {
         </View>
       ) : null}
 
-      <View style={{ height: spacing.xxl }} />
+      {/* The floating assistant sits over this corner. Pad by the real
+          number so the last row is never resting underneath it. */}
+      <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>
     </View>
   );

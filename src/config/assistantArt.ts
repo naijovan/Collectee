@@ -36,10 +36,13 @@ import type { ImageSourcePropType } from 'react-native';
 /**
  * The mascot bitmap, or null while the launcher is still a sparkle.
  *
- * When the art lands, replace null with exactly:
- *   require('../../assets/collectee/assistant/assistant-mascot.png')
+ * Landed 8 Aug. It arrived on `marcus/art-assistant-mascot` and sat there
+ * unmerged for a while, during which the launcher drew its sparkle and
+ * /diagnostics read `Assistant mascot 0/1` — correct behaviour that looked
+ * exactly like a broken image. `validate:fixtures` now fails on that state
+ * rather than leaving it to be noticed.
  */
-export const ASSISTANT_MASCOT: ImageSourcePropType | null = null;
+export const ASSISTANT_MASCOT: ImageSourcePropType | null = require('../../assets/collectee/assistant/assistant-mascot.png');
 
 /** The mascot image, or null when it has not landed. */
 export function assistantMascot(): ImageSourcePropType | null {

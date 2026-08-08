@@ -14,7 +14,7 @@
  * script. Run it before every merge to main.
  */
 
-import { readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { assertRoomValid, placeWithNearestDisplacement } from '../src/domain/room';
@@ -451,6 +451,67 @@ for (const dir of SCANNED_DIRS) {
           : `Filename contains a space: "${path}". No source file in this repo should.`,
     );
   }
+}
+
+// ── Art that landed but was never wired ────────────────────────────────
+/**
+ * Catches the one art failure that looks exactly like working software.
+ *
+ * Every art registry ships its slots as `null` and falls back to something
+ * deliberate — the launcher draws a sparkle, a card draws a colour block. That
+ * is correct while the art is outstanding. It is also indistinguishable, on
+ * screen, from art that HAS been delivered and simply never got its
+ * `require()` line: the file sits on disk, the registry still says null, and
+ * the app quietly renders the placeholder forever.
+ *
+ * That is exactly what happened to the assistant mascot on 8 Aug — the PNG was
+ * committed on its own branch, nobody merged it, and the sparkle kept
+ * rendering while /diagnostics honestly reported 0/1 to a page nobody had open.
+ *
+ * These registries cannot be imported here: they `require()` PNGs, and Node
+ * chokes on the first byte (the same reason `avatarRoster` exists). So this
+ * reads them as TEXT and asserts the one thing that is always a mistake — a
+ * file present on disk while its slot is still null.
+ *
+ * The reverse (a require with no file) needs no check: Metro fails the build.
+ */
+const ART_WIRING: { registry: string; asset: string; slot: string }[] = [
+  {
+    registry: 'src/config/assistantArt.ts',
+    asset: 'assets/collectee/assistant/assistant-mascot.png',
+    slot: 'ASSISTANT_MASCOT',
+  },
+  {
+    registry: 'src/config/tourGuideArt.ts',
+    asset: 'assets/collectee/assistant/miya-tour-talking.png',
+    slot: 'talking',
+  },
+  {
+    registry: 'src/config/tourGuideArt.ts',
+    asset: 'assets/collectee/assistant/miya-tour-pointing.png',
+    slot: 'pointing',
+  },
+  {
+    registry: 'src/config/tourGuideArt.ts',
+    asset: 'assets/collectee/assistant/miya-tour-mascot-happy.png',
+    slot: 'happy',
+  },
+];
+
+for (const { registry, asset, slot } of ART_WIRING) {
+  if (!existsSync(asset)) continue;
+  const source = readFileSync(registry, 'utf8');
+  /* Two shapes: `slot: null` for a map entry, `SLOT ... = null` for a single
+     export. The lookbehind matters — without it `SLOT === null` inside the
+     coverage helper matches and every wired registry fails its own check. */
+  const asMapEntry = new RegExp(`\\b${slot}\\b\\s*:\\s*null\\b`);
+  const asAssignment = new RegExp(`\\b${slot}\\b[^\\n]*?(?<![=!<>])=\\s*null\\b`);
+  const stillNull = asMapEntry.test(source) || asAssignment.test(source);
+  check(
+    !stillNull,
+    `ART LANDED BUT NOT WIRED: "${asset}" is on disk, but ${registry} still has ${slot} set to null. ` +
+      `The app is rendering its fallback and looks broken. Add the require().`,
+  );
 }
 
 // ── Report ─────────────────────────────────────────────────────────────
