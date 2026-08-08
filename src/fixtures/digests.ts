@@ -27,12 +27,12 @@ export const GAME_DIGESTS = [
       'Season 6 adjusts sniper handling — the DL Q33 keeps its ADS speed but loses flinch resistance.',
       'Lightbringer owners are the ones affected: the blueprint changes how the weapon wants to be run.',
       'SEA regional showdown qualifiers are open across six territories, with an event charm that will not return.',
-      'Regional data has cosmetics as the dominant spend, with mobile outpacing PC for a third year.',
+      'Blueprint pulls now outsell the store outright, and the weapons carrying them hold value longest.',
     ],
     sourceArticleIds: [
       'art-codm-s6-patch',
       'art-codm-garena-sea-event',
-      'art-cross-game-cosmetics',
+      'art-codm-blueprint-spend',
     ],
   },
   {
@@ -55,9 +55,17 @@ export const GAME_DIGESTS = [
       "Gusion's dagger recall timing is changing on the advanced server.",
       'Every Gusion cosmetic gets updated animations once the rework reaches the original server.',
       'Three vaulted Collector skins return for a limited anniversary window.',
-      'Owners of the original release keep their acquisition date on the profile.',
+      /* This replaced the acquisition-date detail rather than joining it: the
+         digest is capped at four bullets, and with a third source article the
+         cap had to give somewhere. The dropped line was the most minor of the
+         four and the only one that did not correspond to a distinct article. */
+      'Collector and Legend releases set the reference price the rest of the shop is judged against.',
     ],
-    sourceArticleIds: ['art-mlbb-gusion-rework', 'art-mlbb-collector-return'],
+    sourceArticleIds: [
+      'art-mlbb-gusion-rework',
+      'art-mlbb-collector-return',
+      'art-mlbb-collector-spend',
+    ],
   },
 ] as const satisfies readonly GameDigest[];
 

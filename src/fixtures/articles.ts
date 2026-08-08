@@ -120,18 +120,63 @@ export const ARTICLES = [
     relatedItemIds: ['mlbb-gusion-cyber-faust', 'mlbb-gusion-cyber-ops'],
     publishedAt: '2026-07-26T07:20:00.000Z',
   },
+  /*
+   * ── The two halves of what used to be one cross-game article ──────────────
+   * `art-cross-game-cosmetics` was tagged ['codm', 'mlbb'] and appeared under
+   * both tabs. Jovan's objection is correct and it is not cosmetic: one update
+   * cannot come from two publishers, and the card rendered two differently
+   * coloured game chips side by side, which reads as a tagging bug rather than
+   * as an industry piece. There is now one article per publisher, each with its
+   * own angle rather than the same paragraph twice.
+   *
+   * BOTH keep `relatedItemIds: []` — see the note on the second one.
+   */
   {
-    id: 'art-cross-game-cosmetics',
+    id: 'art-codm-blueprint-spend',
     source: 'garena.sg',
     sourceTitle: 'Garena Singapore',
-    title: 'Cosmetic spend keeps climbing across SEA mobile titles',
+    title: 'Blueprint pulls now outsell direct store purchases',
     url: 'https://www.garena.sg/news',
     imageUrl: 'news/sea-cosmetics.png',
     summary:
-      'Regional data shows cosmetics remain the dominant monetisation model, with mobile ' +
-      'titles outpacing PC on total spend for the third year running.',
-    tags: ['industry', 'SEA'],
-    relatedGames: ['codm', 'mlbb'],
+      'Regional spend has shifted from the store to the crate: blueprint pulls account for the ' +
+      'majority of cosmetic revenue, and the weapons that carry them hold value longest.',
+    tags: ['industry', 'SEA', 'CODM', 'blueprints'],
+    relatedGames: ['codm'],
+    relatedItemIds: [],
+    publishedAt: '2026-07-24T10:10:00.000Z',
+  },
+  {
+    /*
+     * THIS IS THE ARTICLE THAT DEMOS THE GENERIC EMBLEM THUMBNAIL.
+     *
+     * `relatedItemIds: []` is deliberate and load-bearing: with no related item
+     * there is no render to use, so `ArticleThumb` falls through to
+     * `newsThumbFor(title)` and the designed per-game emblem is what appears.
+     * It was the only article in the seed exercising that path, and the split
+     * kept it — on the MLBB side because MLBB is the tab a judge opens for the
+     * character art, so the one non-item picture is most visible there.
+     *
+     * The CODM half above is item-less too, for the same honest reason (a story
+     * about spend is not about one skin), which means the emblem path is
+     * demonstrated on two tabs rather than one. They cannot collide in the
+     * thumbnail dedupe: the emblem is chosen per game, and these two are in
+     * different games.
+     *
+     * If either ever gains a related item, check that at least one article
+     * somewhere still has none — otherwise the emblem art ships unreachable.
+     */
+    id: 'art-mlbb-collector-spend',
+    source: 'garena.sg',
+    sourceTitle: 'Garena Singapore',
+    title: 'Collector tier is now the price ceiling players anchor to',
+    url: 'https://www.garena.sg/news',
+    imageUrl: 'news/sea-cosmetics.png',
+    summary:
+      'Land of Dawn spending clusters at the top tier rather than spreading across it. Collector ' +
+      'and Legend releases set the reference price, and everything below them is judged against it.',
+    tags: ['industry', 'SEA', 'MLBB', 'Collector'],
+    relatedGames: ['mlbb'],
     relatedItemIds: [],
     publishedAt: '2026-07-24T10:10:00.000Z',
   },
