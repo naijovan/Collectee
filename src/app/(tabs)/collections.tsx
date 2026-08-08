@@ -379,23 +379,32 @@ export default function CollectionsScreen() {
         ) : (
           <View style={styles.grid}>
             {builtRooms.map((entry) => (
-              <Pressable
+              /*
+                An inert View, and the card takes the handler.
+                This was a Pressable wrapping `CollectionCard`, which is itself
+                a Pressable — on web that renders a <button> inside a <button>,
+                which is invalid markup, and the inner one swallows the click.
+                Showrooms simply stopped opening. Same trap the community card
+                hit and the assistant dock is written to avoid; there is a
+                comment about it in AssistantButton.
+              */
+              <View
                 key={entry.collection.id}
                 style={[styles.gridItem, viewportWidth < 600 && styles.gridItemPhone]}
-                onPress={() =>
-                  router.push({
-                    pathname: '/room/immersive/[id]',
-                    params: { id: rooms.get(entry.collection.id)!.room.id },
-                  })
-                }
               >
                 <CollectionCard
                   collection={entry.collection}
                   owner={viewer}
                   headline={entry.headline}
                   showVisibility
+                  onPress={() =>
+                    router.push({
+                      pathname: '/room/immersive/[id]',
+                      params: { id: rooms.get(entry.collection.id)!.room.id },
+                    })
+                  }
                 />
-              </Pressable>
+              </View>
             ))}
           </View>
         )}
@@ -624,7 +633,7 @@ const styles = StyleSheet.create({
     columnGap: spacing.md,
     rowGap: spacing.sm,
   },
-  gridItem: { flexGrow: 1, flexBasis: '46%', minWidth: 260, gap: 2 },
+  gridItem: { flexGrow: 0, flexBasis: '48%', minWidth: 260, gap: 2 },
   gridItemPhone: { flexBasis: '100%', minWidth: 0 },
 
   suggestionsSection: { gap: spacing.xl },

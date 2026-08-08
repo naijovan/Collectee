@@ -801,10 +801,28 @@ const styles = StyleSheet.create({
     paddingRight: spacing.lg,
     paddingVertical: Math.abs(interaction.hoverLift) + 1,
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'space-between' },
-  /** Was the card's own `width="48%"`; moved out when FadeInView wrapped it. */
-  gridCell: { width: '48%' },
-  gridCellPhone: { width: '100%' },
+  /**
+   * One gap mechanism, not three — the same fix the Collections tab and Profile
+   * needed. `gap: 12`, `width: 48%` (4% of slack) and
+   * `justifyContent: 'space-between'` were all pushing the two columns apart at
+   * once, which is what made the channel down the middle so wide.
+   *
+   * Used by BOTH "Explore Collectibles" and "Trending Showrooms", so this
+   * closes both.
+   */
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  /**
+   * `flexGrow: 0` is load-bearing.
+   *
+   * With `flexGrow: 1` the cards absorbed the leftover space, which fills a
+   * full row nicely and then stretches a LONE card in the final row to the full
+   * width — five collections meant the fifth was twice the width of the four
+   * above it. A fixed basis keeps every card the same size and leaves a little
+   * slack at the right edge instead, which is the correct trade: an aligned
+   * grid with a small margin beats a ragged one without.
+   */
+  gridCell: { flexGrow: 0, flexBasis: '48%', minWidth: 260 },
+  gridCellPhone: { flexBasis: '100%', minWidth: 0 },
 
 
   /* The card form, matching CollectionCard: cover on top, meta beneath. */

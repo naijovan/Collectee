@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.md,
   },
-  collectionCell: { flexGrow: 1, flexBasis: '46%', minWidth: 260 },
+  collectionCell: { flexGrow: 0, flexBasis: '48%', minWidth: 260 },
   collectionCellPhone: { flexBasis: '100%', minWidth: 0 },
 
   roomEmpty: {
