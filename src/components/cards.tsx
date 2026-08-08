@@ -20,6 +20,7 @@ import { artFor } from '@/config/artRegistry';
 import { communityArtFor } from '@/config/communityArt';
 import { FEATURES } from '@/config/features';
 import { newsThumbFor } from '@/config/newsThumbs';
+import { VISIBILITY_LABELS } from '@/domain/collections';
 import { rarityLabelFor } from '@/domain/rarity';
 import { GAME_LABELS, GAME_SHORT_LABELS } from '@/types';
 import type { Article, Collection, Community, Item, TrustLevel, User } from '@/types';
@@ -174,6 +175,7 @@ export function CollectionCard({
   owner,
   headline,
   width,
+  showVisibility = false,
   onPress,
 }: {
   collection: Collection;
@@ -181,6 +183,15 @@ export function CollectionCard({
   /** The rarest item in the collection — drives the placeholder art tint. */
   headline?: Item | null;
   width?: DimensionValue;
+  /**
+   * Print Public/Unlisted/Private under the title.
+   *
+   * Opt-in, because it is only ever news on YOUR OWN collections — every
+   * collection on a public feed is public by definition, so the label there
+   * would be a row of identical words. The Collections tab passes it; Home
+   * does not.
+   */
+  showVisibility?: boolean;
   onPress?: () => void;
 }) {
   /**
@@ -268,9 +279,20 @@ export function CollectionCard({
           {/* Name left, counts right. The name is what you read; the numbers are
               what you glance at, and stacking them right-aligned keeps both out
               of each other's way on a narrow card. */}
-          <Text style={styles.metaName} numberOfLines={1}>
-            {collection.name}
-          </Text>
+          <View style={styles.metaLeft}>
+            <Text style={styles.metaName} numberOfLines={1}>
+              {collection.name}
+            </Text>
+            {/* Under the title, inside the card. It used to hang below the card
+                as loose text, which made every row of the grid taller and read
+                as a caption floating between two cards rather than a property
+                of the one above it. */}
+            {showVisibility ? (
+              <Text style={styles.metaVisibility}>
+                {VISIBILITY_LABELS[collection.visibility]}
+              </Text>
+            ) : null}
+          </View>
           <View style={styles.metaCounts}>
             <Text style={styles.metaLike}>♥ {collection.likeCount.toLocaleString()}</Text>
             <Text style={styles.metaItems}>{collection.itemIds.length} items</Text>
@@ -978,14 +1000,15 @@ const styles = StyleSheet.create({
   },
   // Bigger and heavier than cardTitle: on a browse grid the collection name is
   // the thing being chosen between, so it should win the card outright.
+  metaLeft: { flex: 1, gap: 2 },
   metaName: {
     ...typography.sectionHeader,
     fontSize: 21,
     lineHeight: 27,
     fontFamily: fonts.display,
     color: colors.textOnAccent,
-    flex: 1,
   },
+  metaVisibility: { ...typography.meta, color: colors.textOnAccent, opacity: 0.75 },
   /** Counts stack right-aligned, clear of a long collection name. */
   metaCounts: { alignItems: 'flex-end', gap: 2 },
   /* Red, on the scrim rather than on raw artwork — the gradient reaches `heavy`
