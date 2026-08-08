@@ -25,6 +25,7 @@ import {
   Avatar,
   AvatarPicker,
   CollectionCard,
+  EmptyState,
   useHoverLift,
   ItemArt,
   ItemCard,
@@ -61,8 +62,17 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { width: viewportWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { viewer, viewerId, inventory, intensity, chooseAvatar, refreshInventory, resetFirstRun } =
-    useApp();
+  const {
+    viewer,
+    viewerId,
+    inventory,
+    intensity,
+    mode,
+    chooseAvatar,
+    createAccount,
+    refreshInventory,
+    resetFirstRun,
+  } = useApp();
 
   /** What the last reset removed, so the row reports rather than silently acting. */
   const [clearedNote, setClearedNote] = useState<string | null>(null);
@@ -191,7 +201,24 @@ export default function ProfileScreen() {
         ) : null}
       </View>
 
-      {pickerOpen ? (
+      {/*
+        A guest's profile is not an empty profile — it is the absence of one.
+        Everything below this point (inventory, collections, showrooms, the
+        stats row, the avatar picker) describes an account that does not exist,
+        so it is replaced wholesale rather than rendered empty. Showing "0
+        items · 0 collections" would read as a broken account rather than as no
+        account.
+      */}
+      {mode === 'guest' ? (
+        <EmptyState
+          title="You're browsing as a guest"
+          body="Nothing here is saved. Create an account to import your skins, keep an inventory, group it into collections and build a showroom others can visit."
+          actionLabel="Create an account"
+          onAction={createAccount}
+        />
+      ) : null}
+
+      {mode === 'guest' ? null : pickerOpen ? (
         <View style={styles.pickerCard}>
           <SectionHeader title="Choose Your Avatar" />
           {/* Ordered by the games this account follows — the same rule the
@@ -209,231 +236,243 @@ export default function ProfileScreen() {
         </View>
       ) : null}
 
-      {/* Top-right of the identity block: settings changes who you are, so it
-          belongs on the screen that shows it rather than floating app-wide. */}
-      <Pressable
-        accessibilityLabel="Settings"
-        hitSlop={10}
-        onPress={() => router.push('/settings')}
-        style={({ pressed }) => [styles.settings, pressed && { opacity: 0.7 }]}
-      >
-        <Text style={styles.settingsGlyph}>⚙</Text>
-      </Pressable>
-
-      <View style={styles.stats}>
-        <Stat
-          label="Items"
-          value={inventory.length}
-          hint={`${verifiedCount} verified · ${inventory.length - verifiedCount} unverified`}
-          onPress={() => router.push('/inventory')}
-        />
-        <Stat
-          label="Collections"
-          value={collections.length}
-          hint={`${collections.reduce((n, c) => n + c.itemIds.length, 0)} items grouped`}
-          onPress={() => router.navigate('/collections')}
-        />
-        <Stat
-          label="Followers"
-          value={followers.length}
-          hint="Collectors following you"
-          onPress={() => router.push({ pathname: '/connections', params: { tab: 'followers' } })}
-        />
-        <Stat
-          label="Following"
-          value={following.length}
-          hint="Collectors you follow"
-          onPress={() => router.push({ pathname: '/connections', params: { tab: 'following' } })}
-        />
-      </View>
-
-
       {/*
-        Rooms on profile — the last screen of the §10 J3 flow map, and the point
-        of the whole feature: a room is not a one-off artifact, it is part of an
-        identity. Only published rooms with showOnProfile appear.
+        Everything from here down describes an ACCOUNT: the settings entry,
+        the stats row, the inventory rail, collections, showrooms and the
+        developer tools. A guest has none of those, so the whole block is
+        replaced by the pitch above rather than rendered with zeroes in it —
+        "0 items · 0 collections" reads as a broken account, not as no
+        account at all.
       */}
-      {/* Always rendered, even empty. The three sections — Collections,
-          Showrooms, Inventory — are the shape of a profile; hiding one
-          when it happens to be empty makes the page look like it has a
-          different structure per user. An empty state that says what a room is
-          does more work than a gap. */}
-      <View>
-        <SectionHeader title="Your Showrooms" prominent />
-        {publishedRooms.length === 0 ? (
-          <Pressable style={styles.roomEmpty} onPress={() => router.push('/room/new')}>
-            <Text style={styles.devLabel}>No rooms yet</Text>
+      {mode === 'guest' ? null : (
+        <>
+        {/* Top-right of the identity block: settings changes who you are, so it
+            belongs on the screen that shows it rather than floating app-wide. */}
+        <Pressable
+          accessibilityLabel="Settings"
+          hitSlop={10}
+          onPress={() => router.push('/settings')}
+          style={({ pressed }) => [styles.settings, pressed && { opacity: 0.7 }]}
+        >
+          <Text style={styles.settingsGlyph}>⚙</Text>
+        </Pressable>
+
+        <View style={styles.stats}>
+          <Stat
+            label="Items"
+            value={inventory.length}
+            hint={`${verifiedCount} verified · ${inventory.length - verifiedCount} unverified`}
+            onPress={() => router.push('/inventory')}
+          />
+          <Stat
+            label="Collections"
+            value={collections.length}
+            hint={`${collections.reduce((n, c) => n + c.itemIds.length, 0)} items grouped`}
+            onPress={() => router.navigate('/collections')}
+          />
+          <Stat
+            label="Followers"
+            value={followers.length}
+            hint="Collectors following you"
+            onPress={() => router.push({ pathname: '/connections', params: { tab: 'followers' } })}
+          />
+          <Stat
+            label="Following"
+            value={following.length}
+            hint="Collectors you follow"
+            onPress={() => router.push({ pathname: '/connections', params: { tab: 'following' } })}
+          />
+        </View>
+
+
+        {/*
+          Rooms on profile — the last screen of the §10 J3 flow map, and the point
+          of the whole feature: a room is not a one-off artifact, it is part of an
+          identity. Only published rooms with showOnProfile appear.
+        */}
+        {/* Always rendered, even empty. The three sections — Collections,
+            Showrooms, Inventory — are the shape of a profile; hiding one
+            when it happens to be empty makes the page look like it has a
+            different structure per user. An empty state that says what a room is
+            does more work than a gap. */}
+        <View>
+          <SectionHeader title="Your Showrooms" prominent />
+          {publishedRooms.length === 0 ? (
+            <Pressable style={styles.roomEmpty} onPress={() => router.push('/room/new')}>
+              <Text style={styles.devLabel}>No rooms yet</Text>
+              <Text style={styles.muted}>
+                Build an interactive room from a collection of verified items ›
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+
+        {roomEntries.length > 0 ? (
+          <View>
+            {/* The same grid of `CollectionCard`s the Collections tab uses for
+                its own Showrooms section. Profile had thin rows with a square
+                theme thumbnail, so the identical set of rooms looked like two
+                different features depending on which tab you reached them from.
+                A showroom is something you look at; the card shows it. */}
+            <View style={styles.collectionGrid}>
+              {roomEntries.map((entry) => (
+                /* Inert wrapper; the card carries the handler. A Pressable around
+                   `CollectionCard` renders a <button> inside a <button> on web and
+                   the click never lands — see the same fix on the Collections tab. */
+                <View key={entry.room.id} style={styles.collectionCell}>
+                  <CollectionCard
+                    collection={entry.collection}
+                    owner={viewer}
+                    headline={entry.headline}
+                    showVisibility
+                    onPress={() =>
+                      router.push({ pathname: '/room/[id]', params: { id: entry.room.id } })
+                    }
+                  />
+                </View>
+              ))}
+              {viewportWidth >= 600 && roomEntries.length % 2 === 1 ? (
+                <View style={styles.collectionCell} pointerEvents="none" />
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        <View>
+          <SectionHeader
+            title="Your Collections"
+            prominent
+            onSeeAll={() => router.navigate('/collections')}
+          />
+          {plainCollections.length === 0 ? (
+            <Text style={styles.muted}>No collections yet.</Text>
+          ) : (
+            <View style={styles.collectionGrid}>
+              {plainCollections.map((collection) => (
+                <View
+                  key={collection.id}
+                  style={[styles.collectionCell, viewportWidth < 600 && styles.collectionCellPhone]}
+                >
+                  <CollectionCard
+                    collection={collection}
+                    owner={viewer}
+                    width="100%"
+                    showVisibility
+                    onPress={() =>
+                      router.push({ pathname: '/collection/[id]', params: { id: collection.id } })
+                    }
+                  />
+                </View>
+              ))}
+              {viewportWidth >= 600 && plainCollections.length % 2 === 1 ? (
+                <View style={styles.collectionCell} pointerEvents="none" />
+              ) : null}
+            </View>
+          )}
+        </View>
+
+        {/* A preview, not the list. Profile is an identity page — collections,
+            showrooms, a taste of what you own. Forty item cards inline turn it
+            into a list screen nobody scrolls past, so the full grid and its
+            filters live on /inventory. */}
+        <View>
+          <SectionHeader
+            title="Your Inventory"
+            prominent
+            actionLabel="View full inventory"
+            onSeeAll={() => router.push('/inventory')}
+          />
+          <Text style={styles.muted}>
+            {inventory.length} items · {verifiedCount} verified · {inventory.length - verifiedCount}{' '}
+            unverified
+          </Text>
+          {/* A rail rather than a wrapping grid: a grid has to pick a row count
+              and then either truncate hard or grow the page, while a rail shows
+              more in the same height and its overflow is obvious because the last
+              card is half-cut. The full grid, with filters, stays behind "View
+              full inventory".
+
+              The cap is PREVIEW_ITEMS, not the whole inventory. A rail you can
+              scroll for forty cards is the list screen this preview exists to
+              avoid, and it competes with the button that leads to the real one —
+              but eight ran out almost immediately on a wide window, which made
+              the rail look like the whole inventory rather than a slice of it.
+              Twenty is long enough to keep scrolling on any width and still
+              short enough to end. */}
+          <FlatList
+            ref={inventoryRail}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={inventory.slice(0, PREVIEW_ITEMS)}
+            keyExtractor={(entry) => entry.owned.id}
+            contentContainerStyle={styles.previewRail}
+            renderItem={({ item: entry }: { item: (typeof inventory)[number] }) => (
+              <ItemCard
+                item={entry.item}
+                trustLevel={entry.owned.trustLevel}
+                /* 168 wide and 200 tall, overlaid.
+                   At 132 the names wrapped to two cramped lines and the game and
+                   trust badge fought for one row underneath — "Gusion — Cyber
+                   Faust · MLBB · Verified" in 132px is four pieces of
+                   information in a space that fits two. Bigger, and with the
+                   words on the art, it matches the collection and showroom cards
+                   it scrolls beside. */
+                width={176}
+                /* SQUARE, matching the rendition `ItemArt` picks for a box this
+                   shape. A 176x200 portrait box cropped the sides a second time
+                   on art that had already been cropped square at bake time —
+                   characters are authored 3:2, so they were losing ~44% of their
+                   width in total and arriving as a face with no shoulders.
+                   Square costs a little height and shows the whole subject. */
+                artHeight={176}
+                overlay
+                onPress={() => router.push('/inventory')}
+              />
+            )}
+            /* The tail card, so the rail ends by pointing at the full grid rather
+               than just stopping. Only when there is genuinely more to see. */
+            ListFooterComponent={
+              inventory.length > PREVIEW_ITEMS ? (
+                <Pressable style={styles.railMore} onPress={() => router.push('/inventory')}>
+                  <Text style={styles.railMoreCount}>+{inventory.length - PREVIEW_ITEMS}</Text>
+                  <Text style={styles.railMoreLabel}>See all</Text>
+                </Pressable>
+              ) : null
+            }
+          />
+        </View>
+
+        {busy ? <LoadingState height={120} /> : null}
+
+        <View>
+          <SectionHeader title="Developer" prominent />
+          {/*
+            Two rows, both rehearsal affordances.
+
+            "Foundation checks", "Reset onboarding gate" and "Reset the whole
+            first run" were three routes to internal state that nobody demoing
+            this needs — and two of them only signposted /diagnostics, which is
+            still there and still reachable by URL.
+
+            What a rehearsal actually needs is: put the inventory back, and see
+            the first run again.
+          */}
+          <Pressable style={styles.devRow} onPress={() => void resetImports()}>
+            <Text style={styles.devLabel}>Reset imported items</Text>
             <Text style={styles.muted}>
-              Build an interactive room from a collection of verified items ›
+              {clearedNote ??
+                'Removes everything imported this session and leaves the 40 seeded items'}
             </Text>
           </Pressable>
-        ) : null}
-      </View>
-
-      {roomEntries.length > 0 ? (
-        <View>
-          {/* The same grid of `CollectionCard`s the Collections tab uses for
-              its own Showrooms section. Profile had thin rows with a square
-              theme thumbnail, so the identical set of rooms looked like two
-              different features depending on which tab you reached them from.
-              A showroom is something you look at; the card shows it. */}
-          <View style={styles.collectionGrid}>
-            {roomEntries.map((entry) => (
-              /* Inert wrapper; the card carries the handler. A Pressable around
-                 `CollectionCard` renders a <button> inside a <button> on web and
-                 the click never lands — see the same fix on the Collections tab. */
-              <View key={entry.room.id} style={styles.collectionCell}>
-                <CollectionCard
-                  collection={entry.collection}
-                  owner={viewer}
-                  headline={entry.headline}
-                  showVisibility
-                  onPress={() =>
-                    router.push({ pathname: '/room/[id]', params: { id: entry.room.id } })
-                  }
-                />
-              </View>
-            ))}
-            {viewportWidth >= 600 && roomEntries.length % 2 === 1 ? (
-              <View style={styles.collectionCell} pointerEvents="none" />
-            ) : null}
-          </View>
+          <Pressable style={styles.devRow} onPress={resetFirstRun}>
+            <Text style={styles.devLabel}>Show the login page</Text>
+            <Text style={styles.muted}>
+              Signs you out and replays sign-in, the quiz and the tour from the start
+            </Text>
+          </Pressable>
         </View>
-      ) : null}
-
-      <View>
-        <SectionHeader
-          title="Your Collections"
-          prominent
-          onSeeAll={() => router.navigate('/collections')}
-        />
-        {plainCollections.length === 0 ? (
-          <Text style={styles.muted}>No collections yet.</Text>
-        ) : (
-          <View style={styles.collectionGrid}>
-            {plainCollections.map((collection) => (
-              <View
-                key={collection.id}
-                style={[styles.collectionCell, viewportWidth < 600 && styles.collectionCellPhone]}
-              >
-                <CollectionCard
-                  collection={collection}
-                  owner={viewer}
-                  width="100%"
-                  showVisibility
-                  onPress={() =>
-                    router.push({ pathname: '/collection/[id]', params: { id: collection.id } })
-                  }
-                />
-              </View>
-            ))}
-            {viewportWidth >= 600 && plainCollections.length % 2 === 1 ? (
-              <View style={styles.collectionCell} pointerEvents="none" />
-            ) : null}
-          </View>
-        )}
-      </View>
-
-      {/* A preview, not the list. Profile is an identity page — collections,
-          showrooms, a taste of what you own. Forty item cards inline turn it
-          into a list screen nobody scrolls past, so the full grid and its
-          filters live on /inventory. */}
-      <View>
-        <SectionHeader
-          title="Your Inventory"
-          prominent
-          actionLabel="View full inventory"
-          onSeeAll={() => router.push('/inventory')}
-        />
-        <Text style={styles.muted}>
-          {inventory.length} items · {verifiedCount} verified · {inventory.length - verifiedCount}{' '}
-          unverified
-        </Text>
-        {/* A rail rather than a wrapping grid: a grid has to pick a row count
-            and then either truncate hard or grow the page, while a rail shows
-            more in the same height and its overflow is obvious because the last
-            card is half-cut. The full grid, with filters, stays behind "View
-            full inventory".
-
-            The cap is PREVIEW_ITEMS, not the whole inventory. A rail you can
-            scroll for forty cards is the list screen this preview exists to
-            avoid, and it competes with the button that leads to the real one —
-            but eight ran out almost immediately on a wide window, which made
-            the rail look like the whole inventory rather than a slice of it.
-            Twenty is long enough to keep scrolling on any width and still
-            short enough to end. */}
-        <FlatList
-          ref={inventoryRail}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={inventory.slice(0, PREVIEW_ITEMS)}
-          keyExtractor={(entry) => entry.owned.id}
-          contentContainerStyle={styles.previewRail}
-          renderItem={({ item: entry }: { item: (typeof inventory)[number] }) => (
-            <ItemCard
-              item={entry.item}
-              trustLevel={entry.owned.trustLevel}
-              /* 168 wide and 200 tall, overlaid.
-                 At 132 the names wrapped to two cramped lines and the game and
-                 trust badge fought for one row underneath — "Gusion — Cyber
-                 Faust · MLBB · Verified" in 132px is four pieces of
-                 information in a space that fits two. Bigger, and with the
-                 words on the art, it matches the collection and showroom cards
-                 it scrolls beside. */
-              width={176}
-              /* SQUARE, matching the rendition `ItemArt` picks for a box this
-                 shape. A 176x200 portrait box cropped the sides a second time
-                 on art that had already been cropped square at bake time —
-                 characters are authored 3:2, so they were losing ~44% of their
-                 width in total and arriving as a face with no shoulders.
-                 Square costs a little height and shows the whole subject. */
-              artHeight={176}
-              overlay
-              onPress={() => router.push('/inventory')}
-            />
-          )}
-          /* The tail card, so the rail ends by pointing at the full grid rather
-             than just stopping. Only when there is genuinely more to see. */
-          ListFooterComponent={
-            inventory.length > PREVIEW_ITEMS ? (
-              <Pressable style={styles.railMore} onPress={() => router.push('/inventory')}>
-                <Text style={styles.railMoreCount}>+{inventory.length - PREVIEW_ITEMS}</Text>
-                <Text style={styles.railMoreLabel}>See all</Text>
-              </Pressable>
-            ) : null
-          }
-        />
-      </View>
-
-      {busy ? <LoadingState height={120} /> : null}
-
-      <View>
-        <SectionHeader title="Developer" prominent />
-        {/*
-          Two rows, both rehearsal affordances.
-
-          "Foundation checks", "Reset onboarding gate" and "Reset the whole
-          first run" were three routes to internal state that nobody demoing
-          this needs — and two of them only signposted /diagnostics, which is
-          still there and still reachable by URL.
-
-          What a rehearsal actually needs is: put the inventory back, and see
-          the first run again.
-        */}
-        <Pressable style={styles.devRow} onPress={() => void resetImports()}>
-          <Text style={styles.devLabel}>Reset imported items</Text>
-          <Text style={styles.muted}>
-            {clearedNote ??
-              'Removes everything imported this session and leaves the 40 seeded items'}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.devRow} onPress={resetFirstRun}>
-          <Text style={styles.devLabel}>Show the login page</Text>
-          <Text style={styles.muted}>
-            Signs you out and replays sign-in, the quiz and the tour from the start
-          </Text>
-        </Pressable>
-      </View>
+        </>
+      )}
 
       <View style={{ height: ASSISTANT_CLEARANCE }} />
     </ScrollView>

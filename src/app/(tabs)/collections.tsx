@@ -90,7 +90,7 @@ interface Entry {
 export default function CollectionsScreen() {
   const router = useRouter();
   const { width: viewportWidth } = useWindowDimensions();
-  const { viewer, viewerId, inventory } = useApp();
+  const { viewer, viewerId, inventory, mode, createAccount } = useApp();
   const ideaHeaders = useEqualHeaders();
 
   const scrollRef = useTopOnFocus();
@@ -313,6 +313,19 @@ export default function CollectionsScreen() {
 
       {busy ? (
         <LoadingState height={220} />
+      ) : mode === 'guest' ? (
+        /*
+          A guest genuinely owns nothing — `viewerId` is an id no fixture is
+          keyed to — so this list is empty for a reason the generic copy below
+          would explain wrongly. "No collections yet" implies you could make one
+          and have not; the truth is that there is nowhere to keep it.
+        */
+        <EmptyState
+          title="Collections need an account"
+          body="You're browsing as a guest, so nothing is saved. Create an account to import your skins, group them into collections, and build a showroom."
+          actionLabel="Create an account"
+          onAction={createAccount}
+        />
       ) : entries.length === 0 ? (
         <EmptyState
           title="No collections yet"

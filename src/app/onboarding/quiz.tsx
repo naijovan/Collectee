@@ -146,6 +146,39 @@ export default function QuizScreen() {
 
   const isLast = step === steps.length - 1;
 
+  /**
+   * Whether this step has been answered, and what to say when it has not.
+   *
+   * Two of the four are genuinely optional and are labelled so on screen: the
+   * taste chips ("Anything you collect in particular?") and the intensity
+   * ("What kind of collector are you?"). Both feed flavour — a ranked feed and
+   * a profile pill — and neither gates anything, so demanding an answer would
+   * be asking for input the app does not need.
+   *
+   * Games and the avatar are different. The avatar roster is ORDERED by the
+   * games answer, and the face is what every card, comment and room credit
+   * shows for this account. Letting either through empty produced a session
+   * with no titles followed and a placeholder for a face, which then looked
+   * like the app had failed rather than like a question had been ducked.
+   *
+   * The skip controls are gone for the same reason: with two steps required,
+   * "Skip all" was a button whose whole purpose was to bypass them.
+   */
+  const { answered, requirement } = useMemo(() => {
+    switch (steps[step]) {
+      case 'Games you play':
+        return {
+          answered: games.length > 0,
+          requirement: 'Pick at least one game to continue.',
+        };
+      case 'Pick a face':
+        return { answered: avatarId !== null, requirement: 'Choose a face to continue.' };
+      /* Optional by design — see above. */
+      default:
+        return { answered: true, requirement: '' };
+    }
+  }, [steps, step, games, avatarId]);
+
   const advance = useCallback(
     (keep: {
       games: GameTitle[];
@@ -200,26 +233,12 @@ export default function QuizScreen() {
         <View style={styles.footerColumn}>
         <PrimaryButton
           label={isLast ? 'Done' : 'Continue'}
+          disabled={!answered}
           onPress={() => advance(answers)}
         />
-        <View style={styles.skipRow}>
-          <Pressable
-            onPress={() => advance(answers)}
-            hitSlop={interaction.hitSlop}
-            accessibilityRole="button"
-          >
-            <Text style={styles.skip}>Skip this step</Text>
-          </Pressable>
-          {/* Skips forward with nothing kept — not "apply what I have picked so
-              far and stop", which is what advancing through the rest would do. */}
-          <Pressable
-            onPress={() => void finish({ games: [], picked: [], intensity: null, avatarId: null })}
-            hitSlop={interaction.hitSlop}
-            accessibilityRole="button"
-          >
-            <Text style={styles.skip}>Skip all</Text>
-          </Pressable>
-        </View>
+        {/* Says WHY the button is dead. A disabled control with no explanation
+            is the same dead end as no control at all. */}
+        {answered ? null : <Text style={styles.requirement}>{requirement}</Text>}
         </View>
       </View>
     </View>
@@ -489,6 +508,12 @@ const styles = StyleSheet.create({
   /* Matches the step column above it, so the CTA lines up with the content
      rather than stretching across a desktop browser window. */
   footerColumn: { width: '100%', maxWidth: 460, gap: spacing.md },
-  skipRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  skip: { ...typography.body, color: colors.textSecondary },
+  /* Centred under the button it explains, in the muted tone the rest of the
+     first run uses for guidance rather than for errors — the step is not
+     wrong, it is simply not finished. */
+  requirement: {
+    ...typography.meta,
+    color: colors.textTertiary,
+    textAlign: 'center',
+  },
 });

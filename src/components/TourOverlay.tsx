@@ -451,7 +451,13 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
     return (
       <View style={styles.root} pointerEvents="box-none">
         <View style={[StyleSheet.absoluteFill, styles.fullScrim]} pointerEvents="auto" />
-        <View style={[styles.cardWrap, { bottom: insets.bottom + spacing.xl }]} pointerEvents="box-none">
+        {/* Centred, not pinned to the bottom.
+            The tour's own STOPS anchor near the bottom because each one points
+            at a target elsewhere on screen and must not cover it. This first
+            card points at nothing — it is a yes/no about the tour itself — so
+            the bottom placement gave it the look of a dismissable toast rather
+            than a question waiting on an answer. */}
+        <View style={styles.invite} pointerEvents="box-none">
           <View style={styles.card}>
             <Text style={styles.title}>Take a 30-second tour?</Text>
             <Text style={styles.text}>
@@ -782,6 +788,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
     justifyContent: 'flex-start',
+  },
+  /* The opening invitation only — see the note at its call site for why this
+     one sits in the middle while every stop that follows does not. */
+  invite: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   card: {
     width: '100%',

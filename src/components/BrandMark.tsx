@@ -7,21 +7,35 @@
  * component makes both a single edit; inlining the image would make "the icon
  * is slightly bigger on Explore" a bug waiting to happen.
  *
- * ── It is decoration, not a control ──────────────────────────────────────
- * `accessibilityElementsHidden` and an empty `alt` on purpose. The mark carries
- * no information a screen reader user needs — the screen title right beside it
- * says where they are — and announcing "Collectee logo" before every single
- * heading is noise on every page of the app. It is also NOT a home button:
- * a logo that navigates is a convention from the web, and here the tab bar
- * already owns that job.
+ * ── It IS a home button ──────────────────────────────────────────────────
+ * This was decorative at first, on the reasoning that a clickable logo is a web
+ * convention the tab bar already covers. That was overruled, and the reasoning
+ * was thin anyway: people arrive at this app from the web, they try the logo,
+ * and a mark that does nothing when tapped reads as broken rather than as
+ * restrained.
+ *
+ * Being a control changes two things beyond the tap. It takes a real
+ * accessibility role and label, so a screen reader announces it as the button
+ * it now is — the earlier `accessibilityElementsHidden` would have made it a
+ * control nobody could reach. And it takes `useHoverPop`, the same spring the
+ * chips and pill CTAs use, so it responds to a pointer like everything else
+ * that can be clicked.
+ *
+ * `navigate` rather than `push`: Home is a tab, and pushing would stack another
+ * copy of it on top of wherever you were instead of returning to it.
  *
  * The source is the transparent 1254px master. React Native picks the mip it
  * needs, and the file is small enough that a resized export per density would
  * be three more assets to keep in sync for no visible gain.
  */
 
-import { Image, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Animated, Image, Pressable, StyleSheet } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
+
+import * as haptics from '@/lib/haptics';
+
+import { useHoverPop } from './primitives';
 
 const MARK = require('../../assets/collectee/brand/collectee-mark.png');
 
@@ -50,19 +64,38 @@ export function BrandMark({
   size?: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  const router = useRouter();
+  const pop = useHoverPop();
+
   return (
-    <View style={[styles.wrap, { width: size, height: size }, style]}>
-      <Image
-        source={MARK}
-        style={styles.image}
-        resizeMode="contain"
-        accessibilityIgnoresInvertColors
-        /* Decorative — see the header note above. */
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        alt=""
-      />
-    </View>
+    <Animated.View style={[pop.popStyle, style]}>
+      <Pressable
+        {...pop.hoverProps}
+        onPress={() => {
+          haptics.tap();
+          router.navigate('/');
+        }}
+        accessibilityRole="button"
+        accessibilityLabel="Collectee — go to Home"
+        /* The artwork is small; the tap target should not be. */
+        hitSlop={8}
+        style={({ pressed }) => [
+          styles.wrap,
+          { width: size, height: size },
+          pressed && styles.pressed,
+        ]}
+      >
+        <Image
+          source={MARK}
+          style={styles.image}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+          /* The Pressable above carries the label — leaving one here too would
+             have a screen reader announce the mark twice. */
+          alt=""
+        />
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -70,5 +103,6 @@ const styles = StyleSheet.create({
   /* Fixed box, so a header row's height never depends on how the artwork
      happens to letterbox inside it. */
   wrap: { alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.7 },
   image: { width: '100%', height: '100%' },
 });

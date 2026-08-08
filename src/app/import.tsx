@@ -161,7 +161,7 @@ const PREVIEW_UNMATCHED = 3;
 export default function ImportScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { viewer, viewerId, inventory, refreshInventory } = useApp();
+  const { viewer, viewerId, inventory, mode, createAccount, refreshInventory } = useApp();
 
   const [stage, setStage] = useState<Stage>('landing');
   const scrollRef = useTopOnFocus(stage);
@@ -683,6 +683,40 @@ export default function ImportScreen() {
 
   const focused = pending.find((d) => d.id === focusId) ?? pending[0];
 
+  /*
+   * A guest is stopped at the door rather than at the save.
+   *
+   * Returning early rather than hiding the body: the scan spends a real vision
+   * call, and letting it run only to refuse at the end would burn that call —
+   * and the user's goodwill — on work that was never going to be kept. The rest
+   * of the app is browsable precisely so this can be the one hard stop.
+   * Importing is the thing that needs somewhere to put the result.
+   */
+  if (mode === 'guest') {
+    return (
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      >
+        <View style={styles.navRow}>
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <Text style={styles.back}>←</Text>
+          </Pressable>
+          <BrandMark size={24} />
+          <Text style={styles.navTitle} numberOfLines={1}>
+            Import
+          </Text>
+        </View>
+        <EmptyState
+          title="Importing needs an account"
+          body="Scanning your screenshots builds an inventory, and an inventory has to belong to someone. Create an account and your imports, collections and showrooms are saved to it."
+          actionLabel="Create an account"
+          onAction={createAccount}
+        />
+      </ScrollView>
+    );
+  }
+
   return (
     <ScrollView
       ref={scrollRef}
@@ -692,6 +726,14 @@ export default function ImportScreen() {
          this screen owns its own top inset. */
       contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
     >
+      {/*
+        A guest is stopped at the door rather than at the save.
+        Letting the scan run and refusing only at the end would spend a real
+        vision call — and the user's goodwill — on work that was never going to
+        be kept. The rest of the app is browsable precisely so this can be the
+        one hard stop: importing is the thing that needs somewhere to put the
+        result.
+      */}
       <View style={styles.navRow}>
         <Pressable onPress={goBack} hitSlop={8}>
           <Text style={styles.back}>←</Text>

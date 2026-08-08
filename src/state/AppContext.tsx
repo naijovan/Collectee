@@ -44,10 +44,27 @@ import type { User } from '@/types';
  */
 export type FirstRunStage = 'sign-in' | 'quiz' | 'tour' | 'done';
 
+/**
+ * How the viewer arrived.
+ *
+ * `guest` is the "Continue as guest" path: a real, browsable session that owns
+ * nothing. It is NOT a lesser sign-in — Home, Explore, news and every other
+ * collector's public work are all fully visible, because a guest who sees a
+ * wall learns nothing about the product. What a guest does not have is data of
+ * their own.
+ */
+export type ViewerMode = 'member' | 'guest';
+
 interface AppState {
   /** The signed-in user. Never null — the demo opens logged-in (§16 Q8). */
   viewer: User | null;
   viewerId: string;
+  /**
+   * Read this rather than comparing `viewerId` to a constant. Whether a screen
+   * should offer "create an account" is a question about the SESSION, and
+   * spelling it as an id comparison puts the same rule in twenty places.
+   */
+  mode: ViewerMode;
 
   inventory: OwnedItemView[];
   /** Item ids the viewer owns. Cheap membership checks for every flow. */
@@ -91,6 +108,30 @@ interface AppState {
 
   /** Sign-in succeeded. Mocked: nothing authenticates, any input gets here. */
   signIn: () => void;
+  /**
+   * "Continue as guest" — into the app with no account.
+   *
+   * A separate entry point rather than a flag on `signIn`, because the two do
+   * genuinely different things: this one also switches which id every service
+   * call is made against, and conflating them is how the guest path ends up
+   * quietly reading the demo account's data.
+   */
+  continueAsGuest: () => void;
+  /**
+   * A guest deciding to make an account.
+   *
+   * Not `router.push('/sign-in')` — that route is a door someone has already
+   * walked through, and pushing it puts the front of the app on top of the
+   * screen they were reading. This changes `firstRunStage` instead and lets
+   * `FirstRunRouter` do the navigating, which is the same path the real
+   * sign-in takes.
+   *
+   * It also REOPENS the quiz and the tour. `continueAsGuest` closed both,
+   * because they ask someone to invest in an account they had just declined;
+   * now that they are making one, the questions apply again — and landing
+   * straight on a personalised feed they never answered for is the worse end.
+   */
+  createAccount: () => void;
   /** Quiz finished or skipped. Intensity is null when skipped. */
   completeQuiz: (intensity: CollectorIntensity | null) => void;
   /** Tour finished, dismissed or declined — all three end it for the session. */
@@ -156,13 +197,46 @@ function firstRunWrite(key: string, value: boolean) {
 function firstRunClear() {
   if (Platform.OS !== 'web') return;
   try {
-    for (const key of ['signedIn', 'quizDone', 'tourDone']) {
+    for (const key of ['signedIn', 'guest', 'quizDone', 'tourDone']) {
       globalThis.localStorage?.removeItem(FIRST_RUN_PREFIX + key);
     }
   } catch {
     // Non-fatal.
   }
 }
+
+/**
+ * The guest's id, and the reason it is not in `fixtures/users`.
+ *
+ * A seeded user would show up everywhere seeded users show up — the Explore
+ * roster, collector matching, comment authors — so the app would recommend the
+ * guest to themselves. `validate-fixtures` would also demand a distinct roster
+ * face for an account that should have none.
+ *
+ * Being an id nothing is keyed to is exactly what makes this work. Every
+ * service already filters by `userId`, so a guest gets an empty inventory,
+ * empty collections and empty showrooms out of the existing queries, with no
+ * screen needing to know why. That is twenty screens' worth of special-casing
+ * that does not have to exist.
+ */
+export const GUEST_ID = 'user-guest';
+
+/**
+ * Built here rather than fetched: `socialService.getUser` reads the fixtures
+ * and would return null for an id that is deliberately absent from them.
+ *
+ * No avatar id, on purpose — `Avatar` falls back to initials, which is the
+ * right look for an account that has not been made yet.
+ */
+const GUEST_VIEWER: User = {
+  id: GUEST_ID,
+  handle: 'guest',
+  displayName: 'Guest',
+  avatar: '',
+  bio: '',
+  followedGames: [],
+  isAccountVerified: false,
+};
 
 const AppContext = createContext<AppState | null>(null);
 
@@ -181,6 +255,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [signedIn, setSignedIn] = useState(
     () => firstRunRead('signedIn') ?? !(FEATURES.firstRunAuth && !SKIP_FIRST_RUN),
   );
+  /**
+   * Persisted beside `signedIn` and cleared by the same `resetFirstRun`, so a
+   * rehearsal of the guest path survives a refresh and is one tap from being
+   * undone. `firstRunRead` stores booleans, so this is "did they choose guest"
+   * rather than the mode string itself.
+   */
+  const [isGuest, setIsGuest] = useState(() => firstRunRead('guest') ?? false);
   const [quizDone, setQuizDone] = useState(() => firstRunRead('quizDone') ?? false);
   const [tourDone, setTourDone] = useState(() => firstRunRead('tourDone') ?? false);
 
@@ -196,6 +277,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     firstRunWrite('signedIn', signedIn);
   }, [signedIn]);
   useEffect(() => {
+    firstRunWrite('guest', isGuest);
+  }, [isGuest]);
+  useEffect(() => {
     firstRunWrite('quizDone', quizDone);
   }, [quizDone]);
   useEffect(() => {
@@ -203,8 +287,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [tourDone]);
   const [intensity, setIntensity] = useState<CollectorIntensity | null>(null);
 
+  const mode: ViewerMode = isGuest ? 'guest' : 'member';
+  /**
+   * ONE id, derived once, used for every service call below and handed to every
+   * screen. Deriving it here is what makes "a guest owns nothing" a property of
+   * the session rather than a rule each screen has to remember.
+   */
+  const activeId = isGuest ? GUEST_ID : VIEWER_ID;
+
   const refreshInventory = useCallback(async () => {
-    const next = await inventoryService.getInventory(VIEWER_ID);
+    const next = await inventoryService.getInventory(activeId);
     setInventory(next);
     /* An import is the activation event the gate exists to force, so completing
        one has to open the gate — including after `resetOnboardingGate`, which
@@ -213,25 +305,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
        gate, run the import, and Collections stays grey with the new collection
        behind it. */
     setGateOverride(false);
-  }, []);
+  }, [activeId]);
 
   const chooseAvatar = useCallback(async (avatarId: string) => {
+    /* A guest has no account to attach a face to. Silently ignoring beats
+       writing an overlay for an id that is thrown away on sign-out. */
+    if (isGuest) return;
     await socialService.setAvatar(VIEWER_ID, avatarId);
     /* Re-read rather than patching local state: the overlay is applied on the
        way out of the service, so this is the same path every other screen uses
        and cannot drift from it. */
     setViewer(await socialService.getUser(VIEWER_ID));
-  }, []);
+  }, [isGuest]);
 
   const markNotificationsRead = useCallback(async () => {
+    if (isGuest) return;
     await socialService.markAllRead(VIEWER_ID);
     setUnread(0);
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      /* Not a fetch: `GUEST_ID` is absent from the fixtures on purpose, so
+         `getUser` would return null and the header would render a nameless
+         account. Everything else a guest owns is genuinely empty. */
+      if (isGuest) {
+        setViewer(GUEST_VIEWER);
+        setInventory([]);
+        setUnread(0);
+        setLoading(false);
+        return;
+      }
+
       const [user, items, unread] = await Promise.all([
         socialService.getUser(VIEWER_ID),
         inventoryService.getInventory(VIEWER_ID),
@@ -248,7 +355,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isGuest]);
 
   const ownedItemIds = useMemo(
     () => new Set(inventory.map((entry) => entry.item.id)),
@@ -276,12 +383,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [signedIn, quizDone, tourDone]);
 
   const signIn = useCallback(() => {
+    setIsGuest(false);
     setSignedIn(true);
     /* A first-time sign-in should meet the pre-import app, or the gate — the
        §13.4 activation mechanic — is invisible to anyone watching the flow it
        was designed for. This is also what makes the whole demo one unbroken
        run: sign in, answer the quiz, and the very next thing is the import the
        greyed-out tabs are asking for. */
+    setGateOverride(true);
+  }, []);
+
+  /**
+   * Guests skip the rest of the first run.
+   *
+   * The quiz personalises a feed and the tour points at tabs a guest has no
+   * data in, so both would be asking someone to invest in an account they have
+   * just declined to make. Straight to the app is the honest route.
+   */
+  const continueAsGuest = useCallback(() => {
+    setIsGuest(true);
+    setSignedIn(true);
+    setQuizDone(true);
+    setTourDone(true);
+    setGateOverride(true);
+  }, []);
+
+  const createAccount = useCallback(() => {
+    setIsGuest(false);
+    setSignedIn(true);
+    setQuizDone(false);
+    setTourDone(false);
     setGateOverride(true);
   }, []);
 
@@ -302,6 +433,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // race the effects and leave a stale `true` behind.
     firstRunClear();
     setSignedIn(false);
+    setIsGuest(false);
     setQuizDone(false);
     setTourDone(false);
     setIntensity(null);
@@ -321,7 +453,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppState>(
     () => ({
       viewer,
-      viewerId: VIEWER_ID,
+      viewerId: activeId,
+      mode,
       inventory,
       ownedItemIds,
       hasImported: !gateOverride && inventory.length > 0,
@@ -331,6 +464,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       intensity,
       chooseAvatar,
       signIn,
+      continueAsGuest,
+      createAccount,
       completeQuiz,
       completeTour,
       replayTour,
@@ -341,6 +476,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }),
     [
       viewer,
+      activeId,
+      mode,
       inventory,
       ownedItemIds,
       gateOverride,
@@ -350,6 +487,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       intensity,
       chooseAvatar,
       signIn,
+      continueAsGuest,
+      createAccount,
       completeQuiz,
       completeTour,
       replayTour,
