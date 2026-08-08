@@ -296,9 +296,21 @@ report:
   real item. If nothing in the catalogue is the same item, this is null — that
   is a normal and expected answer.
 
-  The catalogue spans SEVERAL GAMES and its last column says which. The user
-  told us which game they are importing from — see <selected-game> — and that
-  is where the item almost always is, so prefer a match from it.
+  The catalogue has a "look" column describing what each item ACTUALLY looks
+  like in this app. On a kind-B image with no printed label, that column is the
+  one to match against: compare the object type, colourway, finish and motifs
+  you can see to the descriptions, and take the entry that matches on all of
+  them. Do not match on the NAME for a label-less image — names like "Ironclad"
+  or "Cherry Witch" say nothing about a colourway, and treating them as though
+  they do is how a red rifle gets matched to a blue one. A row with an empty
+  look column has no description yet; use its name for that row only.
+
+  When a label IS printed in the image, the name column still wins — a read
+  label is stronger evidence than a resemblance.
+
+  The catalogue spans SEVERAL GAMES and one column says which. The user told us
+  which game they are importing from — see <selected-game> — and that is where
+  the item almost always is, so prefer a match from it.
 
   But if the image is plainly from a DIFFERENT game in the catalogue, return
   that item anyway. Do not force a same-game match on a resemblance, and do not
@@ -390,6 +402,13 @@ interface CatalogueRow {
   rarity?: unknown;
   /** Which game the item belongs to. Present since the catalogue went cross-game. */
   game?: unknown;
+  /**
+   * A short visual description of the item, from `config/itemLooks`.
+   *
+   * Optional, and the row is still usable without it — an older client that
+   * does not send the column gets an empty cell rather than a rejected request.
+   */
+  look?: unknown;
 }
 
 interface ProxyRequest {
@@ -576,11 +595,11 @@ function chatHistory(raw: unknown): Anthropic.MessageParam[] {
  */
 function scanContent(
   game: string,
-  catalogue: readonly { id: string; name: string; rarity: string; game: string }[],
+  catalogue: readonly { id: string; name: string; rarity: string; game: string; look: string }[],
   image: { data: string; mediaType: 'image/png' | 'image/jpeg' },
 ): Anthropic.ContentBlockParam[] {
   const rows = catalogue
-    .map((row) => `${row.id}\t${row.name}\t${row.rarity}\t${row.game}`)
+    .map((row) => `${row.id}\t${row.name}\t${row.rarity}\t${row.game}\t${row.look}`)
     .join('\n');
   return [
     {
@@ -588,7 +607,12 @@ function scanContent(
       text:
         `<selected-game>${game}</selected-game>\n` +
         '<catalogue>\n' +
-        'Tab-separated: id, name, rarity, game. Only these ids exist.\n' +
+        'Tab-separated: id, name, rarity, game, look. Only these ids exist.\n' +
+        'The "look" column describes what the item ACTUALLY looks like in this\n' +
+        'app. It is the column to match a label-less image against — a name like\n' +
+        '"Ironclad" says nothing about a colourway, and matching on names alone\n' +
+        'is what made single-item uploads fail. An empty look means no\n' +
+        'description exists yet; fall back to the name for that row.\n' +
         `${rows}\n` +
         '</catalogue>',
     },
@@ -645,6 +669,9 @@ function buildCall(payload: ProxyRequest): Call | { error: string } {
           name: typeof row.name === 'string' ? row.name.trim() : '',
           rarity: typeof row.rarity === 'string' ? row.rarity.trim() : '',
           game: typeof row.game === 'string' ? row.game.trim() : '',
+          /* Empty rather than absent when the client does not send it, so the
+             tab-separated row keeps its shape and the column stays aligned. */
+          look: typeof row.look === 'string' ? row.look.trim() : '',
         };
       })
       .filter((row) => row.id.length > 0 && row.name.length > 0);
