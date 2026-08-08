@@ -420,6 +420,67 @@ export function useHoverLift() {
   };
 }
 
+/**
+ * A springy hover "pop" for controls that own their own space — filter chips,
+ * pill CTAs, anything with a gap around it.
+ *
+ * ── Why this scales where `useHoverLift` refuses to ───────────────────────
+ * `interaction.hoverLift` exists because a scale hover was tried on CARDS and
+ * had to be pulled: a card in a wrapped grid grew past its own layout box, so
+ * it overlapped its neighbours and pushed its border outside whatever contained
+ * it. That reasoning is about grids, not about scaling as such. A chip in a
+ * spaced row or a button with margin has room to breathe, and on those a lift
+ * alone is so subtle that the control reads as inert — which is the report this
+ * hook answers.
+ *
+ * So: `useHoverLift` for anything tiled, this for anything standalone. Do not
+ * reach for this one inside a grid.
+ *
+ * ── Spring, not timing ───────────────────────────────────────────────────
+ * The overshoot is the whole effect. A linear tween to the same scale reads as
+ * a resize; the settle is what makes it read as a press-ready control.
+ *
+ * Returns a style for an `Animated.View` WRAPPING the pressable rather than for
+ * the pressable itself, so the caller keeps `Pressable`'s function-style API
+ * (`({ pressed }) => …`) intact. Hover still fires on the inner element, and
+ * since the wrapper only grows, the pointer stays inside it throughout.
+ */
+export function useHoverPop({ scale = 1.06, lift = -2 }: { scale?: number; lift?: number } = {}) {
+  const reduceMotion = useReduceMotion();
+  const progress = useRef(new Animated.Value(0)).current;
+
+  const settle = useCallback(
+    (to: number) => {
+      if (reduceMotion) {
+        progress.setValue(0);
+        return;
+      }
+      Animated.spring(progress, {
+        toValue: to,
+        friction: motion.spring.friction,
+        tension: motion.spring.tension,
+        /* Web has no native driver for transforms in RN Web; everywhere else
+           this keeps the spring off the JS thread. */
+        useNativeDriver: Platform.OS !== 'web',
+      }).start();
+    },
+    [progress, reduceMotion],
+  );
+
+  return {
+    hoverProps: {
+      onHoverIn: () => settle(1),
+      onHoverOut: () => settle(0),
+    },
+    popStyle: {
+      transform: [
+        { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [1, scale] }) },
+        { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, lift] }) },
+      ],
+    },
+  };
+}
+
 export function SectionHeader({
   title,
   onSeeAll,
@@ -499,42 +560,67 @@ export function FilterChips<T extends string>({
 }) {
   return (
     <View style={styles.chipRow} accessibilityRole="tablist">
-      {options.map((option) => {
-        const active = option === value;
-        const accent = accentFor?.(option);
-        return (
-          <Pressable
-            key={option}
-            onPress={() => {
-              /* Re-tapping the active chip is a no-op; firing a tick for it
-                 would teach the hand that nothing happened. */
-              if (active) return;
-              haptics.selection();
-              onChange(option);
-            }}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={option}
-            style={({ pressed }) => [
-              styles.chip,
-              active && styles.chipActive,
-              /* Overrides the fill only. The inactive chip keeps the neutral
-                 surface on every tab, so the row reads as one control rather
-                 than three differently-coloured ones. */
-              active && accent ? { backgroundColor: accent, borderColor: accent } : null,
-              pressed && !active && styles.pressed,
-            ]}
-          >
-            {/* The active chip takes the same gradient as the buttons, EXCEPT
-                when a per-option accent is supplied — News gives each game tab
-                its own colour, and a violet ramp over an ember tab would undo
-                the thing that override exists to do. */}
-            {active && !accent ? <AccentFill /> : null}
-            <Text style={[styles.chipText, active && styles.chipTextActive]}>{option}</Text>
-          </Pressable>
-        );
-      })}
+      {options.map((option) => (
+        <Chip
+          key={option}
+          label={option}
+          active={option === value}
+          accent={accentFor?.(option)}
+          onPress={() => onChange(option)}
+        />
+      ))}
     </View>
+  );
+}
+
+/**
+ * One chip. Its own component purely so it can hold a hook — `useHoverPop` is
+ * per-element state and cannot be called inside the map above.
+ */
+function Chip({
+  label,
+  active,
+  accent,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  accent?: string;
+  onPress: () => void;
+}) {
+  const pop = useHoverPop();
+  return (
+    <Animated.View style={pop.popStyle}>
+      <Pressable
+        {...pop.hoverProps}
+        onPress={() => {
+          /* Re-tapping the active chip is a no-op; firing a tick for it
+             would teach the hand that nothing happened. */
+          if (active) return;
+          haptics.selection();
+          onPress();
+        }}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: active }}
+        accessibilityLabel={label}
+        style={({ pressed }) => [
+          styles.chip,
+          active && styles.chipActive,
+          /* Overrides the fill only. The inactive chip keeps the neutral
+             surface on every tab, so the row reads as one control rather
+             than three differently-coloured ones. */
+          active && accent ? { backgroundColor: accent, borderColor: accent } : null,
+          pressed && !active && styles.pressed,
+        ]}
+      >
+        {/* The active chip takes the same gradient as the buttons, EXCEPT
+            when a per-option accent is supplied — News gives each game tab
+            its own colour, and a violet ramp over an ember tab would undo
+            the thing that override exists to do. */}
+        {active && !accent ? <AccentFill /> : null}
+        <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -582,8 +668,15 @@ export function PrimaryButton({
   onPress?: () => void;
   disabled?: boolean;
 }) {
+  const pop = useHoverPop();
   return (
+    /* The wrapper carries the pop; the Pressable keeps its function style. A
+       disabled button gets no hover props, so it stays put — a control that
+       animates to the pointer and then refuses the click is worse than one
+       that never moved. */
+    <Animated.View style={disabled ? null : pop.popStyle}>
     <Pressable
+      {...(disabled ? {} : pop.hoverProps)}
       onPress={() => {
         haptics.tap();
         onPress?.();
@@ -631,6 +724,7 @@ export function PrimaryButton({
         </>
       )}
     </Pressable>
+    </Animated.View>
   );
 }
 
@@ -643,8 +737,15 @@ export function SecondaryButton({
   onPress?: () => void;
   disabled?: boolean;
 }) {
+  const pop = useHoverPop();
   return (
+    /* The wrapper carries the pop; the Pressable keeps its function style. A
+       disabled button gets no hover props, so it stays put — a control that
+       animates to the pointer and then refuses the click is worse than one
+       that never moved. */
+    <Animated.View style={disabled ? null : pop.popStyle}>
     <Pressable
+      {...(disabled ? {} : pop.hoverProps)}
       onPress={() => {
         haptics.tap();
         onPress?.();
@@ -664,6 +765,7 @@ export function SecondaryButton({
         {label}
       </Text>
     </Pressable>
+    </Animated.View>
   );
 }
 

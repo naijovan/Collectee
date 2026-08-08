@@ -143,8 +143,9 @@ function Hoverable({
 const HERO_PANEL_OFFSETS: Record<string, `${number}%`> = {
   /* Centred already — the whole subject is in frame. */
   'mlbb-zodiac-aquarius': '-14%',
-  /* Subject sits left in its art; nudged right so she is not cropped at the shoulder. */
-  'mlbb-slipstream-pilot': '-4%',
+  /* Subject sits left in its art; nudged right so she is not cropped at the
+     shoulder, then eased back a little once the crop had the whole picture. */
+  'mlbb-slipstream-pilot': '-8%',
   /* Both are framed right of centre and were running off the panel. -24% went
      a touch too far the other way once the blurred bars came off the source
      and the crop started using the whole picture. */

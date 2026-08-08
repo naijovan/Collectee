@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import {
+  Animated,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -37,7 +38,7 @@ import {
   PinnedHeader,
 } from '@/components';
 import { useScrolledPast } from '@/components/PinnedHeader';
-import { AccentFill } from '@/components/primitives';
+import { AccentFill, useHoverPop } from '@/components/primitives';
 import { headlineItem, VISIBILITY_LABELS } from '@/domain/collections';
 import type { SetProgress } from '@/domain/collections';
 import { suggestRoom } from '@/domain/roomSuggestion';
@@ -253,7 +254,8 @@ export default function CollectionsScreen() {
           </Text>
         </View>
 
-        <Pressable
+        <IdeaButton
+          label={canShowroom ? 'Create Showroom' : 'Create Collection'}
           onPress={() =>
             canShowroom
               ? router.push({
@@ -265,22 +267,7 @@ export default function CollectionsScreen() {
                 })
               : router.push('/collection/new')
           }
-          style={({ pressed }) => [
-            styles.ideaButton,
-            styles.ideaButtonOverlay,
-            pressed && styles.pressedIdea,
-          ]}
-        >
-          {/* Both buttons, not just the showroom one. The gradient used to be
-              gated on `canShowroom`, which left "Create Collection" as the only
-              flat-blue CTA in the app — it read as a lesser, disabled-looking
-              twin of the button beside it, when the two are equally valid
-              actions on equally valid suggestions. */}
-          <AccentFill />
-          <Text style={styles.ideaButtonText}>
-            {canShowroom ? 'Create Showroom' : 'Create Collection'}
-          </Text>
-        </Pressable>
+        />
       </View>
     );
   }
@@ -503,6 +490,42 @@ export default function CollectionsScreen() {
  * Shared with `styles.ideaGroup` so the wrap point below and the wrap point
  * flexbox actually uses cannot drift apart.
  */
+/**
+ * The CTA laid over an idea card.
+ *
+ * A component rather than inline JSX because `useHoverPop` is a hook and the
+ * card it belongs to is rendered from a `.map`.
+ *
+ * The pop is gentler here than the default. This button is absolutely
+ * positioned and already spans the card less its `spacing.md` inset, so a 6%
+ * grow would put its edges outside the card; 3% stays comfortably inside.
+ */
+function IdeaButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const pop = useHoverPop({ scale: 1.03 });
+  return (
+    /* The wrapper takes the absolute placement so the transform composes with
+       it — putting the pop on the Pressable instead would fight the `left`,
+       `right` and `bottom` that position it. */
+    <Animated.View style={[styles.ideaButtonOverlay, pop.popStyle]}>
+      <Pressable
+        {...pop.hoverProps}
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        style={({ pressed }) => [styles.ideaButton, pressed && styles.pressedIdea]}
+      >
+        {/* Both buttons, not just the showroom one. The gradient used to be
+            gated on `canShowroom`, which left "Create Collection" as the only
+            flat-blue CTA in the app — it read as a lesser, disabled-looking
+            twin of the button beside it, when the two are equally valid
+            actions on equally valid suggestions. */}
+        <AccentFill />
+        <Text style={styles.ideaButtonText}>{label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 const IDEA_COLUMN_MIN_WIDTH = 300;
 
 /**
