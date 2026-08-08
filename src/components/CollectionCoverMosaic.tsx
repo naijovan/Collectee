@@ -15,6 +15,12 @@
  * single `ItemArt`, which is exactly what covers looked like before. 73 of the
  * 93 catalogue items still have no render, so most seeded collections take that
  * path today.
+ *
+ * ── Panels are slanted, matching the Home hero ────────────────────────────
+ * The hero splits its artwork into skewed columns and it is the most striking
+ * thing on the screen, so covers now use the same geometry. The fallback is
+ * deliberately NOT slanted: one panel skewed is just a crooked picture, and
+ * the effect only reads as intentional when there are seams to see.
  */
 
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -65,15 +71,54 @@ export function CollectionCoverMosaic({
 
   return (
     <View style={[styles.mosaic, style]}>
-      {panels.map((itemId) => (
-        <ItemArt key={itemId} seed={itemId} tier={tier} style={styles.panel} />
-      ))}
+      {/*
+        ── Slanted panels, the same construction as the Home hero ────────────
+        The row is WIDER than the cover and absolutely positioned, so the
+        triangles the skew leaves at the outer edges fall outside the box and
+        get clipped. Without the bleed the first and last panels would show a
+        wedge of background at top-left and bottom-right.
+      */}
+      <View style={styles.slantRow}>
+        {panels.map((itemId, index) => (
+          <View key={itemId} style={[styles.slantPanel, index > 0 && styles.slantPanelNext]}>
+            {/* Counter-skewed by the same angle, so the artwork itself is not
+                sheared — only the window it is seen through. The extra width
+                and negative margin give the rotated image enough bleed to
+                reach the panel's corners. */}
+            <ItemArt seed={itemId} tier={tier} style={styles.slantArt} />
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
 
+/**
+ * How far the panel row extends past the cover on each side.
+ *
+ * A skew of `SLANT_DEGREES` moves each edge horizontally by
+ * `height * tan(angle) / 2` — about 8% of the height. 24px covers the 210px
+ * covers the app uses with room to spare, and anything past the edge is
+ * clipped, so being generous costs nothing.
+ */
+const SLANT_BLEED = 24;
+const SLANT_DEGREES = '-9deg';
+const SLANT_COUNTER = '9deg';
+
 const styles = StyleSheet.create({
-  /** The seam is a 1px gap, not a border, so it takes no theme colour. */
-  mosaic: { flexDirection: 'row', overflow: 'hidden', gap: 1 },
-  panel: { flex: 1, height: '100%', borderRadius: 0 },
+  mosaic: { overflow: 'hidden' },
+  slantRow: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: -SLANT_BLEED,
+    right: -SLANT_BLEED,
+    flexDirection: 'row',
+  },
+  slantPanel: { flex: 1, overflow: 'hidden', transform: [{ skewX: SLANT_DEGREES }] },
+  /* One pixel of overlap. Adjacent skewed panels tile exactly in theory, but
+     fractional panel widths leave a hairline of background between them. */
+  slantPanelNext: { marginLeft: -1 },
+  slantArt: { width: '128%', height: '100%', marginLeft: '-14%', borderRadius: 0,
+    transform: [{ skewX: SLANT_COUNTER }] },
 });

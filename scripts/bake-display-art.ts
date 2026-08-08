@@ -2,9 +2,10 @@
  * Builds card-safe 3:2 artwork without altering the collectible itself.
  *
  * Older object renders are square. Showing them with `contain` in a 3:2 card
- * exposes empty bars. This build step creates one crisp, full-frame 3:2 image
- * with attention-aware framing, matching the finished character artwork. It
- * never duplicates, blurs or tints the source into side panels.
+ * exposes empty bars. This build step crops each source to fill its frame, so
+ * every card is edge-to-edge artwork — no bars, and no blurred stand-in for
+ * the part of the frame the art does not reach. See `buildFilledFrame` for the
+ * trade that crop makes.
  *
  * Original PNGs remain the source for depth maps and 3D relief materials.
  *
@@ -55,17 +56,7 @@ async function buildDisplayAsset(entry: SourceEntry): Promise<void> {
   const wideSourcePath = existsSync(wideSourceOverride) ? wideSourceOverride : sourcePath;
   const outputPath = resolve(OUTPUT_DIR, `${entry.id}.jpg`);
 
-  /* Verified weapons with long silhouettes have hand-approved 3:2 masters.
-     Keeping those outside the generated directory prevents a rebuild from
-     replacing their safe framing with a square-to-landscape crop. */
-  await sharp(wideSourcePath)
-    .resize(WIDE_WIDTH, WIDE_HEIGHT, {
-      fit: 'cover',
-      position: sharp.strategy.attention,
-      kernel: sharp.kernel.lanczos3,
-    })
-    .jpeg({ quality: 95, chromaSubsampling: '4:4:4' })
-    .toFile(outputPath);
+  await buildFilledFrame(wideSourcePath, outputPath, WIDE_WIDTH, WIDE_HEIGHT);
 
   // 600 physical pixels covers a two-column phone card at 3x density without
   // asking mobile devices to decode the full desktop texture for every tile.
@@ -78,14 +69,7 @@ async function buildDisplayAsset(entry: SourceEntry): Promise<void> {
      Baking them from the original avoids cropping the ends of a gun or blade
      from the already-landscape card rendition. */
   const squareOutputPath = resolve(SQUARE_OUTPUT_DIR, `${entry.id}.jpg`);
-  await sharp(sourcePath)
-    .resize(SQUARE_WIDTH, SQUARE_WIDTH, {
-      fit: 'cover',
-      position: sharp.strategy.attention,
-      kernel: sharp.kernel.lanczos3,
-    })
-    .jpeg({ quality: 95, chromaSubsampling: '4:4:4' })
-    .toFile(squareOutputPath);
+  await buildFilledFrame(sourcePath, squareOutputPath, SQUARE_WIDTH, SQUARE_WIDTH);
 
   await sharp(squareOutputPath)
     .resize(SQUARE_COMPACT_WIDTH, SQUARE_COMPACT_WIDTH, {
@@ -94,6 +78,51 @@ async function buildDisplayAsset(entry: SourceEntry): Promise<void> {
     })
     .jpeg({ quality: 92, chromaSubsampling: '4:4:4' })
     .toFile(resolve(SQUARE_COMPACT_OUTPUT_DIR, `${entry.id}.jpg`));
+}
+
+/**
+ * Fill the frame with artwork, cropping whatever does not fit.
+ *
+ * ── What this used to do, and why it changed ──────────────────────────────
+ * It composited a `contain`-fitted copy of the art over a blurred, darkened
+ * `cover` copy of itself. That keeps every pixel of the subject — a long rifle
+ * kept both ends — at the cost of the subject occupying only part of its own
+ * card, with the remainder filled by an out-of-focus version of the same image.
+ *
+ * On a small tile that reads as a soft vignette. At the sizes the app actually
+ * uses now — 210px collection covers, overlaid inventory tiles, hero panels —
+ * the bars are large enough to read as exactly what they are: blur. Every card
+ * in the app had a blurred band down one axis.
+ *
+ * So this crops instead. The frame is filled edge to edge with real artwork and
+ * nothing is faked.
+ *
+ * ── The trade being made ──────────────────────────────────────────────────
+ * Cropping is lossy in a way blurred bars are not. A 3:2 weapon render squeezed
+ * into the 1:1 square rendition loses about a third of its length, and for a
+ * long silhouette that can mean the muzzle or the stock. `attention` picks the
+ * most salient region rather than the centre, which keeps the interesting end
+ * far more often than a naive centre crop, but it cannot keep both.
+ *
+ * That is survivable because `ItemArt` only requests the square rendition when
+ * the box it is drawing into is itself near-square (`aspectRatio < 1.34`), so a
+ * wide card still gets the wide rendition and the wide rendition of a 3:2
+ * source is not cropped at all.
+ */
+async function buildFilledFrame(
+  sourcePath: string,
+  outputPath: string,
+  width: number,
+  height: number,
+): Promise<void> {
+  await sharp(sourcePath)
+    .resize(width, height, {
+      fit: 'cover',
+      position: sharp.strategy.attention,
+      kernel: sharp.kernel.lanczos3,
+    })
+    .jpeg({ quality: 95, chromaSubsampling: '4:4:4' })
+    .toFile(outputPath);
 }
 
 function writeRegistry(entries: SourceEntry[]): void {

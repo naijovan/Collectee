@@ -145,10 +145,56 @@ const HERO_PANEL_OFFSETS: Record<string, `${number}%`> = {
   'mlbb-zodiac-aquarius': '-14%',
   /* Subject sits left in its art; nudged right so she is not cropped at the shoulder. */
   'mlbb-slipstream-pilot': '-4%',
-  /* Both of these are framed right of centre and were running off the panel. */
-  'mlbb-emberfall-warlord': '-24%',
-  'mlbb-shadow-protocol': '-24%',
+  /* Both are framed right of centre and were running off the panel. -24% went
+     a touch too far the other way once the blurred bars came off the source
+     and the crop started using the whole picture. */
+  'mlbb-emberfall-warlord': '-18%',
+  'mlbb-shadow-protocol': '-18%',
 };
+
+/**
+ * Order the Trending Showrooms rail.
+ *
+ * Two jobs, in this order:
+ *
+ *  1. Rank by likes. The section is called "Trending" and was rendering the
+ *     fixture array as-is, which is not a ranking of anything.
+ *
+ *  2. Push repeats down. The preview shows four, and a rail where two of them
+ *     belong to the same collector — or wear the same theme backdrop — spends
+ *     half its space saying the same thing twice. The roster has one collector
+ *     with two rooms and three rooms sharing the Futuristic Weapon Vault, so
+ *     without this the top four showed zennx twice and the vault twice.
+ *
+ * Greedy rather than a global optimum: walk in popularity order and take an
+ * entry only if its owner AND its theme are both new, holding the rest back to
+ * the tail. The leading entries are therefore the most-liked room from each
+ * distinct collector-and-theme pairing, and nothing is dropped — "See all"
+ * still reveals every published room.
+ */
+function rankTrendingRooms(entries: readonly RoomEntry[]): RoomEntry[] {
+  const byPopularity = [...entries].sort((a, b) => b.room.likeCount - a.room.likeCount);
+
+  const lead: RoomEntry[] = [];
+  const held: RoomEntry[] = [];
+  const owners = new Set<string>();
+  const themes = new Set<string>();
+
+  for (const entry of byPopularity) {
+    /* A room with no resolvable owner is still its own entry — falling back to
+       the room id keeps it from colliding with every other ownerless room. */
+    const owner = entry.owner?.id ?? entry.room.id;
+    if (owners.has(owner) || themes.has(entry.room.themeId)) {
+      held.push(entry);
+      continue;
+    }
+    owners.add(owner);
+    themes.add(entry.room.themeId);
+    lead.push(entry);
+  }
+
+  return [...lead, ...held];
+}
 
 /** Showrooms on the Home grid before "See all" — matches the collectibles grid. */
 const HOME_ROOM_PREVIEW = 4;
@@ -248,7 +294,7 @@ export default function HomeScreen() {
     setArticles(news);
     setExplore(entries);
     setCollectors(recommended);
-    setRooms(roomEntries);
+    setRooms(rankTrendingRooms(roomEntries));
     setBusy(false);
   }, [viewerId]);
 

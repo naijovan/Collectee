@@ -119,10 +119,8 @@ export const COMMUNITIES = [
    * of 'MLBB' is load-bearing, not decoration, and the spread across the three
    * games is what makes the recommendation reasons differ from each other.
    *
-   * No art yet: `communityArtFor` returns null for these ids and the card draws
-   * its deterministic tinted block instead, which is exactly what that fallback
-   * is for. Dropping five 1200x800 files into assets/collectee/communities/
-   * named for these ids is the only step to art, per `config/communityArt`.
+   * Community art lives at assets/collectee/communities/<id>.png and is wired
+   * through `config/communityArt`, not through the legacy `avatarUrl` path.
    */
   {
     id: 'comm-mythic-drop',

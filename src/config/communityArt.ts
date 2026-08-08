@@ -21,7 +21,7 @@
  * Two files per community would double the art order for one aspect ratio.
  *
  * ── The fallback stays ────────────────────────────────────────────────────
- * All four have art now. `CommunityArt` keeps its deterministic tinted block
+ * All seeded communities have art now. `CommunityArt` keeps its deterministic tinted block
  * for the same reason the avatar one does: a new community can be seeded and
  * browsed before anyone draws its banner, and the card's layout is identical
  * either way.
@@ -37,7 +37,7 @@ import type { ImageSourcePropType } from 'react-native';
 /**
  * Community id → bundled header image.
  *
- * All four landed 7 Aug at 1200x800. To add a fifth:
+ * Seeded banners land at 1200x800. To add another:
  *   1. Drop `assets/collectee/communities/<communityId>.png` (1200x800).
  *   2. Add one line here, keyed by that exact COMMUNITY ID — see below.
  *   3. Nothing else changes — the card and the detail header both pick it up.
@@ -46,6 +46,11 @@ export const COMMUNITY_ART: Record<string, ImageSourcePropType> = {
   'comm-blueprint-vault': require('../../assets/collectee/communities/comm-blueprint-vault.png'),
   'comm-knife-collectors': require('../../assets/collectee/communities/comm-knife-collectors.png'),
   'comm-land-of-dawn': require('../../assets/collectee/communities/comm-land-of-dawn.png'),
+  'comm-mythic-drop': require('../../assets/collectee/communities/comm-mythic-drop.png'),
+  'comm-hero-skins': require('../../assets/collectee/communities/comm-hero-skins.png'),
+  'comm-vandal-club': require('../../assets/collectee/communities/comm-vandal-club.png'),
+  'comm-epic-nights': require('../../assets/collectee/communities/comm-epic-nights.png'),
+  'comm-shelf-tours': require('../../assets/collectee/communities/comm-shelf-tours.png'),
   /* KEY AND FILENAME DIFFER, deliberately. The community is called "One Shelf"
      and its art is named for that, but its id has been `comm-cross-game` since
      the fixture was written. The key must be the id — this is the one line in
