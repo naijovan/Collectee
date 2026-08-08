@@ -638,20 +638,34 @@ const styles = StyleSheet.create({
 
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle: { ...typography.screenTitle, color: colors.textPrimary },
+  /*
+   * A normal flex child now.
+   *
+   * It kept `position: absolute` from when it floated over the identity block,
+   * which is why it sat low in the header: an absolutely-positioned child is
+   * placed against the header box and ignores the row's `alignItems: center`
+   * entirely, so the row aligned everything except this.
+   */
+  /*
+   * The glyph alone — no disc, no rim.
+   *
+   * It kept `position: absolute` from when it floated over the identity block,
+   * which is why it sat low: an absolutely-positioned child is placed against
+   * the header box and ignores the row's `alignItems: center` entirely, so the
+   * row aligned everything except this. It is a normal flex child now.
+   *
+   * The box stays (just untinted) so the tap target is a comfortable 44 even
+   * though the mark inside is 26 — a bare glyph is a small thing to hit.
+   */
   settings: {
-    position: 'absolute',
-    top: spacing.md,
-    right: spacing.lg,
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
   },
-  settingsGlyph: { color: colors.textPrimary, fontSize: 18, lineHeight: 22 },
+  /* Bigger than the 18 it was: at that size a gear on a dark bar reads as
+     decoration rather than as the one control on the header. */
+  settingsGlyph: { color: colors.textPrimary, fontSize: 26, lineHeight: 30 },
 
   statHint: { ...typography.meta, color: colors.accent, textAlign: 'center', marginTop: 2 },
 

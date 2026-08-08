@@ -36,6 +36,7 @@ import { INTENSITY_OPTIONS, deriveTasteChips } from '@/domain/onboarding';
 import type { CollectorIntensity, TasteChip } from '@/domain/onboarding';
 import * as haptics from '@/lib/haptics';
 import { catalogueService, newsService, socialService } from '@/services';
+import { AGE_OPTIONS, MAX_AGE_OPTION, ageLabel } from '@/domain/account';
 import { useApp } from '@/state/AppContext';
 import type { AccountDetails } from '@/state/AppContext';
 import { GAME_LABELS, GAME_SHORT_LABELS, GAME_TITLES } from '@/types';
@@ -366,21 +367,6 @@ function GamesStep({
  * Nothing here leaves the device. There is no backend in this build (§12.1),
  * so "your details" means a few strings in memory that a reload clears.
  */
-/**
- * 18 is the floor, and the list simply starts there.
- *
- * Offering younger ages and then refusing them is the interaction this avoids:
- * the rule is not a validation failure the user caused, it is a fact about who
- * the app is for. The last entry is a bucket rather than a birthday — nothing
- * in the product does arithmetic on age, so a precise number past a point is
- * data collected for its own sake.
- */
-const MIN_AGE = 18;
-const MAX_AGE_OPTION = '65';
-const AGE_OPTIONS: readonly string[] = Array.from({ length: 65 - MIN_AGE + 1 }, (_, i) =>
-  String(MIN_AGE + i),
-);
-
 function DetailsStep({
   displayName,
   onDisplayName,
@@ -479,7 +465,7 @@ function DetailsStep({
                   style={[styles.agePill, active && styles.agePillActive]}
                 >
                   <Text style={[styles.ageText, active && styles.ageTextActive]}>
-                    {option === MAX_AGE_OPTION ? `${option}+` : option}
+                    {ageLabel(option)}
                   </Text>
                 </Pressable>
               );

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SectionHeader } from '@/components';
 import { FEATURES } from '@/config/features';
+import { AGE_OPTIONS, ageLabel } from '@/domain/account';
 import { socialService } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { useThemeMode } from '@/theme/ThemeMode';
@@ -89,20 +90,42 @@ export default function SettingsScreen() {
           limit={BIO_LIMIT}
           multiline
         />
-        {/* Age sits here rather than as a picker like sign-up's: this is an
-            edit, not a gate, and someone changing one field should not have to
-            scroll a list of forty-eight to leave the rest alone. */}
+        {/* The same picker sign-up shows, from the same `AGE_OPTIONS`. A free
+            text box here would have let an edit set an age the front door
+            refuses — 18+ has to be one rule, not two implementations. */}
+        <View style={styles.field}>
+          <View style={styles.fieldHead}>
+            <Text style={styles.fieldLabel}>Age</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.ageRow}
+          >
+            {AGE_OPTIONS.map((option) => {
+              const active = age === option;
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => {
+                    setAge(option);
+                    setSaved(false);
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={ageLabel(option)}
+                  style={[styles.agePill, active && styles.agePillActive]}
+                >
+                  <Text style={[styles.ageText, active && styles.ageTextActive]}>
+                    {ageLabel(option)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
         <Field
-          label="Age"
-          value={age}
-          onChange={(next) => {
-            setAge(next.replace(/[^0-9]/g, ''));
-            setSaved(false);
-          }}
-          limit={3}
-        />
-        <Field
-          label="Email"
+          label="Email (optional)"
           value={email}
           onChange={(next) => {
             setEmail(next.trim());
@@ -256,6 +279,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
 
+  ageRow: { gap: spacing.xs, paddingVertical: 2 },
+  agePill: {
+    minWidth: 46,
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  agePillActive: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
+  ageText: { ...typography.body, color: colors.textSecondary },
+  ageTextActive: { color: colors.textPrimary },
   inputWrapError: { borderColor: colors.danger },
   fieldError: { ...typography.meta, color: colors.danger },
   field: { gap: spacing.xs },
