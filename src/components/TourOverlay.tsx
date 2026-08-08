@@ -405,12 +405,27 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     if (!__DEV__ || !guided || phase !== 'shown' || !stop) return;
     const f = guidePlacement.figure;
-    // eslint-disable-next-line no-console
-    console.log(
-      `[tour] ${stop.id} fit=${guidePlacement.fit} flipped=${guidePlacement.flipped}`,
-      f ? `colly=${Math.round(f.x)},${Math.round(f.y)} ${Math.round(f.width)}x${Math.round(f.height)}` : 'colly=hidden',
-      `bubble=${Math.round(guidePlacement.bubble.x)},${Math.round(guidePlacement.bubble.y)}`,
-    );
+    const line =
+      `[tour] ${stop.id} fit=${guidePlacement.fit} flipped=${guidePlacement.flipped} ` +
+      (f
+        ? `colly=${Math.round(f.x)},${Math.round(f.y)} ${Math.round(f.width)}x${Math.round(f.height)}`
+        : 'colly=HIDDEN') +
+      ` bubble=${Math.round(guidePlacement.bubble.x)},${Math.round(guidePlacement.bubble.y)}`;
+
+    if (guidePlacement.fit === 'bubbleOnly') {
+      /* Loud on purpose. Dropping the guide is the last rung of the ladder and
+         it is silent on screen — the stop still looks deliberate, just without
+         a character — so it has to be noisy here or it goes unnoticed until
+         someone demos on a short window. */
+      // eslint-disable-next-line no-console
+      console.warn(
+        `${line}\n[tour] ^^ GUIDE DROPPED — no region fits her above the floor without covering the target. ` +
+          `Viewport ${Math.round(screenW)}x${Math.round(screenH)} is too short for this stop.`,
+      );
+    } else {
+      // eslint-disable-next-line no-console
+      console.log(line);
+    }
   }, [guided, phase, stop, guidePlacement]);
 
   // ── The prompt ──────────────────────────────────────────────────────────

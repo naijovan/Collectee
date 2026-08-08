@@ -13,8 +13,19 @@ import type { LayoutRectangle } from 'react-native';
 
 import { spacing } from '@/theme/theme';
 
-/** Never smaller than this, whatever the viewport. Below it she is a sticker. */
+/** The size she should not go below on a viewport with room for her. */
 export const MIN_HEIGHT = 240;
+
+/**
+ * The size below which she genuinely stops reading as a character.
+ *
+ * MIN_HEIGHT is a preference; this is the actual floor. On a 427pt-tall window
+ * — a laptop with DevTools docked — the 240 preference could not be met on
+ * three of five stops and she was dropped entirely, so the guided tour lost its
+ * guide on exactly the screens where a presenter is most likely to be looking.
+ * Small-but-present beats absent.
+ */
+const HARD_FLOOR = 150;
 /**
  * Share of viewport height she aims for.
  *
@@ -137,6 +148,15 @@ export function placeGuide(
 
   const ideal = Math.max(safe.h * TARGET_FRACTION, safe.h * MIN_FRACTION, MIN_HEIGHT);
 
+  /**
+   * The smallest she may be on THIS viewport.
+   *
+   * Stays at MIN_HEIGHT wherever there is room for it, and only relaxes toward
+   * HARD_FLOOR when the viewport itself is too short to hold her — never
+   * because a region happens to be tight on a big screen.
+   */
+  const floor = Math.min(MIN_HEIGHT, Math.max(HARD_FLOOR, safe.h * 0.42));
+
   // ── No target: centre-lower, the classic solo composition ───────────────
   if (!hole) {
     const h = clamp(ideal, MIN_HEIGHT, Math.max(MIN_HEIGHT, safe.h - GAP - BUBBLE_H));
@@ -242,16 +262,32 @@ export function placeGuide(
    * ~96pt of the bottom), so capping there clears the bar's band as well
    * without this module needing to know the bar exists.
    */
-  const bubbleBounds: Box = bottomAnchored ? cappedAbove(safe) : safe;
+  let bubbleBounds: Box = bottomAnchored ? cappedAbove(safe) : safe;
 
-  const scored = eligible
-    .map((r) => ({ ...r, ...solve(r.box) }))
-    .filter((r) => r.height >= MIN_HEIGHT)
-    /* Sides first at equal height: standing next to something and pointing
-       sideways reads better than hovering over it and pointing sideways. */
-    .sort((a, b) => b.height - a.height || (a.name === 'left' || a.name === 'right' ? -1 : 1));
+  const rank = (list: typeof regions) =>
+    list
+      .map((r) => ({ ...r, ...solve(r.box) }))
+      .filter((r) => r.height >= floor)
+      /* Sides first at equal height: standing next to something and pointing
+         sideways reads better than hovering over it and pointing sideways. */
+      .sort((a, b) => b.height - a.height || (a.name === 'left' || a.name === 'right' ? -1 : 1));
 
-  const best = scored[0];
+  let best = rank(eligible)[0];
+
+  /**
+   * Rung before dropping her: give up the midline, keep the target.
+   *
+   * On a short viewport the capped band above a bottom-anchored target holds
+   * nothing, and the old ladder went straight to bubbleOnly. Overlapping the
+   * tab bar — chrome, not the subject of the stop — is a far smaller cost than
+   * the guide vanishing. The target itself is still off limits: `blocked` is
+   * what defines every region, relaxed or not.
+   */
+  let relaxed = false;
+  if (!best && bottomAnchored) {
+    best = rank(regions)[0];
+    relaxed = best !== undefined;
+  }
 
   // ── Last rung: nothing holds her at the floor. Drop the figure. ─────────
   if (!best) {
@@ -270,6 +306,10 @@ export function placeGuide(
       fit: 'bubbleOnly',
     };
   }
+
+  /* Relaxed: the bubble follows her out of the capped band, or it would be
+     solving against a region she is no longer in. */
+  if (relaxed) bubbleBounds = safe;
 
   const h = best.height;
   const w = h * FIGURE_ASPECT;
@@ -372,8 +412,8 @@ export function placeGuide(
     fit:
       best.name === 'above' || best.name === 'below'
         ? 'relocated'
-        : h < ideal - 1
-          ? 'shrunk'
-          : 'beside',
+        : relaxed || h < ideal - 1
+        ? 'shrunk'
+        : 'beside',
   };
 }
