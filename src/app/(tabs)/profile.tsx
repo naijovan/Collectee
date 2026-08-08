@@ -367,7 +367,16 @@ export default function ProfileScreen() {
             <ItemCard
               item={entry.item}
               trustLevel={entry.owned.trustLevel}
-              width={132}
+              /* 168 wide and 200 tall, overlaid.
+                 At 132 the names wrapped to two cramped lines and the game and
+                 trust badge fought for one row underneath — "Gusion — Cyber
+                 Faust · MLBB · Verified" in 132px is four pieces of
+                 information in a space that fits two. Bigger, and with the
+                 words on the art, it matches the collection and showroom cards
+                 it scrolls beside. */
+              width={168}
+              artHeight={200}
+              overlay
               onPress={() => router.push('/inventory')}
             />
           )}
@@ -556,7 +565,8 @@ const styles = StyleSheet.create({
 
   /** The rail's tail card. Same width as an ItemCard so the rhythm holds. */
   railMore: {
-    width: 132,
+    width: 168,
+    height: 200,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,

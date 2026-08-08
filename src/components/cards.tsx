@@ -79,6 +79,7 @@ export function ItemCard({
   trustLevel,
   width = 132,
   artHeight,
+  overlay = false,
   onPress,
 }: {
   item: Item;
@@ -86,6 +87,17 @@ export function ItemCard({
   width?: DimensionValue;
   /** Fixed height for compact strips. Grids default to the artwork's 3:2 frame. */
   artHeight?: number;
+  /**
+   * Lay the name and meta ON the art instead of in a panel beneath it.
+   *
+   * Opt-in rather than the default, because the two shapes suit different
+   * surfaces. A dense grid of forty items reads better with its labels on a
+   * solid strip — the art is small there and type over a busy crop at that size
+   * is work to read. A rail of large cards is the opposite case, and it sits
+   * beside collection and showroom cards that are all overlaid, so a panelled
+   * one is the odd shape out.
+   */
+  overlay?: boolean;
   onPress?: () => void;
 }) {
   /* Epic and up get the card itself tinted and lifted, not just the badge.
@@ -131,7 +143,30 @@ export function ItemCard({
         <View style={styles.rarityOverlay} pointerEvents="none">
           <RarityBadge tier={item.rarityTier} title={item.title} compact />
         </View>
+
+        {overlay ? (
+          <>
+            <LinearGradient
+              colors={[scrim.clear, scrim.medium, scrim.heavy]}
+              locations={[0, 0.45, 1]}
+              style={styles.itemScrim}
+              pointerEvents="none"
+            />
+            <View style={styles.itemOverlayBody} pointerEvents="none">
+              <Text style={styles.itemOverlayName} numberOfLines={2}>
+                {item.name}
+              </Text>
+              <View style={styles.itemMetaRow}>
+                <Text style={styles.itemOverlayMeta} numberOfLines={1}>
+                  {GAME_SHORT_LABELS[item.title]}
+                </Text>
+                {trustLevel ? <TrustBadge level={trustLevel} /> : null}
+              </View>
+            </View>
+          </>
+        ) : null}
       </View>
+      {overlay ? null : (
       <View style={styles.itemBody}>
         <Text style={styles.itemName} numberOfLines={2}>
           {item.name}
@@ -149,6 +184,7 @@ export function ItemCard({
           {trustLevel ? <TrustBadge level={trustLevel} /> : null}
         </View>
       </View>
+      )}
     </Pressable>
   );
 }
@@ -870,6 +906,11 @@ const styles = StyleSheet.create({
      than drawing a square frame around a rounded image. */
   itemCard: { borderRadius: radius.card, overflow: 'hidden' },
   itemArt: { width: '100%', aspectRatio: 3 / 2 },
+  /* ── Overlay variant ─────────────────────────────────────────────────── */
+  itemScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
+  itemOverlayBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.sm, gap: 2 },
+  itemOverlayName: { ...typography.cardTitle, color: colors.textOnAccent },
+  itemOverlayMeta: { ...typography.meta, color: colors.textOnAccent, opacity: 0.8 },
   rarityOverlay: { position: 'absolute', top: spacing.xs, right: spacing.xs },
 
   itemBody: {
