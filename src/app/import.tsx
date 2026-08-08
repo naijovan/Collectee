@@ -48,6 +48,7 @@ import {
 import type { StyleProp, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   Avatar,
@@ -83,7 +84,7 @@ import {
 } from '@/services';
 import type { PickedImage } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, spacing, typography, accentLink } from '@/theme/theme';
+import { colors, gameAccents, radius, scrim, spacing, typography, accentLink } from '@/theme/theme';
 import { GAME_LABELS } from '@/types';
 import type { GameTitle, Item, ScanDetection, ScanResolution, ScanResult } from '@/types';
 
@@ -152,7 +153,7 @@ const PREVIEW_UNMATCHED = 3;
 export default function ImportScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { viewer, viewerId, refreshInventory } = useApp();
+  const { viewer, viewerId, inventory, refreshInventory } = useApp();
 
   const [stage, setStage] = useState<Stage>('landing');
   const scrollRef = useTopOnFocus(stage);
@@ -256,6 +257,28 @@ export default function ImportScreen() {
   );
 
   const matchedGroups = useMemo(() => groupByRarity(matchedEntries), [matchedEntries]);
+
+  /**
+   * Catalogue ids the viewer already owns.
+   *
+   * `importFromScan` silently skips these — it filters on `!existing.has(id)` —
+   * so re-scanning a screenshot of things you already have writes nothing. That
+   * was only discoverable on the Complete screen, AFTER pressing a button that
+   * promised to import them.
+   *
+   * NOT the same as `outcome: 'duplicate'`, which means "this item appeared
+   * twice in THIS scan" (cross-frame dedup) and says nothing about ownership.
+   */
+  const ownedItemIds = useMemo(
+    () => new Set(inventory.map((entry) => entry.item.id)),
+    [inventory],
+  );
+
+  /** Matched reads the viewer already holds. Counted for the note above the list. */
+  const alreadyOwnedCount = useMemo(
+    () => matchedEntries.filter((entry) => ownedItemIds.has(entry.item.id)).length,
+    [matchedEntries, ownedItemIds],
+  );
 
   /**
    * Read cleanly, no catalogue match. These carry `reading` rather than an
@@ -569,6 +592,7 @@ export default function ImportScreen() {
           </Text>
 
           {/* Titles come from the service — the catalogue decides, not this screen. */}
+          <View style={styles.gameRow}>
           {scanService.availableTitles().map((option) => (
             <Pressable
               key={option}
@@ -580,33 +604,49 @@ export default function ImportScreen() {
             >
               {/* The game's own cover, not an item render: this card is asking
                   which title you are importing FROM, so it has to read as the
-                  game rather than as something in your inventory. */}
-              <View style={styles.gameArt}>
-                {/*
-                  Explicit 100%/100%, not absoluteFill. absoluteFill only sets
-                  the four edges; a renderer that sizes an image from its
-                  intrinsic pixels then draws a 1200px cover at full size and
-                  lets the parent clip it, so the tile showed the top-left
-                  corner instead of the whole cover.
+                  game rather than as something in your inventory.
 
-                  `contain` so nothing is ever cut. The covers are square and so
-                  is the tile, so today it fills edge to edge regardless — but a
-                  future cover that is not square still arrives whole.
+                  `cover`, not `contain`. The art fills the whole card now
+                  rather than sitting in a 64px thumbnail, and letterboxing a
+                  square cover into a 16:10 card would put bars back exactly
+                  where the display-art work took them out. */}
+              <Image
+                source={GAME_COVERS[option]}
+                style={styles.gameArtImage}
+                resizeMode="cover"
+                accessibilityIgnoresInvertColors
+              />
+
+              {/* Same construction as the collection and showroom cards: a
+                  clear-to-heavy fade with the meta sitting on it. */}
+              <LinearGradient
+                colors={[scrim.clear, scrim.medium, scrim.heavy]}
+                locations={[0, 0.45, 1]}
+                style={styles.gameCardScrim}
+                pointerEvents="none"
+              />
+
+              <View style={styles.gameCardMeta} pointerEvents="none">
+                {/*
+                  The title carries the game's own accent, matching the hero's
+                  row and every GameBadge in the app — so "amber = CODM" holds
+                  here too.
+
+                  "✓ Scanner supported" is gone. All three are supported, so it
+                  was the same line on every card saying nothing that
+                  distinguished them — and the screen is asking which game you
+                  are importing from, not whether it works.
                 */}
-                <Image
-                  source={GAME_COVERS[option]}
-                  style={styles.gameArtImage}
-                  resizeMode="contain"
-                  accessibilityIgnoresInvertColors
-                />
+                <Text
+                  style={[styles.gameCardName, { color: gameAccents[option].secondary }]}
+                  numberOfLines={2}
+                >
+                  {GAME_LABELS[option]}
+                </Text>
               </View>
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle}>{GAME_LABELS[option]}</Text>
-                <Text style={styles.supported}>✓ Scanner supported</Text>
-              </View>
-              <Text style={styles.chevron}>›</Text>
             </Pressable>
           ))}
+          </View>
         </View>
       ) : null}
 
@@ -830,6 +870,18 @@ export default function ImportScreen() {
               />
             </View>
 
+            {/*
+              Said BEFORE the button, not after. The Complete screen already
+              explained this, which is one press too late — the CTA counts these
+              items and then nothing happens to them.
+            */}
+            {alreadyOwnedCount > 0 ? (
+              <Text style={styles.muted}>
+                {alreadyOwnedCount} of these {alreadyOwnedCount === 1 ? 'is' : 'are'} already in
+                your inventory and {alreadyOwnedCount === 1 ? 'will not be added' : 'will not be added'}{' '}
+                again
+              </Text>
+            ) : null}
             {counts.discarded > 0 ? (
               <Text style={styles.warn}>
                 {/*
@@ -1039,6 +1091,7 @@ export default function ImportScreen() {
                         key={detection.id}
                         item={item}
                         included={isMatchIncluded(detection.id, resolutions)}
+                        owned={ownedItemIds.has(item.id)}
                         onToggle={() => toggleMatch(detection.id)}
                       />
                     ))}
@@ -1898,10 +1951,13 @@ function SeeAllRow({
 function MatchedTile({
   item,
   included,
+  owned,
   onToggle,
 }: {
   item: Item;
   included: boolean;
+  /** Already in the viewer's inventory — importing writes nothing for it. */
+  owned?: boolean;
   onToggle: () => void;
 }) {
   return (
@@ -1909,6 +1965,16 @@ function MatchedTile({
       <View style={!included && styles.tileRemoved}>
         <ItemCard item={item} width="100%" artHeight={84} trustLevel="unverified" onPress={onToggle} />
       </View>
+      {/*
+        Marked on the tile, not only in the count above. A user scanning a grid
+        of twelve matches needs to know WHICH of them they already have — a
+        number tells them how many to look for and not where.
+      */}
+      {owned ? (
+        <View style={styles.ownedTag} pointerEvents="none">
+          <Text style={styles.ownedTagText}>In your inventory</Text>
+        </View>
+      ) : null}
       <Pressable
         onPress={onToggle}
         hitSlop={6}
@@ -2162,6 +2228,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   rescueTitle: { ...typography.cardTitle, color: colors.textPrimary },
+  /* Sits on the tile's art, top-left, clear of the rarity badge and the tick. */
+  ownedTag: {
+    position: 'absolute',
+    top: spacing.xs,
+    left: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: scrim.heavy,
+  },
+  ownedTagText: { ...typography.meta, fontSize: 10, color: colors.textOnAccent },
   /* Neutral, not warning: nothing went wrong here. The scan worked and the
      catalogue is simply smaller than the game. */
   unrecognised: {
@@ -2269,26 +2346,39 @@ const styles = StyleSheet.create({
   },
   dropPreview: { width: 64, height: 64, borderRadius: radius.sm },
 
+  /**
+   * A card, not a row.
+   *
+   * Three full-width rows with a 64px thumbnail spent the screen on empty
+   * space and made the art incidental — this is the first choice in the import
+   * flow, and the covers are the thing that says which game you are picking.
+   * Same shape as the Gaming updates cards on Home.
+   */
   gameCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
+    /* One row, three cards. Stacked, the picker was three full-width bands
+       that pushed the CTA below the fold; side by side the whole choice is
+       visible at once, which is what a three-option picker should be. */
+    flex: 1,
+    /* With `flexWrap`, `flex: 1` alone lets all three squeeze onto one line at
+       any width. A floor forces the wrap instead of producing three slivers. */
+    minWidth: 150,
+    height: 168,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.md,
-  },
-  gameCardActive: { borderColor: colors.accent },
-  gameArt: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.card,
     overflow: 'hidden',
     backgroundColor: colors.surfaceSunken,
+    justifyContent: 'flex-end',
   },
+  /* Two-pixel accent ring, not one — at card size a hairline is easy to miss,
+     and this is a selection the whole flow depends on. */
+  gameCardActive: { borderColor: colors.accent, borderWidth: 2 },
+  /** Three across, wrapping on a narrow window rather than squeezing to slivers. */
+  gameRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  gameCardScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
+  gameCardMeta: { padding: spacing.md, gap: 2 },
+  gameCardName: { ...typography.overlayTitle, color: colors.textOnAccent },
   gameArtImage: { width: '100%', height: '100%' },
-  supported: { ...typography.meta, color: colors.accent },
   selectedGame: {
     flexDirection: 'row',
     alignItems: 'center',

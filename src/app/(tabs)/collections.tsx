@@ -118,6 +118,22 @@ export default function CollectionsScreen() {
 
   /** Collections that already have a published room — the rooms section. */
   const builtRooms = entries.filter((entry) => rooms.get(entry.collection.id)?.published);
+
+  /**
+   * Everything else — the collections section.
+   *
+   * A collection with a published showroom appears under Showrooms, so listing
+   * it here as well put the same card on the page twice under two headings.
+   * "Dragon, Blade, Sovereign" was showing as both, which reads as a data bug
+   * rather than as one object with two views of it.
+   *
+   * It is still a collection and still reachable: tapping its showroom card
+   * leads to the room, and the room's page links back. This only decides which
+   * of the two sections claims it.
+   */
+  const plainCollections = entries.filter(
+    (entry) => !rooms.get(entry.collection.id)?.published,
+  );
   const [progress, setProgress] = useState<SetProgress[]>([]);
   const [busy, setBusy] = useState(true);
 
@@ -319,7 +335,7 @@ export default function CollectionsScreen() {
         />
       ) : (
         <View style={styles.grid}>
-          {entries
+          {plainCollections
             .filter((entry) => matchesFilter(entry.collection, rooms.get(entry.collection.id), filter))
             .map((entry, index) => (
               <FadeInView

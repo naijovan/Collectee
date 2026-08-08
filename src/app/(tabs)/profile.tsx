@@ -75,6 +75,17 @@ export default function ProfileScreen() {
   const [publishedRooms, setPublishedRooms] = useState<Room[]>([]);
   /** Showrooms with their backing collection, for the shared card. */
   const [roomEntries, setRoomEntries] = useState<RoomEntry[]>([]);
+  /**
+   * Collections WITHOUT a published showroom.
+   *
+   * Profile shows both sections, so a collection that has a room was appearing
+   * in each — the same duplicate the Collections tab had. Both pages now make
+   * the same split, or the two disagree about what the viewer owns.
+   */
+  const plainCollections = useMemo(() => {
+    const withRooms = new Set(roomEntries.map((entry) => entry.collection.id));
+    return collections.filter((collection) => !withRooms.has(collection.id));
+  }, [collections, roomEntries]);
   const [following, setFollowing] = useState<User[]>([]);
   const [followers, setFollowers] = useState<User[]>([]);
   const [busy, setBusy] = useState(true);
@@ -275,18 +286,20 @@ export default function ProfileScreen() {
           prominent
           onSeeAll={() => router.navigate('/collections')}
         />
-        {collections.length === 0 ? (
+        {plainCollections.length === 0 ? (
           <Text style={styles.muted}>No collections yet.</Text>
         ) : (
           <View style={styles.collectionGrid}>
-            {collections.map((collection) => (
+            {plainCollections.map((collection) => (
               <View
                 key={collection.id}
                 style={[styles.collectionCell, viewportWidth < 600 && styles.collectionCellPhone]}
               >
                 <CollectionCard
                   collection={collection}
+                  owner={viewer}
                   width="100%"
+                  showVisibility
                   onPress={() =>
                     router.push({ pathname: '/collection/[id]', params: { id: collection.id } })
                   }
