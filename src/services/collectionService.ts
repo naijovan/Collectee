@@ -144,8 +144,15 @@ export const collectionService = {
    * The "AI assists" half of F3 — suggested groupings and titles. Deterministic
    * because the demo is mocked; the interface is what a model call would fill.
    */
-  async suggest(owned: readonly OwnedItem[]): Promise<CollectionSuggestion[]> {
-    return delay(suggestCollections(owned, ITEMS_BY_ID, ALL_SETS), LATENCY_GENERATE);
+  /**
+   * `userId` is optional so the two existing call sites keep working, but
+   * passing it is what stops a suggestion proposing a name the user already
+   * has — see `suggestCollections`.
+   */
+  async suggest(owned: readonly OwnedItem[], userId?: string): Promise<CollectionSuggestion[]> {
+    const existing =
+      userId === undefined ? [] : allCollections().filter((c) => c.userId === userId).map((c) => c.name);
+    return delay(suggestCollections(owned, ITEMS_BY_ID, ALL_SETS, existing), LATENCY_GENERATE);
   },
 
   /**

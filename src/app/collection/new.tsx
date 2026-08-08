@@ -84,7 +84,21 @@ const THEME_TAGS: readonly { tag: string; glyph: string }[] = [
   { tag: 'mlbb', glyph: '◆' },
 ];
 
-const VISIBILITIES: readonly Visibility[] = ['public', 'unlisted', 'private'];
+/**
+ * Two choices, not three. `unlisted` is gone from the picker.
+ *
+ * Public and private are the two states a user has a clear model of — everyone,
+ * or only me. "Anyone with the link" is a third thing that looks like a
+ * middle setting and is not one, and with no backend there is no link to give
+ * anyone (§12.1), so it promised a capability the build does not have.
+ *
+ * `Visibility` KEEPS the `unlisted` member. It is part of the entity schema
+ * other people's code reads (src/types is the merge contract), and narrowing
+ * the union to drop a value no fixture uses would break every switch that
+ * handles it. Removing it from the picker is enough: nothing new can be created
+ * unlisted, and anything that somehow is still renders correctly.
+ */
+const VISIBILITIES: readonly Visibility[] = ['public', 'private'];
 
 /** The Figma pairs each visibility with an icon; unlisted is ours, not its. */
 const VISIBILITY_GLYPHS: Record<Visibility, string> = {

@@ -499,7 +499,7 @@ export default function ImportScreen() {
     // so this reflects the import that just happened, not a canned list.
     setSuggesting(true);
     const owned = await inventoryService.getOwnedItems(viewerId);
-    setNextUp(await collectionService.suggest(owned));
+    setNextUp(await collectionService.suggest(owned, viewerId));
     setSuggesting(false);
   }
 
@@ -1431,7 +1431,8 @@ export default function ImportScreen() {
           {suggesting ? (
             <LoadingState height={160} />
           ) : (
-            nextUp.map((suggestion) => (
+            <View style={styles.suggestionGrid}>
+            {nextUp.map((suggestion) => (
               <SuggestionCard
                 key={suggestion.name}
                 suggestion={suggestion}
@@ -1446,7 +1447,8 @@ export default function ImportScreen() {
                   })
                 }
               />
-            ))
+            ))}
+            </View>
           )}
 
           <PrimaryButton
@@ -1531,25 +1533,30 @@ function SuggestionCard({
         </View>
       ) : null}
 
-      <View style={styles.suggestionBody}>
-        <View style={styles.rowBody}>
-          <Text style={styles.suggestionName} numberOfLines={1}>
-            {suggestion.name}
-          </Text>
-          {/*
-            §11 F5's rule, applied outside Discover: a suggestion without its
-            reason is a demand. The reason is what makes it answerable.
-          */}
-          <Text style={styles.muted} numberOfLines={2}>
-            {suggestion.reason}
-          </Text>
-        </View>
-        <View style={styles.suggestionCta}>
-          <Text style={styles.footnote}>
-            {suggestion.itemIds.length} {suggestion.itemIds.length === 1 ? 'item' : 'items'}
-          </Text>
-          <Text style={styles.create}>Create →</Text>
-        </View>
+      {/* Overlaid, like every other collection card in the app: a clear-to-
+          heavy fade over the art's lower band with the meta sitting on it. The
+          body panel underneath made this the one card type that spent its
+          height twice. */}
+      <LinearGradient
+        colors={[scrim.clear, scrim.medium, scrim.heavy]}
+        locations={[0, 0.45, 1]}
+        style={styles.suggestionScrim}
+        pointerEvents="none"
+      />
+      <View style={styles.suggestionMeta} pointerEvents="none">
+        <Text style={styles.suggestionName} numberOfLines={1}>
+          {suggestion.name}
+        </Text>
+        {/*
+          §11 F5's rule, applied outside Discover: a suggestion without its
+          reason is a demand. The reason is what makes it answerable.
+        */}
+        <Text style={styles.suggestionReason} numberOfLines={2}>
+          {suggestion.reason}
+        </Text>
+        <Text style={styles.suggestionCount}>
+          {suggestion.itemIds.length} {suggestion.itemIds.length === 1 ? 'item' : 'items'} · Create →
+        </Text>
       </View>
     </Pressable>
   );
@@ -2254,14 +2261,25 @@ const styles = StyleSheet.create({
   /* ── Complete: suggestion previews ──────────────────────────────────────
      A card, not a row. It is showing what the collection would look like, so
      it is shaped like the collection card it would become. */
+  /** Two across on any reasonable width; one on a narrow phone. */
+  suggestionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   suggestionCard: {
+    /* Half the row minus the gap. A floor forces the wrap rather than letting
+       three squeeze onto one line as slivers. */
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 240,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     overflow: 'hidden',
   },
-  suggestionArt: { flexDirection: 'row', gap: 2, height: 132 },
+  suggestionArt: { flexDirection: 'row', gap: 2, height: 190 },
+  suggestionScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
+  suggestionMeta: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.md, gap: 2 },
+  suggestionReason: { ...typography.meta, color: colors.textOnAccent, opacity: 0.8 },
+  suggestionCount: { ...typography.meta, color: accentLink },
   /** The rarest item, given roughly two-thirds of the width. */
   suggestionHero: { flex: 2, height: '100%' },
   suggestionStrip: { flex: 1, gap: 2 },
@@ -2278,7 +2296,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.md,
   },
-  suggestionName: { ...typography.cardTitle, color: colors.textPrimary },
+  suggestionName: { ...typography.overlayTitle, fontSize: 19, lineHeight: 24, color: colors.textOnAccent },
   suggestionCta: { alignItems: 'flex-end', gap: 2 },
 
   /**

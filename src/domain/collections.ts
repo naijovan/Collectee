@@ -177,15 +177,46 @@ export function suggestCollections(
   owned: readonly OwnedItem[],
   catalogue: ReadonlyMap<string, Item>,
   sets: readonly ItemSet[],
+  /**
+   * Names the user already has, so a suggestion never proposes one of them.
+   *
+   * Without this the Import flow offered "Crown Jewels" and "Hellhound" to a
+   * user who owns collections called exactly that — accepting either produces a
+   * second collection with a duplicate name, and before accepting it reads as
+   * the app forgetting what you have.
+   *
+   * Optional so existing callers keep working; passing nothing means no
+   * collision check, which is the old behaviour.
+   */
+  existingNames: readonly string[] = [],
 ): CollectionSuggestion[] {
   const ownedIds = new Set(owned.map((o) => o.itemId));
   const suggestions: CollectionSuggestion[] = [];
 
+  /** Case- and whitespace-insensitive: "crown jewels" is the same name. */
+  const taken = new Set(existingNames.map((n) => n.trim().toLowerCase()));
+
+  /**
+   * A name the user does not already hold.
+   *
+   * Falls through a list of alternatives rather than appending "(2)" — a
+   * suggestion is a pitch, and "Crown Jewels 2" is a worse pitch than a
+   * different idea. If every alternative is taken the suggestion is dropped by
+   * the caller rather than forced.
+   */
+  const freeName = (...candidates: string[]): string | null =>
+    candidates.find((c) => !taken.has(c.trim().toLowerCase())) ?? null;
+
   // 1. Near-complete sets are the most compelling grouping.
   for (const progress of setsInProgress(sets, ownedIds).slice(0, 2)) {
     const set = sets.find((s) => s.id === progress.setId)!;
+    /* The set's own name first — it is the most honest label for "these belong
+       together". The alternatives only come up when the user already has a
+       collection by that name. */
+    const name = freeName(set.name, `${set.name} Complete`, `The ${set.name} Run`);
+    if (name === null) continue;
     suggestions.push({
-      name: set.name,
+      name,
       reason: `You own ${progress.owned} of ${progress.total} in this set`,
       itemIds: set.itemIds.filter((id) => ownedIds.has(id)),
     });
@@ -198,11 +229,14 @@ export function suggestCollections(
     .sort((a, b) => RARITY_RANK[b.rarityTier] - RARITY_RANK[a.rarityTier])
     .slice(0, 8);
   if (rarest.length >= 3) {
-    suggestions.push({
-      name: 'Crown Jewels',
-      reason: 'Your rarest items across every game',
-      itemIds: rarest.map((i) => i.id),
-    });
+    const name = freeName('Crown Jewels', 'The Vault', 'Best of the Best', 'Top Shelf');
+    if (name !== null) {
+      suggestions.push({
+        name,
+        reason: 'Your rarest items across every game',
+        itemIds: rarest.map((i) => i.id),
+      });
+    }
   }
 
   return suggestions;

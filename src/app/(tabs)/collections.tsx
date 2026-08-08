@@ -167,7 +167,7 @@ export default function CollectionsScreen() {
     // Groupings the user has NOT made yet. Anything already collected is
     // dropped — suggesting a set someone built last week is noise.
     const existing = new Set(mine.map((c) => c.itemIds.slice().sort().join('|')));
-    const raw = await collectionService.suggest(owned);
+    const raw = await collectionService.suggest(owned, viewerId);
     const composed = await Promise.all(
       raw
         .filter((idea) => !existing.has(idea.itemIds.slice().sort().join('|')))
