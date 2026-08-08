@@ -21,6 +21,8 @@
 
 import type { Href } from 'expo-router';
 
+import type { GuidePose } from '@/config/tourGuideArt';
+
 export interface TourStop {
   /** Stable key. Also what the overlay logs when a target cannot be measured. */
   id: string;
@@ -44,6 +46,25 @@ export interface TourStop {
   body: string;
   /** Hidden entirely when this is false — §14 can cut the surface a stop names. */
   enabled?: boolean;
+  /**
+   * Miya's line for this stop, and the pose she says it in — tour v2 only.
+   *
+   * ADDITIVE. `title`/`body` above are untouched and remain what the card tour
+   * renders, so `FEATURES.tourGuideMiya` off is byte-identical to today. The
+   * two are not the same copy rewritten: the card explains, the guide talks.
+   *
+   * House rule still applies to the playful voice — she may not claim anything
+   * the app does not do. "Anything it is unsure about goes to a review step" is
+   * a promise the Import flow keeps; "I'll verify your items" is not one
+   * anybody can keep (§9.3 is partnership-gated).
+   *
+   * One or two short lines. She is beside the thing she is describing, so the
+   * screen is doing most of the explaining.
+   */
+  guide?: {
+    pose: GuidePose;
+    line: string;
+  };
 }
 
 export function buildTourStops(features: { news: boolean }): TourStop[] {
@@ -55,6 +76,7 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'Everything lives down here',
       body:
         'Home, Discover, Import, Collections and Profile. Collections and Profile stay greyed out until you import your first items — that is deliberate, not a bug.',
+      guide: { pose: 'pointing', line: 'Everything lives down here — Home, Discover, Import, Collections and Profile. Collections and Profile stay greyed until your first import. That is on purpose!' },
     },
     {
       id: 'import',
@@ -63,6 +85,7 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'Start with a screenshot',
       body:
         'Import scans a screenshot of your in-game inventory and matches what it finds against the catalogue. Anything it is unsure about goes to a review step rather than straight into your account.',
+      guide: { pose: 'pointing', line: 'Start here! Snap your in-game inventory and I will match it against the catalogue. Anything I am unsure about goes to a review step, never straight in.' },
     },
     {
       id: 'discover',
@@ -71,6 +94,7 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'Find people with your taste',
       body:
         'Collectors whose inventories overlap yours, and the communities around them. Every match shows the reason it scored — a percentage on its own is not much of an argument.',
+      guide: { pose: 'pointing', line: 'This is where you find people with your taste. Every match shows why it scored — a percentage on its own is not much of an argument.' },
     },
     {
       id: 'news',
@@ -80,6 +104,7 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'What changed while you were away',
       body:
         'One tab per game, each opening with a digest. The feed below ranks on what you own and what you follow, so a patch note about your weapon comes before one about someone else’s.',
+      guide: { pose: 'pointing', line: 'One tab per game, each opening with a digest. The feed ranks on what you own, so a patch note about your weapon comes first.' },
       enabled: features.news,
     },
     {
@@ -90,6 +115,7 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       title: 'Ask about your own collection',
       body:
         'Try "Who is my top match, and why?" — it answers from your actual inventory and tells you which items you have in common.',
+      guide: { pose: 'happy', line: 'And that is me! Ask me anything about your own collection — try “Who is my top match, and why?”' },
     },
   ];
 
