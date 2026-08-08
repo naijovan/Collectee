@@ -385,9 +385,26 @@ export const ARTICLES = [
     summary:
       'Four nerfs, seven buffs. Akai loses clear speed and gets burst as compensation, so his ' +
       'jungle days are done; Eudora is among the ones lifted.',
-    tags: ['patch notes', 'balance', 'MLBB', 'Akai', 'Eudora'],
+    tags: ['patch notes', 'balance', 'MLBB', 'Alucard', 'Akai', 'Eudora'],
     relatedGames: ['mlbb'],
-    relatedItemIds: ['mlbb-akai-panda-warrior', 'mlbb-eudora-royal-sorcerer'],
+    /*
+     * Alucard leads, so he is the thumbnail — `pickThumbnailIds` takes the
+     * first id not already claimed earlier in the tab. Akai and Eudora stay
+     * behind him because the article genuinely concerns them and that is what
+     * drives FYP relevance; only the picture changed, not the subject.
+     *
+     * Alucard rather than Hayabusa, who was the obvious jungler to reach for:
+     * the viewer OWNS the Hayabusa skin, so leading with it earned this article
+     * an "affects an item you own" boost and lifted it over the emblem card
+     * into third place. The tab's first three positions were meant to be
+     * untouched by this swap. A related item is not a free choice of picture —
+     * it is a ranking input.
+     */
+    relatedItemIds: [
+      'mlbb-alucard-obsidian-blade',
+      'mlbb-akai-panda-warrior',
+      'mlbb-eudora-royal-sorcerer',
+    ],
     publishedAt: '2026-07-08T08:30:00.000Z',
     body: [
       {
@@ -398,12 +415,24 @@ export const ARTICLES = [
           'gold changes early in the jungle make the lane a worse place to farm a tank than it ' +
           'was a fortnight ago.',
       },
-      { kind: 'heading', text: 'Akai pays for it, and gets something back' },
+      /* This beat is new, and it exists so the card's thumbnail is a character
+         the article actually talks about. A picture of Hayabusa on a story that
+         never mentions him is the same mismatch as a wrong caption. */
+      { kind: 'heading', text: 'Fighters move in' },
       {
         kind: 'image',
-        itemId: 'mlbb-akai-panda-warrior',
-        caption: 'Akai — Panda Warrior. The jungle build is the one that changed.',
+        itemId: 'mlbb-alucard-obsidian-blade',
+        caption:
+          'Alucard — Obsidian Blade. With tanks pushed out of the jungle, the clear belongs to fighters again.',
       },
+      {
+        kind: 'paragraph',
+        text:
+          'Nothing in the patch touches Alucard, and that is the point: the heroes who gain are ' +
+          'the ones who were losing the farm race to something that could out-clear them and ' +
+          'survive the gank afterwards. The jungle gets faster and squishier at the same time.',
+      },
+      { kind: 'heading', text: 'Akai pays for it, and gets something back' },
       {
         kind: 'paragraph',
         text:
@@ -440,7 +469,12 @@ export const ARTICLES = [
       'bought the original release, the acquisition date on your profile is the only difference.',
     tags: ['events', 'MLBB', 'anniversary'],
     relatedGames: ['mlbb'],
-    relatedItemIds: ['mlbb-lancelot-royal-matador', 'mlbb-kagura-cherry-witch'],
+    /* Selena's Virulent Nightmare leads: a Legend-tier skin is what "vaulted
+       and premium" means, which is the story. Royal Matador is gone from this
+       list rather than re-arted — it is owned by the viewer and placed in a
+       collection and a Showroom, so its art is load-bearing well outside the
+       News tab. Cherry Witch stays as a second, unpictured, related item. */
+    relatedItemIds: ['mlbb-selena-virulent-nightmare', 'mlbb-kagura-cherry-witch'],
     publishedAt: '2026-08-04T09:00:00.000Z',
   },
   {
@@ -455,7 +489,12 @@ export const ARTICLES = [
       'Aulus was also among the seven buffed in 2.1.90.',
     tags: ['skins', 'MLBB', 'Starlight'],
     relatedGames: ['mlbb'],
-    relatedItemIds: ['mlbb-granger-starfall-knight'],
+    /* Fanny's Lightborn Skylark, not Granger's Starfall Knight. Epic is the
+       tier a Starlight release actually sits at — Starfall Knight is a Legend,
+       so it was illustrating a subscription skin with something well above one
+       — and the sky imagery is the closer read of "Starwake Corsair" anyway.
+       No hero is named in this article's copy, so nothing else moves. */
+    relatedItemIds: ['mlbb-fanny-skylark'],
     publishedAt: '2026-08-06T10:15:00.000Z',
   },
   {
