@@ -16,6 +16,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing, typography, accentLink } from '@/theme/theme';
 
+import { BrandMark } from './BrandMark';
+
 export function StepperHeader({
   steps,
   current,
@@ -30,6 +32,12 @@ export function StepperHeader({
 
   return (
     <View style={styles.wrap}>
+      {/* Row rather than a prepended sibling, for the same reason as
+          `PinnedHeader`: the block below owns a `space-between` top row and a
+          full-width progress bar, and both assume they have the whole width. */}
+      <View style={styles.brandRow}>
+        <BrandMark style={styles.mark} />
+        <View style={styles.brandBody}>
       <View style={styles.topRow}>
         {onBack ? (
           <Pressable onPress={onBack} hitSlop={8}>
@@ -57,12 +65,21 @@ export function StepperHeader({
       </View>
 
       <Text style={styles.label}>{label}</Text>
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: spacing.sm, paddingBottom: spacing.md },
+  brandRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  /* The stepper's first row is the Back link (`body`, 20px line), which is
+     much shorter than the mark — centring the mark against the whole block
+     would drag it below the row it introduces, so it stays top-aligned. */
+  mark: {},
+  /* The stepper's own vertical rhythm, now that the row owns the horizontal. */
+  brandBody: { flex: 1, gap: spacing.sm },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   back: { ...typography.body, color: accentLink },
   count: { ...typography.meta, color: colors.textSecondary },

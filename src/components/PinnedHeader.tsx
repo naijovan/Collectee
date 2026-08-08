@@ -39,6 +39,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
 import { colors, headerGlass, motion, spacing } from '@/theme/theme';
 
+import { BrandMark } from './BrandMark';
+
 /**
  * How far the page must move before the backdrop appears.
  *
@@ -118,12 +120,32 @@ export function PinnedHeader({
             : null,
         ]}
       />
-      {children}
+      {/*
+        The mark and the screen's own header sit in a ROW, with the mark fixed
+        and the children taking the rest. Every header that lands here was
+        written as a full-width block, so wrapping rather than prepending is
+        what keeps their internal `justifyContent: space-between` rows working
+        — a bare sibling would have made each one share the width with the icon
+        and pull its right-hand actions inward.
+      */}
+      <View style={styles.row}>
+        <BrandMark style={styles.mark} />
+        <View style={styles.content}>{children}</View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  /* No nudge: at 40 the mark spans the title's whole line box, so aligning
+     their tops aligns them optically. It needed pushing down only while it was
+     shorter than the cap height. */
+  mark: {},
+  /* Takes the remaining width and keeps its own vertical rhythm: the header's
+     `gap` used to separate a title block from a chip row, and that gap has to
+     stay INSIDE this column now that the row owns the horizontal one. */
+  content: { flex: 1, gap: spacing.md },
   header: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,

@@ -53,7 +53,7 @@ import {
   PinnedHeader,
 } from '@/components';
 import { useScrolledPast } from '@/components/PinnedHeader';
-import { ART_PLACEMENTS, backdropFor } from '@/config/artRegistry';
+import { ART_PLACEMENTS, backdropFor, hasArt } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { headlineItem } from '@/domain/collections';
 import { pickThumbnailIds } from '@/domain/news';
@@ -154,47 +154,94 @@ const HERO_PANEL_OFFSETS: Record<string, `${number}%`> = {
 };
 
 /**
- * Order the Trending Showrooms rail.
+ * Reorder a ranked list so its LEADING entries repeat each other as little as
+ * possible, without dropping anything.
  *
- * Two jobs, in this order:
+ * Both Home grids show four cards, and four cards sharing an owner, a game or a
+ * piece of cover art waste most of their space saying one thing. The underlying
+ * rankings are sound — likes for showrooms, verification share for collectibles
+ * — they simply have no notion of variety.
  *
- *  1. Rank by likes. The section is called "Trending" and was rendering the
- *     fixture array as-is, which is not a ranking of anything.
+ * ── "As much as possible", literally ──────────────────────────────────────
+ * A hard filter is the obvious approach and it is wrong here: there are only
+ * three games, so a fourth card CANNOT introduce a fourth game, and a rule
+ * demanding one would either drop a card or never terminate.
  *
- *  2. Push repeats down. The preview shows four, and a rail where two of them
- *     belong to the same collector — or wear the same theme backdrop — spends
- *     half its space saying the same thing twice. The roster has one collector
- *     with two rooms and three rooms sharing the Futuristic Weapon Vault, so
- *     without this the top four showed zennx twice and the vault twice.
+ * So each candidate is scored by how many of its keys are already used, and the
+ * best-scoring one wins, earliest in rank order breaking ties. A clean
+ * candidate always wins; when none exists the list degrades to one repeat, then
+ * two, rather than failing. That is what makes "different where it can be" a
+ * rule rather than a wish.
  *
- * Greedy rather than a global optimum: walk in popularity order and take an
- * entry only if its owner AND its theme are both new, holding the rest back to
- * the tail. The leading entries are therefore the most-liked room from each
- * distinct collector-and-theme pairing, and nothing is dropped — "See all"
- * still reveals every published room.
+ * Nothing is discarded — "See all" still reveals everything, in this order.
+ */
+function diversify<T>(items: readonly T[], keys: readonly ((item: T) => string | null)[]): T[] {
+  const remaining = [...items];
+  const ordered: T[] = [];
+  const used = keys.map(() => new Set<string>());
+
+  while (remaining.length > 0) {
+    let bestIndex = 0;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let i = 0; i < remaining.length; i++) {
+      let score = 0;
+      for (let k = 0; k < keys.length; k++) {
+        const value = keys[k]!(remaining[i]!);
+        /* A null key is "no opinion": it cannot clash, so it never penalises a
+           candidate that is otherwise a clean pick. */
+        if (value !== null && used[k]!.has(value)) score++;
+      }
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = i;
+        if (score === 0) break; // Cannot do better; keep the earliest.
+      }
+    }
+
+    const [chosen] = remaining.splice(bestIndex, 1);
+    for (let k = 0; k < keys.length; k++) {
+      const value = keys[k]!(chosen!);
+      if (value !== null) used[k]!.add(value);
+    }
+    ordered.push(chosen!);
+  }
+
+  return ordered;
+}
+
+/**
+ * Trending Showrooms: rank by likes — the section is called "Trending" and was
+ * rendering the fixture array in file order — then spread owners and backdrops.
  */
 function rankTrendingRooms(entries: readonly RoomEntry[]): RoomEntry[] {
   const byPopularity = [...entries].sort((a, b) => b.room.likeCount - a.room.likeCount);
+  return diversify(byPopularity, [
+    /* Falling back to the room id stops two ownerless rooms colliding. */
+    (entry) => entry.owner?.id ?? entry.room.id,
+    (entry) => entry.room.themeId,
+  ]);
+}
 
-  const lead: RoomEntry[] = [];
-  const held: RoomEntry[] = [];
-  const owners = new Set<string>();
-  const themes = new Set<string>();
-
-  for (const entry of byPopularity) {
-    /* A room with no resolvable owner is still its own entry — falling back to
-       the room id keeps it from colliding with every other ownerless room. */
-    const owner = entry.owner?.id ?? entry.room.id;
-    if (owners.has(owner) || themes.has(entry.room.themeId)) {
-      held.push(entry);
-      continue;
-    }
-    owners.add(owner);
-    themes.add(entry.room.themeId);
-    lead.push(entry);
-  }
-
-  return [...lead, ...held];
+/**
+ * Explore Collectibles: keep the service's verification-share ranking, then
+ * spread owner, game and cover art.
+ *
+ * The game key is the headline item's title because that is precisely what the
+ * card prints in its corner badge — keying on anything else would let two cards
+ * show the same badge while the code believed they differed.
+ *
+ * The cover key is the first item WITH ART, which is the panel
+ * `CollectionCoverMosaic` draws leftmost. Several seeded collections share a
+ * popular skin, and when it leads two mosaics the covers read as the same
+ * picture even though the collections are unrelated.
+ */
+function rankExploreCollections(entries: readonly ExploreEntry[]): ExploreEntry[] {
+  return diversify(entries, [
+    (entry) => entry.owner?.id ?? entry.collection.id,
+    (entry) => entry.headline?.title ?? null,
+    (entry) => entry.collection.itemIds.find(hasArt) ?? null,
+  ]);
 }
 
 /** Showrooms on the Home grid before "See all" — matches the collectibles grid. */
@@ -293,7 +340,7 @@ export default function HomeScreen() {
     ).filter((entry) => entry.owner?.id !== viewerId);
 
     setArticles(news);
-    setExplore(entries);
+    setExplore(rankExploreCollections(entries));
     setCollectors(recommended);
     setRooms(rankTrendingRooms(roomEntries));
     setBusy(false);

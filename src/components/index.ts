@@ -67,4 +67,5 @@ export { AssistantButton, ASSISTANT_CLEARANCE } from './AssistantButton';
 export { AssistantPanel } from './AssistantPanel';
 export { useHoverLift } from './primitives';
 
+export { BrandMark } from './BrandMark';
 export { PinnedHeader } from './PinnedHeader';

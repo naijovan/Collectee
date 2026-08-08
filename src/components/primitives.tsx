@@ -551,19 +551,30 @@ export function FilterChips<T extends string>({
   value,
   onChange,
   accentFor,
+  labelFor,
 }: {
   options: readonly T[];
   value: T;
   onChange: (next: T) => void;
   /** Per-option active colour. Undefined — for any option — keeps `colors.accent`. */
   accentFor?: (option: T) => string | undefined;
+  /**
+   * What to PRINT for an option, when that differs from the option itself.
+   *
+   * Most callers pass display-ready strings ("All", "Collections") and want
+   * nothing here. The exception is a chip row whose options are also the state
+   * value — Import's source is typed `'image' | 'video'` and those literals are
+   * compared against all over that screen, so capitalising them at the source
+   * would be a type change rippling through unrelated code to fix a label.
+   */
+  labelFor?: (option: T) => string;
 }) {
   return (
     <View style={styles.chipRow} accessibilityRole="tablist">
       {options.map((option) => (
         <Chip
           key={option}
-          label={option}
+          label={labelFor ? labelFor(option) : option}
           active={option === value}
           accent={accentFor?.(option)}
           onPress={() => onChange(option)}

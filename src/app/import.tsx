@@ -61,6 +61,7 @@ import {
   PrimaryButton,
   RarityBadge,
   SecondaryButton,
+  BrandMark,
 } from '@/components';
 import { ART_PLACEMENTS, GAME_COVERS } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
@@ -209,7 +210,7 @@ export default function ImportScreen() {
   const detections = result?.detections ?? [];
 
   /**
-   * Which path "Start scan" will take, asked of the service rather than
+   * Which path "Start Scan" will take, asked of the service rather than
    * re-derived here — the flag, the endpoint and the video rule all live in
    * one place and this screen must not grow a second opinion about them.
    */
@@ -521,7 +522,25 @@ export default function ImportScreen() {
         if (runId.current === run) setProgress((index + fraction) / sources.length);
       });
       if (runId.current !== run) return;
-      collected.push(...part.detections);
+      /*
+       * Re-id per source file. `toDetection` numbers within ONE response, so
+       * every image comes back with a `live-0`, a `live-1` and so on — and
+       * merging them unchanged put duplicate ids in one list.
+       *
+       * That is not cosmetic. Review tracks a decision by `detectionId`, so
+       * confirming one card confirmed every card sharing its number, and
+       * un-confirming did the same in reverse. React was also rendering
+       * duplicate keys for the same reason.
+       *
+       * Prefixing with the source index is enough: ids only have to be unique
+       * within a batch, and nothing persists them.
+       */
+      collected.push(
+        ...part.detections.map((detection) => ({
+          ...detection,
+          id: `u${index}-${detection.id}`,
+        })),
+      );
       if (part.source !== 'live') {
         degraded = part.source;
         sourceDetail = part.sourceDetail ?? sourceDetail;
@@ -677,6 +696,11 @@ export default function ImportScreen() {
         <Pressable onPress={goBack} hitSlop={8}>
           <Text style={styles.back}>←</Text>
         </Pressable>
+        {/* After Back, not before it. Back is the primary control on this row
+            and has to stay the leftmost thing a thumb reaches; the mark sits
+            against the words it introduces, which is the same relationship it
+            has in `PinnedHeader`. */}
+        <BrandMark size={24} />
         <Text style={styles.navTitle} numberOfLines={1}>
           {STAGE_TITLE[stage]}
         </Text>
@@ -787,6 +811,9 @@ export default function ImportScreen() {
             options={FEATURES.scanVideoInput ? (['video', 'image'] as const) : (['image'] as const)}
             value={kind}
             onChange={setKind}
+            /* The options double as the state value, so they are printed
+               capitalised rather than stored that way. */
+            labelFor={(option) => (option === 'image' ? 'Image' : 'Video')}
           />
 
           {/* An image source takes real files; video stays the prepared recording. */}
@@ -836,7 +863,7 @@ export default function ImportScreen() {
               </Text>
               <Text style={styles.muted}>
                 {kind === 'video'
-                  ? 'Prepared recording · no file needed — press Start scan'
+                  ? 'Prepared recording · no file needed — press Start Scan'
                   : 'PNG or JPG, up to 8 MB each · pick as many as you like'}
               </Text>
             </Pressable>
@@ -853,7 +880,7 @@ export default function ImportScreen() {
             who tried it. Video keeps its own path: there is no file to pick.
           */}
           <PrimaryButton
-            label="Start scan"
+            label="Start Scan"
             onPress={() => void runScan()}
             disabled={kind === 'image' && uploads.length === 0}
           />
