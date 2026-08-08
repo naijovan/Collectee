@@ -216,7 +216,7 @@ export const ARTICLES = [
     summary:
       'Season 6 pairs the new SMG with its first Mythic blueprint. Mythic owners already know the ' +
       'shape of this one: the draw, not the store, is where the tier lives.',
-    tags: ['mythic', 'blueprints', 'CODM', 'Season 6'],
+    tags: ['mythic', 'blueprints', 'CODM', 'Season 6', 'Shadow Skyline'],
     relatedGames: ['codm'],
     relatedItemIds: ['codm-fennec-ascended'],
     publishedAt: '2026-08-05T09:30:00.000Z',
@@ -231,7 +231,7 @@ export const ARTICLES = [
     summary:
       'The operator half of the same draw. Hooded, masked and lit from inside — the closest thing ' +
       'Season 6 has to a Nightfall successor, and priced like it.',
-    tags: ['operators', 'CODM', 'Season 6'],
+    tags: ['operators', 'CODM', 'Season 6', 'Nightfall'],
     relatedGames: ['codm'],
     relatedItemIds: ['codm-ghost-nightfall'],
     publishedAt: '2026-08-02T12:00:00.000Z',
@@ -264,7 +264,7 @@ export const ARTICLES = [
     summary:
       'Phoenix comes back from Run It Back differently, and Retakes picks up more of the map list. ' +
       'A pacing patch rather than an economy one.',
-    tags: ['patch notes', 'balance', 'Valorant'],
+    tags: ['patch notes', 'balance', 'Valorant', 'Phoenix'],
     relatedGames: ['valorant'],
     relatedItemIds: [],
     publishedAt: '2026-07-28T15:00:00.000Z',
