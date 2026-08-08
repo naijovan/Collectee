@@ -21,6 +21,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import {
   CollectionCard,
@@ -48,7 +49,7 @@ import { useTopOnFocus } from '@/hooks/useTopOnFocus';
 import { catalogueService, collectionService, inventoryService, roomService, socialService } from '@/services';
 import type { RoomStatus } from '@/services';
 import { useApp } from '@/state/AppContext';
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import { colors, radius, scrim, spacing, typography } from '@/theme/theme';
 import type { Collection, Item } from '@/types';
 
 /** §14 rung: "Has room" is the filter that makes J3 discoverable from J2. */
@@ -206,83 +207,78 @@ export default function CollectionsScreen() {
   /** One card, used by both suggestion lists. */
   function renderIdea(idea: SuggestedGroup) {
     const canShowroom = idea.eligibility.eligible && idea.themeName;
+    const hero = idea.items[0];
     return (
       <View key={idea.suggestion.name} style={styles.ideaCard}>
-          {/* Show the items, not just their count. A suggestion asks the
-              user to trust a grouping they did not make, and the fastest
-              way to earn that is to let them see what is in it. */}
-          <View style={styles.ideaPreview}>
-            {idea.items.slice(0, 2).map((item) => (
-              <ItemArt
-                key={item.id}
-                seed={item.id}
-                tier={item.rarityTier}
-                renderUrl={item.renderUrl}
-                style={styles.ideaThumb}
-              />
-            ))}
-            {idea.suggestion.itemIds.length > 2 ? (
-              <View style={[styles.ideaThumb, styles.ideaMore]}>
-                <Text style={styles.ideaMoreText}>
-                  +{idea.suggestion.itemIds.length - 2}
-                </Text>
-              </View>
-            ) : null}
-          </View>
+        {/* The art fills the card, as it does on every collection and showroom
+            card. It used to be a strip of thumbnails above a body panel, which
+            made this the one suggestion surface that did not look like the
+            thing it was proposing. */}
+        {hero ? (
+          <ItemArt
+            seed={hero.id}
+            tier={hero.rarityTier}
+            renderUrl={hero.renderUrl}
+            fit="cover"
+            style={styles.ideaArt}
+          />
+        ) : null}
 
-          <View style={styles.ideaBody}>
-            <Text style={styles.ideaName}>{idea.suggestion.name}</Text>
-            <Text style={styles.muted}>
-              {idea.suggestion.itemIds.length} items · {idea.suggestion.reason}
+        <LinearGradient
+          colors={[scrim.clear, scrim.medium, scrim.heavy]}
+          locations={[0, 0.45, 1]}
+          style={styles.ideaScrim}
+          pointerEvents="none"
+        />
+
+        {/* The outcome badge stays top-left: which of the two things this
+            becomes is the single fact that decides whether it is worth
+            tapping, and on a cover it needs to be clear of the title. */}
+        <View style={styles.ideaTagOverlay} pointerEvents="none">
+          <View style={[styles.ideaTag, canShowroom && styles.ideaTagLive]}>
+            <Text style={[styles.ideaTagText, canShowroom && styles.ideaTagTextLive]}>
+              {canShowroom ? `⌂ ${idea.themeName}` : '⚿ 2D collection'}
             </Text>
           </View>
-
-          {/* The outcome is a badge, not a sentence: which of the two
-              things this becomes is the single fact that decides whether
-              the button is worth tapping. */}
-          <View style={styles.ideaFooter}>
-            <View style={[styles.ideaTag, canShowroom && styles.ideaTagLive]}>
-              <Text style={[styles.ideaTagText, canShowroom && styles.ideaTagTextLive]}>
-                {canShowroom ? `⌂ ${idea.themeName}` : '⚿ 2D collection'}
-              </Text>
-            </View>
-            <Pressable
-              onPress={() =>
-                canShowroom
-                  ? router.push({
-                      pathname: '/room/new',
-                      params: {
-                        name: idea.suggestion.name,
-                        itemIds: idea.suggestion.itemIds.join(','),
-                      },
-                    })
-                  : router.push('/collection/new')
-              }
-              style={({ pressed }) => [
-                styles.ideaButton,
-                canShowroom && styles.ideaButtonPrimary,
-                pressed && styles.pressedIdea,
-              ]}
-            >
-              {/* Filled variant takes the shared ramp; the outline variant has
-                  no fill to put one in. */}
-              {canShowroom ? <AccentFill /> : null}
-              <Text
-                style={[
-                  styles.ideaButtonText,
-                  canShowroom && styles.ideaButtonTextPrimary,
-                ]}
-              >
-                {canShowroom ? 'Create Showroom' : 'Create Collection'}
-              </Text>
-            </Pressable>
-          </View>
-
-          {!canShowroom ? (
-            <Text style={styles.ideaHint}>{idea.eligibility.reason}</Text>
-          ) : null}
         </View>
-      );
+
+        <View style={styles.ideaMeta} pointerEvents="none">
+          <Text style={styles.ideaName} numberOfLines={1}>
+            {idea.suggestion.name}
+          </Text>
+          {/* §11 F5 — the reason is part of the feature. A suggestion without
+              it is a demand. */}
+          <Text style={styles.ideaReason} numberOfLines={2}>
+            {idea.suggestion.itemIds.length} items · {idea.suggestion.reason}
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={() =>
+            canShowroom
+              ? router.push({
+                  pathname: '/room/new',
+                  params: {
+                    name: idea.suggestion.name,
+                    itemIds: idea.suggestion.itemIds.join(','),
+                  },
+                })
+              : router.push('/collection/new')
+          }
+          style={({ pressed }) => [
+            styles.ideaButton,
+            styles.ideaButtonOverlay,
+            canShowroom && styles.ideaButtonPrimary,
+            pressed && styles.pressedIdea,
+          ]}
+        >
+          {canShowroom ? <AccentFill /> : null}
+          <Text style={[styles.ideaButtonText, canShowroom && styles.ideaButtonTextPrimary]}>
+            {canShowroom ? 'Create Showroom' : 'Create Collection'}
+          </Text>
+        </Pressable>
+      </View>
+    );
   }
 
   return (
@@ -418,6 +414,7 @@ export default function CollectionsScreen() {
               time — what does accepting this actually make? — and the showroom
               half goes first because it is the one gated on verification and so
               the one worth acting on while the items are fresh. */}
+          <View style={styles.ideaColumns}>
           {showroomIdeas.length > 0 ? (
             <View style={styles.ideaGroup}>
               <View style={styles.ideaGroupHeader}>
@@ -446,6 +443,7 @@ export default function CollectionsScreen() {
               </View>
             </View>
           ) : null}
+          </View>
         </View>
       ) : null}
 
@@ -621,9 +619,12 @@ const styles = StyleSheet.create({
 
   suggestionsSection: { gap: spacing.xl },
   suggestionIntro: { gap: spacing.sm },
-  ideaGroup: { gap: spacing.md },
+  /* The two outcome groups side by side rather than stacked. Each is half the
+     row, so "what this makes" is one comparison instead of a scroll. */
+  ideaColumns: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
+  ideaGroup: { flexGrow: 1, flexBasis: '46%', minWidth: 300, gap: spacing.md },
   ideaGroupHeader: { gap: spacing.xs },
-  ideaList: { gap: spacing.md },
+  ideaList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   ideaPreview: {
     flexDirection: 'row',
     gap: spacing.xs,
@@ -637,7 +638,21 @@ const styles = StyleSheet.create({
   ideaMore: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSunken },
   ideaMoreText: { ...typography.cardTitle, color: colors.textSecondary },
   ideaBody: { gap: spacing.xs },
-  ideaName: { ...typography.cardTitle, color: colors.textPrimary },
+  ideaArt: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0 },
+  ideaScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '68%' },
+  ideaTagOverlay: { position: 'absolute', top: spacing.sm, left: spacing.sm },
+  /* Room for the button pinned bottom-right, so a long name never runs under it. */
+  ideaMeta: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing.md + 44,
+    paddingHorizontal: spacing.md,
+    gap: 2,
+  },
+  ideaName: { ...typography.overlayTitle, fontSize: 19, lineHeight: 24, color: colors.textOnAccent },
+  ideaReason: { ...typography.meta, color: colors.textOnAccent, opacity: 0.8 },
+  ideaButtonOverlay: { position: 'absolute', left: spacing.md, right: spacing.md, bottom: spacing.md },
   ideaFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -677,12 +692,17 @@ const styles = StyleSheet.create({
   pressedIdea: { opacity: 0.75 },
   ideaHint: { ...typography.meta, color: colors.textTertiary },
   ideaCard: {
-    gap: spacing.md,
-    padding: spacing.lg,
+    /* Half a row, so the two sections sit side by side. `minWidth` forces a
+       wrap on a narrow window rather than producing two slivers. */
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 260,
+    height: 240,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceSunken,
   },
   ideaHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   ideaSpark: { ...typography.meta, color: colors.accent },

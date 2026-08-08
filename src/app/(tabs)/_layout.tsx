@@ -12,11 +12,24 @@
 
 import { Tabs } from 'expo-router';
 
-import { TabBar } from '@/components';
+import { AppBackgroundFrame, TabBar } from '@/components';
 
 export default function TabsLayout() {
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={() => <TabBar />}>
+    <Tabs
+      /**
+       * The tab screens need their own frame.
+       *
+       * The root Stack sets `screenLayout` too, but a Tabs navigator renders
+       * its screens inside itself rather than as Stack children, so the root
+       * frame does not reach them — removing this took the background off all
+       * five tabs while leaving it on every pushed route, which is exactly how
+       * it looked like it had "disappeared".
+       */
+      screenLayout={({ children }) => <AppBackgroundFrame>{children}</AppBackgroundFrame>}
+      screenOptions={{ headerShown: false }}
+      tabBar={() => <TabBar />}
+    >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
       <Tabs.Screen name="collections" options={{ title: 'Collections' }} />
