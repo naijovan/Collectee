@@ -607,15 +607,25 @@ const styles = StyleSheet.create({
    * the label reads as part of the cell above it rather than as a floating line
    * between two rows.
    */
+  /**
+   * One gap mechanism, not three.
+   *
+   * This had `width: 48%` (leaving 4% of slack), `columnGap: 12` AND
+   * `justifyContent: 'space-between'` — the slack, the gap and the
+   * distribution all pushing the two cards apart, which is why the channel
+   * down the middle was so wide.
+   *
+   * `columnGap` alone decides the spacing now, and `flexGrow` lets the cards
+   * absorb whatever is left, so two always fill the row exactly.
+   */
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     columnGap: spacing.md,
     rowGap: spacing.sm,
-    justifyContent: 'space-between',
   },
-  gridItem: { width: '48%', gap: 2 },
-  gridItemPhone: { width: '100%' },
+  gridItem: { flexGrow: 1, flexBasis: '46%', minWidth: 260, gap: 2 },
+  gridItemPhone: { flexBasis: '100%', minWidth: 0 },
 
   suggestionsSection: { gap: spacing.xl },
   suggestionIntro: { gap: spacing.sm },

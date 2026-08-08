@@ -374,8 +374,14 @@ export default function ProfileScreen() {
                  information in a space that fits two. Bigger, and with the
                  words on the art, it matches the collection and showroom cards
                  it scrolls beside. */
-              width={168}
-              artHeight={200}
+              width={176}
+              /* SQUARE, matching the rendition `ItemArt` picks for a box this
+                 shape. A 176x200 portrait box cropped the sides a second time
+                 on art that had already been cropped square at bake time —
+                 characters are authored 3:2, so they were losing ~44% of their
+                 width in total and arriving as a face with no shoulders.
+                 Square costs a little height and shows the whole subject. */
+              artHeight={176}
               overlay
               onPress={() => router.push('/inventory')}
             />
@@ -565,8 +571,8 @@ const styles = StyleSheet.create({
 
   /** The rail's tail card. Same width as an ItemCard so the rhythm holds. */
   railMore: {
-    width: 168,
-    height: 200,
+    width: 176,
+    height: 176,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
@@ -578,14 +584,16 @@ const styles = StyleSheet.create({
   railMoreCount: { ...typography.cardTitle, color: colors.accent },
   railMoreLabel: { ...typography.meta, color: colors.textSecondary },
 
+  /* Same fix as the Collections tab: `width: 48%`, `gap` and `space-between`
+     were three separate things pushing the cards apart. Gap alone now, with
+     `flexGrow` absorbing the remainder so two fill the row. */
   collectionGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.md,
-    justifyContent: 'space-between',
   },
-  collectionCell: { width: '48%' },
-  collectionCellPhone: { width: '100%' },
+  collectionCell: { flexGrow: 1, flexBasis: '46%', minWidth: 260 },
+  collectionCellPhone: { flexBasis: '100%', minWidth: 0 },
 
   roomEmpty: {
     gap: 2,

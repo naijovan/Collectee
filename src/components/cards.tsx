@@ -935,7 +935,9 @@ const styles = StyleSheet.create({
   itemCard: { borderRadius: radius.card, overflow: 'hidden' },
   itemArt: { width: '100%', aspectRatio: 3 / 2 },
   /* ── Overlay variant ─────────────────────────────────────────────────── */
-  itemScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
+  /* 52%, not 62%. The band sits on a square tile now rather than a tall one,
+     so the same fraction covered noticeably more of the subject. */
+  itemScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '52%' },
   itemOverlayBody: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: spacing.sm, gap: 2 },
   itemOverlayName: { ...typography.cardTitle, color: colors.textOnAccent },
   /* Tier-coloured, matching every other rarity treatment in the app (§12.2) —
