@@ -160,7 +160,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width: screenW, height: screenH } = useWindowDimensions();
-  const { measureUnion } = useTourAnchors();
+  const { measureUnion, setLifted } = useTourAnchors();
   const reduceMotion = useReduceMotion();
 
   const stops = useMemo(() => buildTourStops({ news: FEATURES.news }), []);
@@ -352,8 +352,6 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
     return () => loop.stop();
   }, [pulse, reduceMotion, phase, hole]);
 
-  const total = stops.length;
-
   /**
    * Is this the guided run?
    *
@@ -364,6 +362,22 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
    * "flag off is byte-identical" a property rather than a promise.
    */
   const guided = FEATURES.tourGuideColly && guidePosesReady();
+
+  /**
+   * Tell a lifted target to raise itself, and put it back when we leave.
+   *
+   * Only while the stop is actually shown — during 'moving' there is no
+   * spotlight, and a launcher floating above a full-screen dim mid-transition
+   * would announce the next stop before the overlay gets there.
+   */
+  const liftId = phase === 'shown' && guided && stop?.lift ? stop.targetIds[0] : null;
+  useEffect(() => {
+    setLifted(liftId ?? null);
+    return () => setLifted(null);
+  }, [liftId, setLifted]);
+
+  const total = stops.length;
+
 
   /* Computed once. Two calls would be two chances for the wrapper's anchor and
      the figure's placement to disagree about where she is standing. */
@@ -423,7 +437,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
     <View style={styles.root} pointerEvents="box-none">
       {/* Four panels around the hole. During 'moving' there is no hole, so the
           whole screen dims — that is the beat before the spotlight lands. */}
-      {phase === 'shown' && hole ? (
+      {phase === 'shown' && hole && !(guided && stop.lift) ? (
         <>
           {/* CLASSIC PATH — untouched from tour v1, deliberately.
               These use `right: 0` / `bottom: 0`, which stretch to the parent,
@@ -560,6 +574,26 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
           pointerEvents="auto"
         />
       )}
+
+      {/* Lifted stop: everything dims, the target raises itself above this
+          overlay, and the ring still marks it. No cutout, so nothing behind the
+          floating target shows through beside it. */}
+      {phase === 'shown' && hole && guided && stop.lift ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.ring,
+            {
+              top: hole.y - HOLE_PAD,
+              left: hole.x - HOLE_PAD,
+              width: hole.width + HOLE_PAD * 2,
+              height: hole.height + HOLE_PAD * 2,
+              borderRadius: ringRadius,
+              opacity: fade,
+            },
+          ]}
+        />
+      ) : null}
 
       {guided && stop.guide ? (
         /* Guided run. The guide takes the whole lower (or upper) band rather

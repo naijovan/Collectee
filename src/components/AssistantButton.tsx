@@ -32,8 +32,9 @@ import { usePathname } from 'expo-router';
 
 import { assistantMascot } from '@/config/assistantArt';
 import { useReduceMotion } from '@/hooks/useReduceMotion';
+import { useApp } from '@/state/AppContext';
 import { useAssistantDock } from '@/state/AssistantDock';
-import { useTourAnchor } from '@/state/TourAnchors';
+import { useTourAnchor, useTourAnchors } from '@/state/TourAnchors';
 import { colors, interaction, motion, radius, spacing, typography } from '@/theme/theme';
 
 import { AssistantPanel } from './AssistantPanel';
@@ -76,11 +77,17 @@ const GREETS_ON = '/';
 export function AssistantButton() {
   const pathname = usePathname();
   const reduceMotion = useReduceMotion();
+  const { firstRunStage } = useApp();
   const { open, openPanel, closePanel } = useAssistantDock();
   /* Final stop of the first-run walkthrough. Inert without the tour mounted.
      Anchored on the BUBBLE, not the row — the spotlight should ring the face,
      not a wide invisible strip with the pill in it. */
   const tourAnchor = useTourAnchor('assistant-button');
+  /* When the walkthrough's last stop presents this button it dims the whole
+     screen with no cutout and asks the button to float above the overlay —
+     see `lifted` in TourAnchors for why a cutout reads wrong here. */
+  const { lifted } = useTourAnchors();
+  const presented = lifted === 'assistant-button';
 
   const [hovered, setHovered] = useState(false);
   const [greeting, setGreeting] = useState(!greetedThisSession);
@@ -148,6 +155,23 @@ export function AssistantButton() {
     setGreeting(false);
   }, []);
 
+  /**
+   * Not during the front door.
+   *
+   * The launcher mounts once in the root layout, which meant it floated over
+   * the sign-in screen and the quiz — an assistant offering to answer
+   * questions about a collection the user has not seen yet, on top of a form.
+   *
+   * Gated on `firstRunStage` rather than on a route list, because that is the
+   * §13.4 single source of truth for where the first run is and it cannot
+   * drift from the routes the way a hardcoded list would.
+   *
+   * 'tour' is deliberately ALLOWED. The walkthrough's last stop spotlights
+   * this button, so hiding it here would leave the finale pointing at nothing —
+   * and by then the user is on Home with the app behind them.
+   */
+  if (firstRunStage === 'sign-in' || firstRunStage === 'quiz') return null;
+
   if (HIDDEN_ON.some((route) => pathname.startsWith(route))) return null;
 
   const rotate = wiggle.interpolate({
@@ -166,7 +190,10 @@ export function AssistantButton() {
 
       {/* box-none so the gap between pill and bubble stays click-through and
           this row never swallows a tap meant for the screen underneath. */}
-      <View style={styles.dock} pointerEvents="box-none">
+      <View
+        style={[styles.dock, presented && styles.dockPresented]}
+        pointerEvents="box-none"
+      >
         {showPill ? (
           <Pressable
             accessibilityRole="button"
@@ -246,6 +273,9 @@ const styles = StyleSheet.create({
     // control while the panel is open.
     zIndex: 60,
   },
+  /* Above TourOverlay's zIndex 100 while it is being presented, and back to 60
+     the moment the stop moves on. */
+  dockPresented: { zIndex: 110 },
   bubble: {
     width: BUBBLE,
     height: BUBBLE,

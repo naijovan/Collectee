@@ -53,10 +53,16 @@ const NATIVE_DRIVER = Platform.OS !== 'web';
 
 /** Never smaller than this, whatever the viewport. Below it she is a sticker. */
 const MIN_HEIGHT = 240;
-/** Share of viewport height she aims for. */
-const TARGET_FRACTION = 0.4;
+/**
+ * Share of viewport height she aims for.
+ *
+ * Nudged 0.40 -> 0.44 so she is unambiguously the focal point. The cap below
+ * still reserves the bubble and controls, so this cannot crowd them: on an
+ * 800pt viewport she asks for 352 against a cap of 540.
+ */
+const TARGET_FRACTION = 0.44;
 /** Floor on the share, so a very short window still gives her presence. */
-const MIN_FRACTION = 0.35;
+const MIN_FRACTION = 0.38;
 /** Reserved under her for the bubble and controls, so both always fit. */
 const BUBBLE_RESERVE = 260;
 /** Idle bob travel. Small enough to read as breathing, not floating. */
