@@ -276,12 +276,28 @@ export const scrim = {
  * same licence `scrim` takes, and the same reason they live in this file.
  */
 export const tourScrim = {
-  /** Top of the field — deepest. */
-  top: 'rgba(9,10,26,0.94)',
+  /**
+   * Top of the field.
+   *
+   * Was 0.94, which was a void. Composited over the app's own tones at that
+   * alpha, every one of them lands between 1.00 and 1.13 contrast against the
+   * scrim itself — surfaces, accent, item art and even white text all
+   * mathematically invisible. The screen behind was not muted, it was gone, so
+   * a stop with a small cutout read as a character floating in black.
+   *
+   * 0.72 keeps it clearly de-emphasised while letting the screen survive:
+   * accent 1.35, item art 1.68, white text 2.41. Enough that a judge can still
+   * tell it is Home behind her.
+   *
+   * The spotlight does not need the extra darkness. The cutout passes 100% of
+   * the screen and the field passes ~28%, so the target is still ~3.5x brighter
+   * than its surroundings, and the ring and glow mark it on top of that.
+   */
+  top: 'rgba(9,10,26,0.72)',
   /** Bottom, where the guide stands. Slightly lifted so she is not in a pit. */
-  bottom: 'rgba(5,6,15,0.88)',
-  /** Edge darkening, drawn over the gradient. */
-  vignette: 'rgba(3,4,10,0.55)',
+  bottom: 'rgba(5,6,15,0.64)',
+  /** Edge darkening, drawn over the gradient. Eased with the field. */
+  vignette: 'rgba(3,4,10,0.48)',
   /** Centre of the vignette — transparent, so the middle stays readable. */
   vignetteClear: 'rgba(3,4,10,0)',
 } as const;

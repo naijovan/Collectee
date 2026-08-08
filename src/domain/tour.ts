@@ -42,6 +42,16 @@ export interface TourStop {
   fallbackTargetIds?: readonly string[];
   /** Corner treatment for the cutout. `pill` for round targets. */
   shape?: 'rect' | 'pill';
+  /**
+   * Present this target by LIFTING it above the overlay instead of cutting a
+   * hole around it.
+   *
+   * For a target that floats over the app — the assistant launcher is the only
+   * one — a cutout also reveals whatever it is sitting on, so the two read as
+   * overlapping. Dimming everything and raising the target above the scrim
+   * presents it cleanly. The target must register the same anchor id.
+   */
+  lift?: boolean;
   title: string;
   body: string;
   /** Hidden entirely when this is false — §14 can cut the surface a stop names. */
@@ -112,6 +122,9 @@ export function buildTourStops(features: { news: boolean }): TourStop[] {
       route: '/',
       targetIds: ['assistant-button'],
       shape: 'pill',
+      /* It floats over Home, so a cutout would frame it together with whatever
+         card is underneath. Lifted instead. */
+      lift: true,
       title: 'Ask about your own collection',
       body:
         'Try "Who is my top match, and why?" — it answers from your actual inventory and tells you which items you have in common.',

@@ -21,7 +21,7 @@
  * §14-cuttable feature being mounted.
  */
 
-import { createContext, useCallback, useContext, useMemo, useRef } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { View } from 'react-native';
 
@@ -34,6 +34,23 @@ export interface AnchorRect {
 
 interface TourAnchorsValue {
   register: (id: string, node: View | null) => void;
+  /**
+   * The anchor the tour is currently presenting by LIFTING it, or null.
+   *
+   * Most targets are spotlighted by cutting a hole around them, which works
+   * because they sit under the overlay. The assistant launcher does not: it
+   * floats over the app, so a hole around it also reveals whatever content it
+   * happens to be sitting on — at the last stop that was a bright item card
+   * showing through the same lit window, and the launcher read as overlapping
+   * rather than presented.
+   *
+   * Lifting solves it the other way round. The whole screen dims with no
+   * cutout, and the target raises its own z-index above the overlay so it
+   * floats alone on the scrim. Only the tour writes this; only a lifted target
+   * reads it.
+   */
+  lifted: string | null;
+  setLifted: (id: string | null) => void;
   /** Null when the id is unregistered or the node has no laid-out box yet. */
   measure: (id: string) => Promise<AnchorRect | null>;
   /** The union of several anchors, for a target that is more than one element. */
@@ -47,6 +64,8 @@ export function TourAnchorsProvider({ children }: { children: ReactNode }) {
      rendered it, and nothing reads this during render — only the overlay, and
      only inside an effect. */
   const nodes = useRef(new Map<string, View>());
+
+  const [lifted, setLifted] = useState<string | null>(null);
 
   const register = useCallback((id: string, node: View | null) => {
     if (node) nodes.current.set(id, node);
@@ -91,8 +110,8 @@ export function TourAnchorsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ register, measure, measureUnion }),
-    [register, measure, measureUnion],
+    () => ({ register, measure, measureUnion, lifted, setLifted }),
+    [register, measure, measureUnion, lifted],
   );
 
   return <TourAnchorsContext.Provider value={value}>{children}</TourAnchorsContext.Provider>;
