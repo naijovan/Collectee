@@ -490,11 +490,51 @@ export function FilterChips<T extends string>({
               pressed && !active && styles.pressed,
             ]}
           >
+            {/* The active chip takes the same gradient as the buttons, EXCEPT
+                when a per-option accent is supplied — News gives each game tab
+                its own colour, and a violet ramp over an ember tab would undo
+                the thing that override exists to do. */}
+            {active && !accent ? <AccentFill /> : null}
             <Text style={[styles.chipText, active && styles.chipTextActive]}>{option}</Text>
           </Pressable>
         );
       })}
     </View>
+  );
+}
+
+/**
+ * The accent gradient as a fill layer, for CTAs that are not `PrimaryButton`.
+ *
+ * Several screens build their own call-to-action — the tab bar's centre action,
+ * the assistant bubble, "Enter the room", the Collections tab's add pill — and
+ * each had `backgroundColor: colors.accent` written into its own stylesheet.
+ * Rather than teach twenty stylesheets about a gradient, they drop this in as
+ * an absolutely-positioned first child and keep their existing layout.
+ *
+ * ⚠️ The parent needs `overflow: 'hidden'` or the fill draws a square behind a
+ * rounded control, and the CONTENT must come after this in the tree or the
+ * gradient paints over it.
+ *
+ * Deliberately NOT applied to every accent-coloured surface. Checkboxes, filter
+ * chips, stepper circles, the avatar's verification tick, the scan beam and the
+ * tab indicator are all `colors.accent` too, and a gradient across 16px is
+ * invisible at best and a rendering bug at worst. This is for things shaped
+ * like buttons.
+ */
+export function AccentFill({ pressed = false }: { pressed?: boolean }) {
+  return (
+    <LinearGradient
+      colors={
+        pressed
+          ? [accentGradient.to, accentGradient.from]
+          : [accentGradient.from, accentGradient.to]
+      }
+      start={accentGradient.start}
+      end={accentGradient.end}
+      style={styles.accentFill}
+      pointerEvents="none"
+    />
   );
 }
 
@@ -837,7 +877,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  /* `overflow: hidden` clips AccentFill to the pill. The flat accent stays
+     underneath for the per-option-accent case, where no fill is drawn. */
+  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent, overflow: 'hidden' },
   chipText: { ...typography.meta, color: colors.textSecondary },
   chipTextActive: { color: colors.textOnAccent },
 
@@ -855,6 +897,7 @@ const styles = StyleSheet.create({
      a disabled CTA is still recognisably the primary button. */
   buttonPrimary: { backgroundColor: colors.accent },
   buttonFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  accentFill: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   buttonSecondary: { borderWidth: 1, borderColor: colors.border, backgroundColor: 'transparent' },
   buttonDisabled: { opacity: interaction.disabledOpacity },
   buttonPrimaryText: { ...typography.cardTitle, color: colors.textOnAccent },

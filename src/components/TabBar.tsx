@@ -30,7 +30,9 @@ import { FEATURES } from '@/config/features';
 import * as haptics from '@/lib/haptics';
 import { useApp } from '@/state/AppContext';
 import { useTourAnchor } from '@/state/TourAnchors';
-import { colors, interaction, radius, spacing, typography } from '@/theme/theme';
+import { accentGlow, colors, interaction, radius, spacing, typography } from '@/theme/theme';
+
+import { AccentFill } from './primitives';
 
 interface Tab {
   href: '/' | '/explore' | '/collections' | '/profile';
@@ -192,6 +194,10 @@ export function TabBar() {
         {({ pressed }) => (
           <>
             <View style={[styles.importButton, pressed && styles.importButtonPressed]}>
+              {/* Same gradient as PrimaryButton. This sits on every screen, so
+                  leaving it flat would make the one button the user sees most
+                  the odd one out. */}
+              <AccentFill pressed={pressed} />
               <SymbolView
                 name={{
                   ios: 'tray.and.arrow.down.fill',
@@ -258,15 +264,21 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.pill,
+    /* Clips AccentFill to the circle. Without it the gradient draws a square. */
+    overflow: 'hidden',
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -13,
     borderWidth: 3,
     borderColor: colors.surface,
+    /* Raised out of the bar, so it gets the same halo as the assistant bubble —
+       both float over content and need something separating them from it. */
+    ...accentGlow,
   },
   importButtonPressed: {
-    backgroundColor: colors.accentPressed,
+    /* No colour here any more — AccentFill inverts its ramp on press, which is
+       the same signal without fighting the gradient drawn over this. */
     transform: [{ scale: 0.94 }],
   },
 

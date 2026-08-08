@@ -161,6 +161,28 @@ export const accentGradient = {
 } as const;
 
 /**
+ * The halo under a raised accent control — the assistant bubble and the tab
+ * bar's import action.
+ *
+ * Both float over content rather than sitting in the layout, and a flat pill on
+ * a dark backdrop has nothing separating it from what it covers. A coloured
+ * shadow reads as the control being lit rather than as a drop shadow, which is
+ * what makes it look raised instead of pasted on.
+ *
+ * Violet rather than the blue: it is the gradient's far end, so the glow looks
+ * like it is coming FROM the button rather than being a second colour under it.
+ *
+ * Only for controls that float. A glow on an in-layout button is noise.
+ */
+export const accentGlow = {
+  shadowColor: '#9333EA',
+  shadowOpacity: 0.55,
+  shadowRadius: 16,
+  shadowOffset: { width: 0, height: 4 },
+  elevation: 10,
+} as const;
+
+/**
  * Who can see this — one colour per visibility, so the three are told apart at
  * a glance instead of being three identical grey words across a grid of cards.
  *

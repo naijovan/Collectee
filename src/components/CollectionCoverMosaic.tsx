@@ -17,7 +17,7 @@
  * path today.
  */
 
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 import { hasArt } from '@/config/artRegistry';
@@ -52,7 +52,11 @@ export function CollectionCoverMosaic({
    */
   max?: number;
 }) {
-  const panels = itemIds.filter(hasArt).slice(0, max);
+  const { width } = useWindowDimensions();
+  // Two panels on phones keep each subject close to square. Three columns in a
+  // half-width phone card turn horizontal guns into unrecognisable slivers.
+  const panelLimit = width < 600 ? Math.min(max, 2) : max;
+  const panels = itemIds.filter(hasArt).slice(0, panelLimit);
 
   // One render still beats a block, so only zero falls all the way through.
   if (panels.length < 2) {

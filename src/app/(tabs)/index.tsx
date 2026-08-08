@@ -428,7 +428,6 @@ export default function HomeScreen() {
                 <ArticleCard
                   article={item}
                   width={280}
-                  accentTags
                   accentEdge
                   thumb="hero"
                   thumbItemId={railThumbs[index]}

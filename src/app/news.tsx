@@ -322,7 +322,6 @@ export default function NewsScreen() {
               key={entry.article.id}
               article={entry.article}
               reason={entry.reason}
-              accentTags
               thumb="media"
               thumbItemId={feedThumbs[index]}
               onPress={() => open(entry.article.id)}
@@ -345,7 +344,6 @@ export default function NewsScreen() {
               <ArticleCard
                 key={article.id}
                 article={article}
-                accentTags
                 thumb="media"
                 thumbItemId={savedThumbs[index]}
                 onPress={() => open(article.id)}
