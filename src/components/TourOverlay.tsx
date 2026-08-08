@@ -330,15 +330,29 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     if (phase !== 'shown' || !stop || !hole) return;
 
-    const timer = setInterval(async () => {
+    let live = true;
+    const remeasure = async () => {
       let rect = await measureUnion(stop.targetIds);
       if (!rect && stop.fallbackTargetIds) rect = await measureUnion(stop.fallbackTargetIds);
+      if (!live) return;
       // Only when it actually moved, so this is not a 2Hz re-render.
       setHole((current) => (sameRect(current, rect) ? current : rect));
-    }, REMEASURE_MS);
+    };
 
-    return () => clearInterval(timer);
-  }, [phase, stop, hole, measureUnion]);
+    /* Once immediately, not only on the next tick.
+       `screenW`/`screenH` are in the deps, so a resize re-runs this — and
+       without a leading measure the guide would lay out against a rect up to
+       REMEASURE_MS stale, i.e. positioned for the old window. That is the same
+       class of bug as the transition flash: painting at coordinates that are
+       no longer true. */
+    void remeasure();
+    const timer = setInterval(() => void remeasure(), REMEASURE_MS);
+
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [phase, stop, hole, measureUnion, screenW, screenH]);
 
   /* Reduce Motion means reduce, not remove: the ring still marks the target,
      it just stops repeating. The pulse is pure decoration — removing it loses
@@ -648,7 +662,24 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
            than sitting beside the hole like the card does — she is the subject,
            not an annotation. Everything above this point is shared with the
            card path, so the cutout, the ring and the pulse are literally the
-           same nodes. */
+           same nodes.
+ 
+           ── Nothing is painted until the new stop is measured ──────────────
+           `phase === 'shown'` is the whole fix for the transition flash. On
+           Next the handler clears the hole immediately, and with no hole
+           `placeGuide` returns its SOLO composition — centre-LOWER, which is
+           squarely over the tab bar. She was jumping there for the 140ms
+           fade-out before the new rect arrived, every single time.
+ 
+           Unmounting for the moving phase means the only positions she is ever
+           painted at are resolved ones. The gap is the settle beat that already
+           exists, so this costs no extra time, and her entrance spring plays on
+           mount and doubles as the fade-in. A brief absence reads as a
+           transition; a jump reads as a bug.
+ 
+           The card path below is deliberately NOT gated this way — it fades
+           across the move as it always has, so flag-off is unchanged. */
+        phase !== 'shown' ? null : (
         <Animated.View
           style={[StyleSheet.absoluteFill, { opacity: fade }]}
           pointerEvents={phase === 'shown' ? 'box-none' : 'none'}
@@ -666,6 +697,7 @@ export function TourOverlay({ onDone }: { onDone: () => void }) {
             nextLabel={index === total - 1 ? 'Done' : 'Next'}
           />
         </Animated.View>
+        )
       ) : (
       <Animated.View
         style={[styles.cardWrap, cardPosition, { opacity: fade }]}
