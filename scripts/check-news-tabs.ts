@@ -43,9 +43,12 @@ console.log('');
 for (const title of GAME_TITLES as readonly GameTitle[]) {
   /* Newest first, which is the order the tab renders in — the dedupe is
      order-dependent, so auditing any other order audits nothing. */
-  const tab = ARTICLES.filter((a) => a.relatedGames.includes(title)).sort((a, b) =>
-    b.publishedAt.localeCompare(a.publishedAt),
-  );
+  /* `as const` narrows each relatedGames to a literal tuple, so `.includes`
+     wants that tuple's own member type rather than GameTitle. Widening to
+     readonly string[] is the read this loop actually needs. */
+  const tab = ARTICLES.filter((a) =>
+    (a.relatedGames as readonly string[]).includes(title),
+  ).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
   const thumbs = pickThumbnailIds(tab);
 
   console.log(`── ${GAME_LABELS[title]} — ${tab.length} articles`);

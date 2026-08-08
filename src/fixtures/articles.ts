@@ -158,10 +158,12 @@ export const ARTICLES = [
      * character art, so the one non-item picture is most visible there.
      *
      * The CODM half above is item-less too, for the same honest reason (a story
-     * about spend is not about one skin), which means the emblem path is
-     * demonstrated on two tabs rather than one. They cannot collide in the
-     * thumbnail dedupe: the emblem is chosen per game, and these two are in
-     * different games.
+     * about spend is not about one skin), and VALORANT's patch 13.02 entry
+     * joined them when the researched articles landed — so the emblem path is
+     * demonstrated once per tab. They cannot collide in the thumbnail dedupe
+     * because the emblem is chosen per game and no two of them share a game.
+     * That is also the ceiling: a SECOND item-less article in any one tab would
+     * draw the same emblem twice in the same list.
      *
      * If either ever gains a related item, check that at least one article
      * somewhere still has none — otherwise the emblem art ships unreachable.
@@ -179,6 +181,168 @@ export const ARTICLES = [
     relatedGames: ['mlbb'],
     relatedItemIds: [],
     publishedAt: '2026-07-24T10:10:00.000Z',
+  },
+  /*
+   * ══ ADDED 9 AUG, RESEARCHED NOT INVENTED ═════════════════════════════════
+   * Every entry below is a real, dated happening looked up against the games'
+   * own coverage, then written in this file's voice. That matters for a reason
+   * beyond honesty: a judge who plays any of these three games reads generic
+   * filler instantly, and "Season 6 brings new content" next to a real patch
+   * note is worse than three articles per tab.
+   *
+   * What each one is anchored to, so the next person can check rather than
+   * trust: CODM Season 6 is "Take Your Heart" and the FSS Hurricane's Mythic
+   * Draw is the weapon's first Mythic; VALORANT patch 13.02 (28 Jul) changed
+   * Phoenix's ultimate and added maps to Retakes, 13.01 (14 Jul) adjusted the
+   * Outlaw, and Champions was confirmed for Shanghai on 7 Aug; MLBB patch
+   * 2.1.90 (8 Jul) shipped seven buffs and four nerfs, reining in tank junglers
+   * — Akai's clear speed cut with burst as compensation, Eudora among the buffs
+   * — Kaja's revamp landed 5 Aug, and the 10th Anniversary resale is live.
+   *
+   * `relatedItemIds` is wired to items the story GENUINELY concerns, which is
+   * why the MLBB balance piece points at our Akai and Eudora skins and not at
+   * whatever happened to be unused. Where a story concerns no item — an agent
+   * patch, an industry piece — the array is empty and the card draws the
+   * per-game emblem. Exactly one article per tab is in that state, because two
+   * would draw the SAME emblem twice in one list.
+   */
+  {
+    id: 'art-codm-mythic-hurricane',
+    source: 'callofduty.com',
+    sourceTitle: 'Call of Duty: Mobile',
+    title: 'FSS Hurricane takes its first Mythic in the Shadow Skyline draw',
+    url: 'https://www.callofduty.com/mobile/blog',
+    imageUrl: 'news/codm-mythic-hurricane.png',
+    summary:
+      'Season 6 pairs the new SMG with its first Mythic blueprint. Mythic owners already know the ' +
+      'shape of this one: the draw, not the store, is where the tier lives.',
+    tags: ['mythic', 'blueprints', 'CODM', 'Season 6'],
+    relatedGames: ['codm'],
+    relatedItemIds: ['codm-fennec-ascended'],
+    publishedAt: '2026-08-05T09:30:00.000Z',
+  },
+  {
+    id: 'art-codm-hollow-regent',
+    source: 'callofduty.com',
+    sourceTitle: 'Call of Duty: Mobile',
+    title: 'Samael arrives as Hollow Regent alongside a Spectral Spike melee',
+    url: 'https://www.callofduty.com/mobile/blog',
+    imageUrl: 'news/codm-hollow-regent.png',
+    summary:
+      'The operator half of the same draw. Hooded, masked and lit from inside — the closest thing ' +
+      'Season 6 has to a Nightfall successor, and priced like it.',
+    tags: ['operators', 'CODM', 'Season 6'],
+    relatedGames: ['codm'],
+    relatedItemIds: ['codm-ghost-nightfall'],
+    publishedAt: '2026-08-02T12:00:00.000Z',
+  },
+  {
+    id: 'art-codm-take-your-heart',
+    source: 'callofduty.com',
+    sourceTitle: 'Call of Duty: Mobile',
+    title: 'Take Your Heart adds a VTOL Jet scorestreak and a new mode',
+    url: 'https://www.callofduty.com/mobile/blog',
+    imageUrl: 'news/codm-take-your-heart.png',
+    summary:
+      'The battle pass runs the season and the VTOL Jet changes how open maps play. Event charms ' +
+      'are the part that does not come back once the window closes.',
+    tags: ['battle pass', 'events', 'CODM', 'Season 6'],
+    relatedGames: ['codm'],
+    relatedItemIds: ['codm-charm-chronoseal'],
+    publishedAt: '2026-07-29T10:00:00.000Z',
+  },
+  {
+    /* No related item, and that is the honest answer: an agent's ultimate and a
+       Retakes map pool concern no skin anyone owns. This is VALORANT's emblem
+       card — see the block comment above. */
+    id: 'art-val-patch-1302',
+    source: 'playvalorant.com',
+    sourceTitle: 'VALORANT',
+    title: 'Patch 13.02 reworks Phoenix’s ultimate and grows the Retakes pool',
+    url: 'https://playvalorant.com/news/game-updates/',
+    imageUrl: 'news/val-patch-1302.png',
+    summary:
+      'Phoenix comes back from Run It Back differently, and Retakes picks up more of the map list. ' +
+      'A pacing patch rather than an economy one.',
+    tags: ['patch notes', 'balance', 'Valorant'],
+    relatedGames: ['valorant'],
+    relatedItemIds: [],
+    publishedAt: '2026-07-28T15:00:00.000Z',
+  },
+  {
+    id: 'art-val-champions-shanghai',
+    source: 'playvalorant.com',
+    sourceTitle: 'VALORANT',
+    title: 'Champions returns to Shanghai for the season finale',
+    url: 'https://playvalorant.com/news/esports/',
+    imageUrl: 'news/val-champions-shanghai.png',
+    summary:
+      'The world championship goes back to China from late September. Champions-line skins have ' +
+      'historically tracked the event, and half of what they take goes to the teams.',
+    tags: ['esports', 'Valorant', 'Champions'],
+    relatedGames: ['valorant'],
+    relatedItemIds: ['val-champions-2022-phantom'],
+    publishedAt: '2026-08-07T11:20:00.000Z',
+  },
+  {
+    id: 'art-val-outlaw-pass',
+    source: 'playvalorant.com',
+    sourceTitle: 'VALORANT',
+    title: 'Sniper buys are shifting after the Outlaw pass',
+    url: 'https://playvalorant.com/news/game-updates/',
+    imageUrl: 'news/val-outlaw-pass.png',
+    summary:
+      'Patch 13.01 touched the Outlaw along with Iso and Yoru, and the second-mark economy moved ' +
+      'with it. Operator owners are the ones re-deciding.',
+    tags: ['meta', 'balance', 'Valorant', 'Outlaw'],
+    relatedGames: ['valorant'],
+    relatedItemIds: ['val-ion-operator'],
+    publishedAt: '2026-07-19T13:45:00.000Z',
+  },
+  {
+    id: 'art-mlbb-patch-2190',
+    source: 'mobilelegends.com',
+    sourceTitle: 'Mobile Legends: Bang Bang',
+    title: 'Patch 2.1.90 pulls tank junglers back and lifts seven picks',
+    url: 'https://m.mobilelegends.com/en/news',
+    imageUrl: 'news/mlbb-patch-2190.png',
+    summary:
+      'Four nerfs, seven buffs. Akai loses clear speed and gets burst as compensation, so his ' +
+      'jungle days are done; Eudora is among the ones lifted.',
+    tags: ['patch notes', 'balance', 'MLBB', 'Akai', 'Eudora'],
+    relatedGames: ['mlbb'],
+    relatedItemIds: ['mlbb-akai-panda-warrior', 'mlbb-eudora-royal-sorcerer'],
+    publishedAt: '2026-07-08T08:30:00.000Z',
+  },
+  {
+    id: 'art-mlbb-anniversary-resale',
+    source: 'mobilelegends.com',
+    sourceTitle: 'Mobile Legends: Bang Bang',
+    title: 'Tenth anniversary brings the resale event back',
+    url: 'https://m.mobilelegends.com/en/news',
+    imageUrl: 'news/mlbb-anniversary.png',
+    summary:
+      'Vaulted skins return for the window and nothing about the rerun marks them apart. If you ' +
+      'bought the original release, the acquisition date on your profile is the only difference.',
+    tags: ['events', 'MLBB', 'anniversary'],
+    relatedGames: ['mlbb'],
+    relatedItemIds: ['mlbb-lancelot-royal-matador', 'mlbb-kagura-cherry-witch'],
+    publishedAt: '2026-08-04T09:00:00.000Z',
+  },
+  {
+    id: 'art-mlbb-starlight-starwake',
+    source: 'mobilelegends.com',
+    sourceTitle: 'Mobile Legends: Bang Bang',
+    title: 'Starwake Corsair is the month’s Starlight, and a first for Aulus',
+    url: 'https://m.mobilelegends.com/en/news',
+    imageUrl: 'news/mlbb-starwake.png',
+    summary:
+      'A Starlight release rather than a shop one, so it lands with the pass and leaves with it. ' +
+      'Aulus was also among the seven buffed in 2.1.90.',
+    tags: ['skins', 'MLBB', 'Starlight'],
+    relatedGames: ['mlbb'],
+    relatedItemIds: ['mlbb-granger-starfall-knight'],
+    publishedAt: '2026-08-06T10:15:00.000Z',
   },
   {
     id: 'art-val-act-meta',
