@@ -508,10 +508,31 @@ export function placeGuide(
     }
   }
 
+  /**
+   * The arm follows the BUBBLE, not the target.
+   *
+   * It used to follow the target, which is defensible in isolation and wrong
+   * in practice: the bubble is deliberately placed on her far flank so it does
+   * not sit under the gesture, so target-following pointed her away from the
+   * thing the viewer is actually reading. On Import and News she stood with
+   * her bubble on the right and her arm thrown out to the left.
+   *
+   * She is beside the target in every arrangement anyway — the cutout, the
+   * ring and the pulse are what identify it. The arm's job is to tie her to
+   * her own words.
+   *
+   * When the bubble is centred on her (stacked above or below, no side to
+   * speak of) there is nothing to point at, so it falls back to the target.
+   */
+  const figureCx = fx + w / 2;
+  const bubbleCx = bx + bw / 2;
+  const bubbleIsBeside = Math.abs(bubbleCx - figureCx) > w / 4;
+  const flipped = bubbleIsBeside ? bubbleCx < figureCx : figureCx > holeCx;
+
   return {
     figure: { x: fx, y: fy, width: w, height: h },
     bubble: { x: bx, y: by, width: bw },
-    flipped: fx + w / 2 > holeCx,
+    flipped,
     fit:
       best.name === 'above' || best.name === 'below'
         ? 'relocated'
