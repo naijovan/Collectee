@@ -154,28 +154,48 @@ export default function HomeScreen() {
 
     const usersById = new Map(users.map((user) => [user.id, user]));
 
+    /**
+     * Home shows OTHER people's work.
+     *
+     * The viewer's own collections and rooms are already the whole of the
+     * Collections tab and the Profile page. Repeating them here spent the two
+     * biggest sections on Home telling someone what they already own, and
+     * "Explore collectibles" listing your own collection is a contradiction in
+     * the section's own name.
+     *
+     * Filtered here rather than in the service: `getPublicCollections` is a
+     * public feed and is right to include everyone — Collections and Profile
+     * both need the viewer's own entries from it.
+     */
     const entries = await Promise.all(
-      collections.map(async (collection) => ({
-        collection,
-        owner: usersById.get(collection.userId) ?? null,
-        headline: headlineItem(await catalogueService.getItems(collection.itemIds)),
-      })),
+      collections
+        .filter((collection) => collection.userId !== viewerId)
+        .map(async (collection) => ({
+          collection,
+          owner: usersById.get(collection.userId) ?? null,
+          headline: headlineItem(await catalogueService.getItems(collection.itemIds)),
+        })),
     );
 
-    const roomEntries = await Promise.all(
-      publishedRooms.map(async (room) => {
-        const [theme, collection] = await Promise.all([
-          roomService.getTheme(room.themeId),
-          collectionService.getCollection(room.collectionId),
-        ]);
-        return {
-          room,
-          themeName: theme?.name ?? 'Room',
-          collectionName: collection?.name ?? 'Collection',
-          owner: collection ? (usersById.get(collection.userId) ?? null) : null,
-        };
-      }),
-    );
+    const roomEntries = (
+      await Promise.all(
+        publishedRooms.map(async (room) => {
+          const [theme, collection] = await Promise.all([
+            roomService.getTheme(room.themeId),
+            collectionService.getCollection(room.collectionId),
+          ]);
+          return {
+            room,
+            themeName: theme?.name ?? 'Room',
+            collectionName: collection?.name ?? 'Collection',
+            owner: collection ? (usersById.get(collection.userId) ?? null) : null,
+          };
+        }),
+      )
+      /* A room's owner is its COLLECTION's owner, which is only known after the
+         lookup above — so this filter cannot move up beside the collections
+         one. */
+    ).filter((entry) => entry.owner?.id !== viewerId);
 
     setArticles(news);
     setExplore(entries);
@@ -508,6 +528,10 @@ export default function HomeScreen() {
                   index={index}
                   style={[styles.gridCell, viewportWidth < 600 && styles.gridCellPhone]}
                 >
+                  {/* Same construction as CollectionCard: backdrop fills the
+                      tile, meta overlaid on a gradient, owner pill top-right.
+                      These two card types sit in adjacent sections and should
+                      not be two different ideas of what a card is. */}
                   <Hoverable
                     onPress={() =>
                       router.push({ pathname: '/room/[id]', params: { id: entry.room.id } })
@@ -517,24 +541,37 @@ export default function HomeScreen() {
                     {/* A theme id is not an item id, so `ItemArt` only ever gave
                         these a colour block. Rooms have their own backdrop. */}
                     <RoomThumb themeId={entry.room.themeId} style={styles.roomCardArt} />
-                    <View style={styles.roomCardBody}>
-                      <Text style={styles.roomName} numberOfLines={1}>
+
+                    <LinearGradient
+                      colors={[scrim.clear, scrim.medium, scrim.heavy]}
+                      locations={[0, 0.45, 1]}
+                      style={styles.roomCardScrim}
+                      pointerEvents="none"
+                    />
+
+                    {entry.owner ? (
+                      <View style={styles.roomOwnerPill}>
+                        <Avatar
+                          name={entry.owner.displayName}
+                          avatarId={entry.owner.avatar}
+                          verified={entry.owner.isAccountVerified}
+                          size={18}
+                        />
+                        <Text style={styles.roomOwnerName} numberOfLines={1}>
+                          {entry.owner.displayName}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    <View style={styles.roomCardMeta} pointerEvents="none">
+                      <Text style={styles.roomCardName} numberOfLines={1}>
                         {entry.room.title}
                       </Text>
-                      {/* Attribution first among the meta: whose room it is, is
-                          the reason to open someone else's. Theme and item count
-                          are detail. */}
-                      <View style={styles.roomOwner}>
-                        {entry.owner ? (
-                          <Avatar
-                            name={entry.owner.displayName}
-                            avatarId={entry.owner.avatar}
-                            verified={entry.owner.isAccountVerified}
-                            size={18}
-                          />
-                        ) : null}
-                        <Text style={styles.muted} numberOfLines={1}>
-                          {entry.owner?.displayName ?? 'A collector'} · {entry.themeName} ·{' '}
+                      <View style={styles.roomCardCounts}>
+                        <Text style={styles.roomCardTheme} numberOfLines={1}>
+                          {entry.themeName}
+                        </Text>
+                        <Text style={styles.roomCardItems}>
                           {entry.room.placements.length} items
                         </Text>
                       </View>
@@ -715,7 +752,6 @@ const styles = StyleSheet.create({
   gridCell: { width: '48%' },
   gridCellPhone: { width: '100%' },
 
-  roomOwner: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
 
   /* The card form, matching CollectionCard: cover on top, meta beneath. */
   roomCard: {
@@ -726,21 +762,59 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   /**
-   * 148 to the pixel, because that is what `CollectionCard`'s cover is
-   * (`collectionArt` in components/cards.tsx) and these two card types sit in
-   * the same column of the same page.
+   * 210 to the pixel, matching `collectionArt` in components/cards.tsx — the
+   * meta is overlaid on both now, so both spend their whole height on art.
    *
    * An explicit height rather than an aspect ratio: `roomThumb` hard-codes
    * `height: 46` for its row-avatar use, and overriding that with
    * `height: undefined` + `aspectRatio` does not reliably reset it in React
    * Native — the 46 survived and the covers came out as letterbox strips.
    */
-  roomCardArt: { width: '100%', height: 148, borderRadius: 0 },
-  roomCardBody: { padding: spacing.md, gap: spacing.xs },
+  roomCardArt: { width: '100%', height: 210, borderRadius: 0 },
+  roomCardScrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '62%' },
+  roomCardMeta: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  roomCardName: {
+    ...typography.sectionHeader,
+    fontSize: 21,
+    lineHeight: 27,
+    fontFamily: fonts.display,
+    color: colors.textOnAccent,
+    flex: 1,
+  },
+  roomCardCounts: { alignItems: 'flex-end', gap: 2 },
+  /* The theme takes the slot the like count holds on a collection card. A room
+     has no likes on this surface, and the theme is the closest thing to a
+     reason to open one — "Fantasy Armoury" says what you are walking into. */
+  roomCardTheme: { ...typography.meta, color: colors.accent },
+  roomCardItems: { ...typography.meta, color: colors.textOnAccent, opacity: 0.75 },
+  /* Owner top-right, same pill as the collection card's. */
+  roomOwnerPill: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingLeft: 2,
+    paddingRight: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: scrim.medium,
+  },
+  roomOwnerName: { ...typography.meta, color: colors.textOnAccent, maxWidth: 96 },
 
   roomThumb: { width: 64, height: 46 },
   roomThumbClip: { overflow: 'hidden', borderRadius: radius.sm, backgroundColor: colors.surfaceSunken },
   roomThumbImage: { width: '100%', height: '100%' },
-  roomName: { ...typography.cardTitle, color: colors.textPrimary },
   muted: { ...typography.meta, color: colors.textSecondary },
 });
