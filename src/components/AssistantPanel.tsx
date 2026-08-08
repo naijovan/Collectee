@@ -42,6 +42,15 @@ import { colors, interaction, radius, scrim, spacing, typography } from '@/theme
 
 import { ASSISTANT_NAME, PANEL_CLEARANCE } from './assistantDock';
 
+/**
+ * Below this many calls left, the panel says so.
+ *
+ * It used to print the count permanently, which turns a quota into a
+ * scoreboard — on the first question of a demo, "9 left this minute" reads as
+ * a warning about something nobody was worried about.
+ */
+const RATE_WARN_AT = 3;
+
 export function AssistantPanel() {
   const insets = useSafeAreaInsets();
   const mascot = assistantMascot();
@@ -112,12 +121,8 @@ export function AssistantPanel() {
               />
             ) : null}
             <View style={styles.headerText}>
-              <Text style={styles.title}>Ask {ASSISTANT_NAME} about your collection</Text>
-              <Text style={styles.mode}>
-                {mode === 'offline'
-                  ? 'Answers computed on-device'
-                  : `Claude connected · ${assistantService.remainingCalls()} left this minute`}
-              </Text>
+              <Text style={styles.title}>{ASSISTANT_NAME}</Text>
+              <Text style={styles.tagline}>Your collection sidekick</Text>
             </View>
             <Pressable onPress={closePanel} hitSlop={10} accessibilityLabel="Close">
               <Text style={styles.close}>✕</Text>
@@ -132,17 +137,38 @@ export function AssistantPanel() {
             onContentSizeChange={() => scroller.current?.scrollToEnd({ animated: true })}
           >
             {turns.length === 0 ? (
-              <View style={styles.starters}>
-                {SUGGESTED_QUESTIONS.map((question) => (
-                  <Pressable
-                    key={question}
-                    style={({ pressed }) => [styles.starter, pressed && styles.pressed]}
-                    onPress={() => void send(question)}
-                  >
-                    <Text style={styles.starterText}>{question}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              <>
+                {/* Her opening line is a real chat bubble, styled exactly like
+                    a model reply, so the panel opens mid-conversation rather
+                    than on a menu. It is not a turn in `turns` — it is not
+                    part of the transcript and must not be sent to the model
+                    as history. */}
+                <View style={[styles.bubble, styles.assistant]}>
+                  <Text style={styles.assistantText}>
+                    Hi, I&apos;m {ASSISTANT_NAME}! Ask me anything about your collection, your
+                    matches, or what&apos;s happening in your games.
+                  </Text>
+                </View>
+
+                {/* Chips, not stacked boxes. Four full-width rows read as the
+                    primary interface; a wrapped row of small chips reads as
+                    what they are — shortcuts you may ignore. Siblings of the
+                    composer, never nested inside anything pressable. */}
+                <View style={styles.chips}>
+                  {SUGGESTED_QUESTIONS.map((question) => (
+                    <Pressable
+                      key={question}
+                      accessibilityRole="button"
+                      style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
+                      onPress={() => void send(question)}
+                    >
+                      <Text style={styles.chipText} numberOfLines={1}>
+                        {question}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
             ) : null}
 
             {turns.map((turn) => (
@@ -168,6 +194,19 @@ export function AssistantPanel() {
               </View>
             ) : null}
           </ScrollView>
+
+          {/* The source line lives down here now rather than in the header,
+              where it competed with her name for the first thing you read.
+              Shown when answers are computed on-device — an honesty claim
+              (§12.1) that must always be visible — and when the rate limit is
+              actually close, not as a permanent counter. */}
+          {mode === 'offline' || assistantService.remainingCalls() <= RATE_WARN_AT ? (
+            <Text style={styles.mode}>
+              {mode === 'offline'
+                ? 'Answers computed on-device'
+                : `Claude connected · ${assistantService.remainingCalls()} left this minute`}
+            </Text>
+          ) : null}
 
           <View style={styles.composer}>
             <TextInput
@@ -241,8 +280,8 @@ const styles = StyleSheet.create({
    * face in the corner read as one thing rather than two portraits.
    */
   headerMascot: {
-    width: 44,
-    height: 44,
+    width: 56,
+    height: 56,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.accentPressed,
@@ -263,23 +302,34 @@ const styles = StyleSheet.create({
   /* Centred against the 44pt face rather than top-aligned to it, so the
      two-line block sits balanced beside her instead of riding high. */
   headerText: { flex: 1, gap: 2, alignSelf: 'center' },
-  title: { ...typography.cardTitle, color: colors.textPrimary },
-  mode: { ...typography.meta, color: colors.textTertiary },
+  /* Her name, not a sentence. The panel is a conversation with someone, and
+     the first thing you read should be who. */
+  title: { ...typography.sectionHeader, fontSize: 18, color: colors.textPrimary },
+  tagline: { ...typography.meta, color: colors.textSecondary },
+  mode: {
+    ...typography.meta,
+    color: colors.textTertiary,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
+  },
   close: { ...typography.cardTitle, color: colors.textSecondary },
 
   thread: { flexGrow: 0 },
   threadContent: { padding: spacing.md, gap: spacing.sm },
 
-  starters: { gap: spacing.sm },
-  starter: {
+  /* Wrapped row of pills. `maxWidth` keeps a long question from taking a
+     whole line to itself and turning the row back into a stack. */
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: {
+    maxWidth: '100%',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: radius.card,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceElevated,
   },
-  starterText: { ...typography.body, color: colors.textPrimary },
+  chipText: { ...typography.meta, color: colors.textSecondary },
 
   bubble: { maxWidth: '90%', padding: spacing.md, borderRadius: radius.card },
   you: { alignSelf: 'flex-end', backgroundColor: colors.accent },
