@@ -11,9 +11,22 @@
  * Run it directly: `npx tsx scripts/check-news-tabs.ts`
  */
 import { ARTICLES } from '../src/fixtures/articles';
-import { pickThumbnailIds } from '../src/domain/news';
+import { pickThumbnailIds, rankGameFeed } from '../src/domain/news';
+import { OWNED_ITEMS } from '../src/fixtures/owned-items';
+import { FOLLOWED_TOPICS } from '../src/fixtures/social';
+import { USERS_BY_ID, VIEWER_ID } from '../src/fixtures/users';
+import { DEMO_NOW } from '../src/config/features';
 import { GAME_TITLES, GAME_LABELS } from '../src/types';
 import type { GameTitle } from '../src/types';
+
+/* The viewer the tab is ranked for. Not a detail: `rankGameFeed` is
+   personalised, so "the order the tab renders in" is per user. */
+const viewer = USERS_BY_ID.get(VIEWER_ID)!;
+const feedViewer = {
+  ownedItemIds: OWNED_ITEMS.filter((o) => o.userId === VIEWER_ID).map((o) => o.itemId),
+  followedGames: viewer.followedGames,
+  followedTopics: FOLLOWED_TOPICS.filter((t) => t.userId === VIEWER_ID),
+};
 
 let problems = 0;
 
