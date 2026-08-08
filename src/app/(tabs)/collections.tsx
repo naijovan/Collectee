@@ -210,16 +210,14 @@ export default function CollectionsScreen() {
     const hero = idea.items[0];
     return (
       <View key={idea.suggestion.name} style={styles.ideaCard}>
-        {/* The art fills the card, as it does on every collection and showroom
-            card. It used to be a strip of thumbnails above a body panel, which
-            made this the one suggestion surface that did not look like the
-            thing it was proposing. */}
+        {/* The art sits in the card without cropping the skin. This is a
+            suggestion for a concrete owned item, so the whole PNG should remain
+            visible rather than being cover-cropped as decoration. */}
         {hero ? (
           <ItemArt
             seed={hero.id}
             tier={hero.rarityTier}
             renderUrl={hero.renderUrl}
-            fit="cover"
             style={styles.ideaArt}
           />
         ) : null}
@@ -397,9 +395,14 @@ export default function CollectionsScreen() {
                   owner={viewer}
                   headline={entry.headline}
                   showVisibility
+                  /* The showroom PAGE, not straight into the immersive scene.
+                     Jumping past it skipped the room's own surface — its
+                     credits, comments, focused item and, for the owner, its
+                     edit controls. "Enter the room" is one tap from there and
+                     is where the full-screen scene belongs. */
                   onPress={() =>
                     router.push({
-                      pathname: '/room/immersive/[id]',
+                      pathname: '/room/[id]',
                       params: { id: rooms.get(entry.collection.id)!.room.id },
                     })
                   }

@@ -279,20 +279,20 @@ export default function ProfileScreen() {
               A showroom is something you look at; the card shows it. */}
           <View style={styles.collectionGrid}>
             {roomEntries.map((entry) => (
-              <Pressable
-                key={entry.room.id}
-                style={styles.collectionCell}
-                onPress={() =>
-                  router.push({ pathname: '/room/[id]', params: { id: entry.room.id } })
-                }
-              >
+              /* Inert wrapper; the card carries the handler. A Pressable around
+                 `CollectionCard` renders a <button> inside a <button> on web and
+                 the click never lands — see the same fix on the Collections tab. */
+              <View key={entry.room.id} style={styles.collectionCell}>
                 <CollectionCard
                   collection={entry.collection}
                   owner={viewer}
                   headline={entry.headline}
                   showVisibility
+                  onPress={() =>
+                    router.push({ pathname: '/room/[id]', params: { id: entry.room.id } })
+                  }
                 />
-              </Pressable>
+              </View>
             ))}
           </View>
         </View>

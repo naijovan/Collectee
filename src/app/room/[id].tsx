@@ -213,13 +213,39 @@ export default function RoomScreen() {
         <Text style={styles.enterCtaText}>⛶  Enter the room</Text>
       </Pressable>
 
+      {/*
+        Owner controls, side by side under "Enter the room".
+
+        Two different jobs and they were collapsed into one: "Edit Showroom"
+        opens the room builder to rearrange what is already placed, while "Add
+        items" goes to the source COLLECTION, because a room can only hold what
+        its collection holds — putting a new skin in a room means adding it to
+        the collection first. Sending both to the room builder would offer a
+        picker that cannot show anything new.
+      */}
       {isOwner ? (
-        <SecondaryButton
-          label="Edit Showroom"
-          onPress={() =>
-            router.push({ pathname: '/room/new', params: { roomId: room.id } })
-          }
-        />
+        <View style={styles.ownerActions}>
+          <View style={styles.ownerAction}>
+            <SecondaryButton
+              label="✎ Edit Showroom"
+              onPress={() => router.push({ pathname: '/room/new', params: { roomId: room.id } })}
+            />
+          </View>
+          <View style={styles.ownerAction}>
+            <SecondaryButton
+              label="+ Add items"
+              disabled={collection === null}
+              onPress={() =>
+                collection
+                  ? router.push({
+                      pathname: '/collection/new',
+                      params: { collectionId: collection.id, mode: 'add' },
+                    })
+                  : undefined
+              }
+            />
+          </View>
+        </View>
       ) : null}
 
       {/* The "view the source collection" CTA is deliberately absent. A room is
@@ -370,6 +396,8 @@ const styles = StyleSheet.create({
   muted: { ...typography.meta, color: colors.textSecondary },
   footnote: { ...typography.meta, color: colors.textTertiary },
   link: { ...typography.meta, color: colors.accent, marginTop: spacing.xs },
+  ownerActions: { flexDirection: 'row', gap: spacing.sm },
+  ownerAction: { flex: 1 },
   enterCta: {
     alignItems: 'center',
     paddingVertical: spacing.md,
