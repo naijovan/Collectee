@@ -382,7 +382,7 @@ export default function ImportScreen() {
 
   const wrongGame = useMemo(() => {
     if (fullCatalogue.length === 0) return null;
-    const readings = unmatchedEntries.map((d) => d.reading!.name);
+    const readings = unmatchedEntries.map((d) => ({ detectionId: d.id, name: d.reading!.name }));
     return foreignTitleMatches(readings, fullCatalogue, title)[0] ?? null;
   }, [unmatchedEntries, fullCatalogue, title]);
 
@@ -926,32 +926,63 @@ export default function ImportScreen() {
           {wrongGame ? (
             <View style={styles.wrongGame}>
               <Text style={styles.wrongGameTitle}>
-                These look like {GAME_LABELS[wrongGame.title]} items
+                {wrongGame.matches.length === 1 ? 'This looks like a' : 'These look like'}{' '}
+                {GAME_LABELS[wrongGame.title]}{' '}
+                {wrongGame.matches.length === 1 ? 'item' : 'items'}
               </Text>
               <Text style={styles.body}>
-                {wrongGame.matches.length} of the {counts.unmatched} we couldn&apos;t place are in
-                the {GAME_LABELS[wrongGame.title]} catalogue — including{' '}
-                {wrongGame.matches
-                  .slice(0, 2)
-                  .map((m) => m.itemName)
-                  .join(' and ')}
-                . You picked {GAME_LABELS[title]}, and a scan only ever matches against the game you
-                chose.
+                You picked {GAME_LABELS[title]}, and a scan only compares against the game you
+                chose — so {wrongGame.matches.length === 1 ? 'this one' : 'these'} had nothing to
+                match. We found {wrongGame.matches.length === 1 ? 'it' : 'them'} in the{' '}
+                {GAME_LABELS[wrongGame.title]} catalogue instead.
               </Text>
+
+              {/*
+                Confirm the item, do not re-run the scan.
+                The item EXISTS in our catalogue — it is simply filed under a
+                different game — so sending the user back to Upload to scan the
+                same picture again was asking them to redo work to reach a
+                result we already have. Confirming adds it directly;
+                `resolvedItemIds` honours a resolution on an unmatched
+                detection for exactly this.
+              */}
+              {wrongGame.matches.map((match) => {
+                const confirmed = resolutions.some(
+                  (r) => r.detectionId === match.detectionId && r.itemId !== null,
+                );
+                return (
+                  <Pressable
+                    key={match.detectionId}
+                    style={[styles.pendingRow, confirmed && styles.rescueRowOn]}
+                    onPress={() =>
+                      confirmed
+                        ? setResolutions((prev) =>
+                            prev.filter((r) => r.detectionId !== match.detectionId),
+                          )
+                        : resolve(match.detectionId, match.itemId)
+                    }
+                  >
+                    <View style={styles.rowBody}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {match.itemName}
+                      </Text>
+                      <Text style={styles.muted} numberOfLines={1}>
+                        We read: {match.reading} · {GAME_LABELS[wrongGame.title]}
+                      </Text>
+                    </View>
+                    <Text style={confirmed ? styles.create : styles.chevron}>
+                      {confirmed ? '✓' : '＋'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+
               <Text style={styles.footnote}>
-                Switching re-runs the scan against {GAME_LABELS[wrongGame.title]}. Nothing has been
-                imported yet, so nothing is lost.
+                Adding {wrongGame.matches.length === 1 ? 'it' : 'them'} here files{' '}
+                {wrongGame.matches.length === 1 ? 'it' : 'them'} under{' '}
+                {GAME_LABELS[wrongGame.title]} — your inventory holds every game at once, so there
+                is no need to scan again.
               </Text>
-              <SecondaryButton
-                label={`Switch to ${GAME_LABELS[wrongGame.title]} and scan again`}
-                onPress={() => {
-                  setTitle(wrongGame.title);
-                  setResult(null);
-                  setResolutions([]);
-                  setReviewFilter('All');
-                  setStage('upload');
-                }}
-              />
             </View>
           ) : null}
 

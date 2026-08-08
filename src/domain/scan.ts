@@ -145,9 +145,15 @@ export function countScan(
         if (resolution && resolution.itemId !== null) resolvedConfirmed += 1;
         break;
       }
-      case 'unmatched':
+      case 'unmatched': {
         unmatched += 1;
+        /* Confirmed cross-game reads count toward the CTA, the same way a
+           resolved needs-review or a rescued discard does. Without this the
+           button would promise fewer items than the import writes. */
+        const resolution = resolvedById.get(d.id);
+        if (resolution && resolution.itemId !== null) resolvedConfirmed += 1;
         break;
+      }
     }
   }
 
@@ -193,13 +199,22 @@ export function resolvedItemIds(
     if (d.outcome === 'matched' && d.itemId !== null) {
       if (isRemoved(resolvedById, d.id)) continue;
       ids.push(d.itemId);
-    } else if (d.outcome === 'needs_review' || d.outcome === 'discarded') {
+    } else if (
+      d.outcome === 'needs_review' ||
+      d.outcome === 'discarded' ||
+      d.outcome === 'unmatched'
+    ) {
       /**
-       * Both import ONLY on an explicit confirmation, so a discarded detection
-       * with no resolution still contributes nothing — the floor is untouched.
-       * The difference is that a user who was shown a low-confidence read and
-       * said "yes, that one" now gets it, instead of the app reading their
-       * upload correctly and refusing to act on it.
+       * All three import ONLY on an explicit confirmation, so an unresolved
+       * one still contributes nothing — the floor and the catalogue check are
+       * both untouched.
+       *
+       * `unmatched` joins them because "not in the catalogue for the game you
+       * picked" is not the same as "not in the catalogue". A Valorant knife
+       * read during a CODM scan has no CODM match by construction — the
+       * scanner is only ever given one title's items — but the item exists,
+       * and a user who is shown it and says "yes, that one" should get it
+       * rather than be told to start again.
        */
       const resolution = resolvedById.get(d.id);
       if (resolution?.itemId != null) ids.push(resolution.itemId);
@@ -254,8 +269,14 @@ export function isMatchIncluded(
 /** One title that the unread items appear to belong to instead. */
 export interface ForeignTitleMatch {
   title: GameTitle;
-  /** The readings that matched an item in this title. */
-  matches: { reading: string; itemId: string; itemName: string }[];
+  /**
+   * The readings that matched an item in this title.
+   *
+   * `detectionId` travels with each one so the caller can write a resolution
+   * against it — confirming a cross-game read imports the item directly rather
+   * than sending the user back to re-scan the same picture.
+   */
+  matches: { detectionId: string; reading: string; itemId: string; itemName: string }[];
 }
 
 /**
@@ -297,7 +318,7 @@ function significantTokens(name: string): string[] {
  * so the caller can name the strongest candidate without re-sorting.
  */
 export function foreignTitleMatches(
-  readings: readonly string[],
+  readings: readonly { detectionId: string; name: string }[],
   catalogue: readonly Item[],
   selected: GameTitle,
 ): ForeignTitleMatch[] {
@@ -305,7 +326,7 @@ export function foreignTitleMatches(
 
   const byTitle = new Map<GameTitle, ForeignTitleMatch['matches']>();
 
-  for (const reading of readings) {
+  for (const { detectionId, name: reading } of readings) {
     const readingNormal = normalise(reading);
     if (readingNormal.length === 0) continue;
     const readingTokens = new Set(significantTokens(reading));
@@ -327,11 +348,12 @@ export function foreignTitleMatches(
       if (!hit) continue;
 
       const existing = byTitle.get(item.title);
-      const match = { reading, itemId: item.id, itemName: item.name };
+      const match = { detectionId, reading, itemId: item.id, itemName: item.name };
       if (existing) {
-        // One entry per reading per title — the first catalogue hit wins, so a
-        // title is never credited twice for the same tile.
-        if (!existing.some((m) => m.reading === reading)) existing.push(match);
+        // One entry per DETECTION per title — keyed on the detection rather
+        // than the text, so two tiles that happen to read the same still each
+        // get a row to confirm.
+        if (!existing.some((m) => m.detectionId === detectionId)) existing.push(match);
       } else {
         byTitle.set(item.title, [match]);
       }

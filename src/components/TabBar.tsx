@@ -258,6 +258,25 @@ export function TabBar() {
   const barAnchor = useTourAnchor('tabbar');
   const importAnchor = useTourAnchor('tab-import');
 
+  /** Hover response for the raised Import action. Pointer-only, like the tabs. */
+  const reduceMotion = useReduceMotion();
+  const importLift = useRef(new Animated.Value(0)).current;
+  const importHover = useCallback(
+    (to: number) => {
+      if (reduceMotion) {
+        importLift.setValue(0);
+        return;
+      }
+      Animated.spring(importLift, {
+        toValue: to,
+        friction: motion.spring.friction,
+        tension: motion.spring.tension,
+        useNativeDriver: Platform.OS !== 'web',
+      }).start();
+    },
+    [importLift, reduceMotion],
+  );
+
   const [left, right] = [TABS.slice(0, 2), TABS.slice(2)];
 
   function renderTab(tab: Tab) {
@@ -313,13 +332,30 @@ export function TabBar() {
           haptics.tap();
           router.push('/import');
         }}
+        onHoverIn={() => importHover(1)}
+        onHoverOut={() => importHover(0)}
         accessibilityRole="button"
         accessibilityLabel="Import inventory"
         style={styles.importTab}
       >
         {({ pressed }) => (
           <>
-            <View style={[styles.importButton, pressed && styles.importButtonPressed]}>
+            {/* Rises and grows on hover, where the tabs only rise. It is the
+                primary action in the bar and already carries a gradient and a
+                glow — a matching-but-larger response keeps that hierarchy in
+                the motion as well as the paint. */}
+            <Animated.View
+              style={[
+                styles.importButton,
+                pressed && styles.importButtonPressed,
+                {
+                  transform: [
+                    { translateY: importLift.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) },
+                    { scale: importLift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) },
+                  ],
+                },
+              ]}
+            >
               {/* Same gradient as PrimaryButton. This sits on every screen, so
                   leaving it flat would make the one button the user sees most
                   the odd one out. */}
@@ -334,7 +370,7 @@ export function TabBar() {
                 tintColor={colors.textOnAccent}
                 weight={{ ios: 'semibold', android: medium }}
               />
-            </View>
+            </Animated.View>
             <Text style={[styles.label, styles.active]}>Import</Text>
           </>
         )}
