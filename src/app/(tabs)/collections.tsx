@@ -22,7 +22,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import {
@@ -52,7 +52,7 @@ import { catalogueService, collectionService, inventoryService, roomService, soc
 import type { RoomStatus } from '@/services';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, scrim, spacing, typography } from '@/theme/theme';
-import type { Collection, Item } from '@/types';
+import type { Collection, Item, User } from '@/types';
 
 /** §14 rung: "Has room" is the filter that makes J3 discoverable from J2. */
 const FILTERS = ['All', 'Public', 'Private', 'Showrooms'] as const;
@@ -77,6 +77,29 @@ interface SuggestedGroup {
   themeReason: string | null;
   eligibility: RoomEligibility;
 }
+
+/**
+ * One card in the browse-all view.
+ *
+ * Deliberately thinner than `Entry`. That type carries a room suggestion and a
+ * §9.4 eligibility verdict, both of which are answers about what the VIEWER
+ * could build from their own items — meaningless on someone else's collection,
+ * and expensive to compute for every public collection in the app.
+ */
+interface BrowseEntry {
+  collection: Collection;
+  owner: User | null;
+  headline: Item | null;
+}
+
+/**
+ * How many collections lead the browse view under "Trending".
+ *
+ * Six rather than four: this is a browse page rather than a rail, so the group
+ * has to read as a section and not as a leftover row. Home's rails preview four
+ * because they are one scrollable line.
+ */
+const TRENDING_COUNT = 6;
 
 interface Entry {
   collection: Collection;
@@ -141,7 +164,48 @@ export default function CollectionsScreen() {
   const [progress, setProgress] = useState<SetProgress[]>([]);
   const [busy, setBusy] = useState(true);
 
+  /**
+   * Browse-all mode — every public collection in the app, not just the
+   * viewer's.
+   *
+   * A URL param on THIS route rather than a new screen. The alternative was a
+   * second collections list somewhere else, which would have meant two places
+   * rendering the same cards and drifting apart. Home's "Explore Collections"
+   * rail is the only caller today.
+   *
+   * Absent, this screen behaves exactly as it always has.
+   */
+  const { browse } = useLocalSearchParams<{ browse?: string }>();
+  const browseAll = browse === 'all';
+  const [browseEntries, setBrowseEntries] = useState<BrowseEntry[]>([]);
+
   const load = useCallback(async () => {
+    /*
+       Browse mode loads a different set and skips the rest of this function
+       outright. Suggestions, set progress and room eligibility are all
+       statements about the VIEWER'S own items; computing them for thirty-odd
+       other people's collections would be wasted work and would answer a
+       question nobody asked.
+    */
+    if (browseAll) {
+      const [all, users] = await Promise.all([
+        collectionService.getPublicCollections(),
+        socialService.getUsers(),
+      ]);
+      const owners = new Map(users.map((user) => [user.id, user]));
+      const composed = await Promise.all(
+        all.map(async (collection) => ({
+          collection,
+          owner: owners.get(collection.userId) ?? null,
+          headline: headlineItem(await catalogueService.getItems(collection.itemIds)),
+        })),
+      );
+      setBrowseEntries(composed);
+      setRooms(await roomService.statusByCollection());
+      setBusy(false);
+      return;
+    }
+
     const mine = await collectionService.getCollectionsByUser(viewerId, true);
     const themes = await roomService.getThemes();
     const owned = await inventoryService.getOwnedItems(viewerId);
@@ -192,7 +256,7 @@ export default function CollectionsScreen() {
     );
     setIdeas(composed);
     setBusy(false);
-  }, [viewerId]);
+  }, [viewerId, browseAll]);
 
   useEffect(() => {
     void load();
@@ -268,6 +332,120 @@ export default function CollectionsScreen() {
               : router.push('/collection/new')
           }
         />
+      </View>
+    );
+  }
+
+  /**
+   * Browse-all: trending first, then everything else.
+   *
+   * The two groups are split rather than merged into one sorted list so the
+   * ordering reads as a decision. A single list sorted by likes looks arbitrary
+   * to anyone who does not already know it is sorted by likes; a "Trending"
+   * heading says what the top of the page is and a neutral heading says the
+   * rest is not ranked.
+   *
+   * ── The trending signal is `likeCount`, and it is not invented ──────────
+   * `Collection` carries no trending, featured or popularity field — the only
+   * ranking-shaped number on it is `likeCount`. That is also what Home already
+   * uses to order "Trending Showrooms" (`byPopularity` there sorts rooms by
+   * `room.likeCount`), so this is the app's existing definition of trending
+   * applied to the other collection-shaped thing, not a new one.
+   *
+   * The remainder is NOT re-sorted: it keeps `getPublicCollections`' own order.
+   * Deduplication is by id, so nothing appears in both groups.
+   */
+  const trending = useMemo(
+    () => [...browseEntries].sort((a, b) => b.collection.likeCount - a.collection.likeCount)
+      .slice(0, TRENDING_COUNT),
+    [browseEntries],
+  );
+  const trendingIds = useMemo(
+    () => new Set(trending.map((entry) => entry.collection.id)),
+    [trending],
+  );
+  const remainder = useMemo(
+    () => browseEntries.filter((entry) => !trendingIds.has(entry.collection.id)),
+    [browseEntries, trendingIds],
+  );
+
+  function renderBrowseGroup(group: BrowseEntry[]) {
+    return (
+      <View style={styles.grid}>
+        {group.map((entry) => (
+          /* Inert View wrapping the card, never a Pressable — `CollectionCard`
+             is itself pressable, and nesting them renders a button inside a
+             button on web. Same trap documented in the showrooms grid below. */
+          <View
+            key={entry.collection.id}
+            style={[styles.gridItem, viewportWidth < 600 && styles.gridItemPhone]}
+          >
+            <CollectionCard
+              collection={entry.collection}
+              owner={entry.owner}
+              headline={entry.headline}
+              onPress={() =>
+                router.push({ pathname: '/collection/[id]', params: { id: entry.collection.id } })
+              }
+            />
+          </View>
+        ))}
+      </View>
+    );
+  }
+
+  if (browseAll) {
+    return (
+      <View style={styles.screen}>
+        <PinnedHeader scrolled={scrolled}>
+          <View style={styles.header}>
+            <View style={styles.rowBody}>
+              <Text style={styles.title}>Explore Collections</Text>
+              <Text style={styles.muted}>{browseEntries.length} public collections</Text>
+            </View>
+          </View>
+        </PinnedHeader>
+
+        <ScrollView
+          ref={scrollRef}
+          {...scrollProps}
+          style={styles.screen}
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.textSecondary}
+              colors={[colors.accent]}
+            />
+          }
+        >
+          {busy ? <LoadingState height={220} /> : null}
+
+          {!busy && browseEntries.length === 0 ? (
+            <EmptyState
+              title="No public collections yet"
+              body="Collections set to public show up here for everyone."
+            />
+          ) : null}
+
+          {!busy && trending.length > 0 ? (
+            <>
+              <SectionHeader title="Trending" prominent />
+              {renderBrowseGroup(trending)}
+            </>
+          ) : null}
+
+          {!busy && remainder.length > 0 ? (
+            <>
+              <SectionHeader title="All collections" />
+              {renderBrowseGroup(remainder)}
+            </>
+          ) : null}
+
+          {/* The floating assistant sits over this corner. */}
+          <View style={{ height: ASSISTANT_CLEARANCE }} />
+        </ScrollView>
       </View>
     );
   }

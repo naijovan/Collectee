@@ -652,7 +652,13 @@ export default function HomeScreen() {
           <SectionHeader
             title="Explore Collections"
             prominent
-            onSeeAll={() => router.navigate('/explore')}
+            onSeeAll={() =>
+              /* The collections browse view, not Explore. Explore's tabs are
+                 Collectors and Communities — it has no collections list at all,
+                 so this rail's "See all" was landing on Collectors regardless
+                 of which rail it sat in. */
+              router.navigate({ pathname: '/collections', params: { browse: 'all' } })
+            }
           />
           {busy ? (
             <LoadingState height={220} />
