@@ -166,13 +166,53 @@ export default function ExploreScreen() {
    * to 'Collectors' — a typo'd or stale link must not render a tab that matches
    * nothing and shows an empty screen. Absent behaves exactly as before.
    *
-   * Initial state only, deliberately: once the screen is open the chips own the
-   * selection, so arriving by link and then tapping a chip behaves like any
-   * other visit rather than snapping back to the param.
+   * ── The initialiser is NOT enough, and that was a real bug ──────────────
+   * This used to be initial state only, on the reasoning that the chips should
+   * own the selection once the screen is open. That is right for a screen that
+   * mounts per visit and wrong for this one: Explore is a `Tabs.Screen`, so it
+   * stays mounted after its first visit. `useState`'s initialiser therefore
+   * runs ONCE for the life of the app, and every later navigation — including
+   * Home's "See all" — updated the route params while the tab sat on whatever
+   * it was left on. The first-run tour visits /explore, which is enough to
+   * mount it, so in practice the param never worked at all.
+   *
+   * So the param is applied on FOCUS as well. Arriving with a valid one selects
+   * it every time, not just the first.
    */
   const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<Tab>(() =>
     TABS.includes(requestedTab as Tab) ? (requestedTab as Tab) : 'Collectors',
+  );
+
+  /**
+   * Apply an incoming tab param, then consume it.
+   *
+   * Three properties this has to hold at once:
+   *
+   *  - Repeat navigation works. Tapping "See all" twice must land on
+   *    Communities both times, so this cannot compare against the previous
+   *    param value — it would be identical and get skipped.
+   *  - Manual switching survives. The chips set `tab` directly and focus does
+   *    not re-fire while you are already on the screen, so tapping Collectors
+   *    after arriving via the param sticks.
+   *  - Arriving with NO param changes nothing. Every other entry into /explore
+   *    — the Collectors rail's "See all", the tour, the tab bar — passes no
+   *    param and must behave exactly as before, which means leaving `tab`
+   *    alone rather than forcing it back to Collectors.
+   *
+   * `setParams` clears it afterwards so the param reads as a one-shot
+   * instruction. Without that, returning to Explore later by any route would
+   * re-apply a stale tab the user had since switched away from.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      if (!requestedTab) return;
+      if (TABS.includes(requestedTab as Tab)) setTab(requestedTab as Tab);
+      /* Invalid values fall through to here and are cleared without selecting
+         anything, so a typo'd link leaves whatever was showing rather than
+         rendering a tab that matches nothing. */
+      router.setParams({ tab: '' });
+    }, [requestedTab, router]),
   );
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
   const [mine, setMine] = useState<Community[]>([]);
