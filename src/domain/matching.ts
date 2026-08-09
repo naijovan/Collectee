@@ -26,7 +26,7 @@
  * score, the reason has to say so.
  */
 
-import type { GameTitle, Item, RarityTier, User } from '@/types';
+import type { Community, GameTitle, Item, RarityTier, User } from '@/types';
 import { GAME_SHORT_LABELS } from '@/types';
 import { RARITY_RANK, rarityLabelFor } from './rarity';
 
@@ -281,4 +281,91 @@ export function rankCollectors(
 /** The percentage the UI prints, e.g. 92 for "92% match". */
 export function matchPercent(score: number): number {
   return Math.round(score * 100);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Community ordering (Home's Communities rail, and Explore's browse-all)
+ * ──────────────────────────────────────────────────────────────────────────*/
+
+/** A community with the group it landed in and why. */
+export interface RankedCommunity {
+  community: Community;
+  /** 'forYou' when a followed game matched; 'trending' otherwise. */
+  group: 'forYou' | 'trending';
+  /** §11 F5 — the reason travels with the placement, never a bare score. */
+  reason: string;
+}
+
+/**
+ * Split communities into "For you" and "Trending", both by member count.
+ *
+ * ── The affinity signal is followed GAMES, and it is a real one ───────────
+ * Every community's first tag is a game — 'MLBB', 'CODM', 'Valorant' or
+ * 'cross-game' — so a followed game joins directly onto it. That list comes
+ * from `newsService.followedGamesFor`, which the first-run quiz writes in step
+ * 2 and which already drives `rankFyp`. Nothing here is derived from a score
+ * this file invented.
+ *
+ * What is NOT used: the quiz's intensity answer. It is captured and readable,
+ * but there is no honest mapping from "how hard do you collect" to which
+ * community you want, and a plausible-looking one would be a fabricated
+ * signal wearing a real field's name.
+ *
+ * ── Trending is `memberCount` ─────────────────────────────────────────────
+ * `Community` has no trending or featured flag; `memberCount` is the only
+ * ranking-shaped number on it, and it is what the cards already print. Both
+ * groups sort by it, so within a group the order is never arbitrary.
+ *
+ * ── Joined communities are excluded, not marked ───────────────────────────
+ * Callers pass `isMember`. Both surfaces show joined communities separately
+ * — Explore under "Your Communities", Home not at all — so including them
+ * here would put the same card on one screen twice under two headings. That
+ * is the duplicate this split exists to avoid, and it is what
+ * `matchService.getRecommendedCommunities` already does.
+ *
+ * Pure: no service, no fixture, no clock. The caller supplies the world.
+ */
+export function rankCommunities(
+  communities: readonly Community[],
+  options: {
+    followedGames: readonly string[];
+    isMember: (communityId: string) => boolean;
+  },
+): RankedCommunity[] {
+  const followed = options.followedGames.map((game) => game.toLowerCase());
+
+  /* A community matches when any tag names a followed game. Substring both
+     ways because the tag is a short label ('MLBB') and the followed value may
+     be the title key ('mlbb') — neither is reliably a prefix of the other. */
+  const matchedGame = (community: Community): string | null => {
+    for (const tag of community.tags) {
+      const lower = tag.toLowerCase();
+      const hit = followed.find((game) => lower.includes(game) || game.includes(lower));
+      if (hit) return tag;
+    }
+    return null;
+  };
+
+  const byMembers = (a: Community, b: Community) => b.memberCount - a.memberCount;
+
+  const open = communities.filter((community) => !options.isMember(community.id));
+  const forYou: RankedCommunity[] = [];
+  const trending: RankedCommunity[] = [];
+
+  for (const community of [...open].sort(byMembers)) {
+    const tag = matchedGame(community);
+    if (tag) {
+      forYou.push({ community, group: 'forYou', reason: `You follow ${tag}` });
+    } else {
+      trending.push({
+        community,
+        group: 'trending',
+        reason: `${community.memberCount.toLocaleString()} members`,
+      });
+    }
+  }
+
+  // Concatenated, not interleaved: a caller taking the first N gets the most
+  // relevant ones first, and a caller rendering groups can split on `group`.
+  return [...forYou, ...trending];
 }

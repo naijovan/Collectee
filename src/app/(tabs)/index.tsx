@@ -43,6 +43,7 @@ import {
   Avatar,
   CollectionCard,
   CollectorCard,
+  CommunityCard,
   EmptyState,
   FadeInView,
   FilterChips,
@@ -59,6 +60,8 @@ import { ART_PLACEMENTS, backdropFor, hasArt } from '@/config/artRegistry';
 import { FEATURES } from '@/config/features';
 import { headlineItem } from '@/domain/collections';
 import { pickThumbnailIds } from '@/domain/news';
+import { rankCommunities } from '@/domain/matching';
+import type { RankedCommunity } from '@/domain/matching';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useDragScroll } from '@/hooks/useDragScroll';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
@@ -77,10 +80,10 @@ import { colors, fonts, gameAccents, interaction, radius, rarityColors, scrim, s
 import { GAME_LABELS, GAME_TITLES } from '@/types';
 import type { Article, Collection, Item, Room, User } from '@/types';
 
-const FILTERS = ['All', 'Collections', 'Collectors', 'Rooms'] as const;
-/* The Communities entry's own one-item option list. Hoisted so it is not a new
-   array identity on every render. */
-const COMMUNITIES_ENTRY: readonly string[] = ['Communities'];
+const FILTERS = ['All', 'Collections', 'Collectors', 'Rooms', 'Communities'] as const;
+
+/** How many communities the rail previews, matching the other Home rails. */
+const HOME_COMMUNITY_PREVIEW = 4;
 type Filter = (typeof FILTERS)[number];
 
 interface ExploreEntry {
@@ -281,12 +284,17 @@ export default function HomeScreen() {
   const [explore, setExplore] = useState<ExploreEntry[]>([]);
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
   const [rooms, setRooms] = useState<RoomEntry[]>([]);
+  /* Communities the viewer has NOT joined, grouped and ordered by
+     `rankCommunities` — the same pure function Explore's browse-all calls with
+     the same inputs, so the rail and its "See all" destination agree. */
+  const [communities, setCommunities] = useState<RankedCommunity[]>([]);
   const [showAllRooms, setShowAllRooms] = useState(false);
   const [busy, setBusy] = useState(true);
   const visibleRooms = showAllRooms ? rooms : rooms.slice(0, HOME_ROOM_PREVIEW);
 
   const load = useCallback(async () => {
-    const [news, collections, users, recommended, publishedRooms] = await Promise.all([
+    const [news, collections, users, recommended, publishedRooms, allCommunities] =
+      await Promise.all([
       FEATURES.news ? newsService.getDiscover(6) : Promise.resolve([]),
       collectionService.getPublicCollections(),
       socialService.getUsers(),
@@ -297,6 +305,7 @@ export default function HomeScreen() {
          leaves the scroll doing something. */
       matchService.getRecommendedCollectors(viewerId, 12),
       roomService.getPublishedRooms(),
+      matchService.getCommunities(),
     ]);
 
     const usersById = new Map(users.map((user) => [user.id, user]));
@@ -347,6 +356,12 @@ export default function HomeScreen() {
     setArticles(news);
     setExplore(rankExploreCollections(entries));
     setCollectors(recommended);
+    setCommunities(
+      rankCommunities(allCommunities, {
+        followedGames: newsService.followedGamesFor(viewerId),
+        isMember: (id) => socialService.isMember(viewerId, id),
+      }),
+    );
     setRooms(rankTrendingRooms(roomEntries));
     setBusy(false);
   }, [viewerId]);
@@ -504,29 +519,6 @@ export default function HomeScreen() {
         contentContainerStyle={styles.chipScroller}
       >
         <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
-        {/*
-          Communities — a destination, not a filter.
-
-          Deliberately NOT a member of `FILTERS`. Adding it there would put it
-          in Home's filter state: it would render active when tapped and would
-          clear whichever real filter was selected. It is a sibling row instead.
-
-          `FilterChips<string>` rather than a bare chip, because `Chip` is
-          module-private in `primitives` and exporting it would mean editing a
-          shared component for cosmetics. The explicit `string` type argument is
-          what keeps this inert — it widens the value type so `value=""` can
-          never equal 'Communities', and the chip therefore renders inactive
-          always. Same component, so height, padding, typography and the
-          inactive colour are identical by construction rather than by copying
-          values.
-        */}
-        <FilterChips<string>
-          options={COMMUNITIES_ENTRY}
-          value=""
-          onChange={() =>
-            router.navigate({ pathname: '/explore', params: { tab: 'Communities' } })
-          }
-        />
       </ScrollView>
 
       {/*
@@ -772,6 +764,62 @@ export default function HomeScreen() {
                   reason={item.reason}
                   onPress={() =>
                     router.push({ pathname: '/collector/[id]', params: { id: item.user.id } })
+                  }
+                />
+              )}
+            />
+          )}
+        </View>
+      ) : null}
+
+      {/*
+        Communities — same `show()` gate as every other section, so it appears
+        under 'All' and under its own chip, exactly like Collectors. Making it
+        the one section that behaved differently would have been the odd thing.
+
+        The first four come from `rankCommunities`, which is also what Explore's
+        browse-all renders, so "See all" opens on a superset of this rail in the
+        same order rather than on a differently-sorted list.
+
+        Four to match the other rails: Collections previews four under 'All' and
+        HOME_ROOM_PREVIEW is four.
+      */}
+      {show('Communities') ? (
+        <View>
+          <SectionHeader
+            title="Communities"
+            prominent
+            onSeeAll={() =>
+              router.navigate({ pathname: '/explore', params: { tab: 'Communities' } })
+            }
+          />
+          {busy ? (
+            <LoadingState height={150} />
+          ) : communities.length === 0 ? (
+            <EmptyState
+              title="You're in them all"
+              body="You have joined every community we would suggest."
+            />
+          ) : (
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={communities.slice(0, HOME_COMMUNITY_PREVIEW)}
+              keyExtractor={(entry) => entry.community.id}
+              contentContainerStyle={styles.rail}
+              renderItem={({ item }) => (
+                <CommunityCard
+                  community={item.community}
+                  /* Live count, not the fixture's — a session join has to move
+                     the number beside it. */
+                  memberCount={socialService.memberCountFor(item.community)}
+                  reason={item.reason}
+                  width={260}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/community/[id]',
+                      params: { id: item.community.id },
+                    })
                   }
                 />
               )}

@@ -26,10 +26,11 @@ import {
 } from '@/components';
 import { useScrolledPast } from '@/components/PinnedHeader';
 import { FEATURES } from '@/config/features';
-import { VIEWER_UNVERIFIED_REASON } from '@/domain/matching';
+import { VIEWER_UNVERIFIED_REASON, rankCommunities } from '@/domain/matching';
+import type { RankedCommunity } from '@/domain/matching';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useTopOnFocus } from '@/hooks/useTopOnFocus';
-import { matchService, socialService } from '@/services';
+import { matchService, newsService, socialService } from '@/services';
 import type {
   CollectorRecommendation,
   CommunityRecommendation,
@@ -174,36 +175,83 @@ export default function ExploreScreen() {
     TABS.includes(requestedTab as Tab) ? (requestedTab as Tab) : 'Collectors',
   );
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
-  const [communities, setCommunities] = useState<CommunityRecommendation[]>([]);
   const [mine, setMine] = useState<Community[]>([]);
+  /** Browse-all, grouped — see `rankCommunities`. Joined are excluded there. */
+  const [ranked, setRanked] = useState<RankedCommunity[]>([]);
   const [joined, setJoined] = useState<ReadonlySet<string>>(new Set());
   const [matchState, setMatchState] = useState<ViewerMatchState>('ready');
   const [busy, setBusy] = useState(true);
 
   const collectorGrid = useGridFillers(collectors.length, COLLECTOR_MIN_WIDTH);
   const mineGrid = useGridFillers(mine.length, COMMUNITY_MIN_WIDTH);
-  const forYouGrid = useGridFillers(communities.length, COMMUNITY_MIN_WIDTH);
+
+  const forYou = useMemo(() => ranked.filter((r) => r.group === 'forYou'), [ranked]);
+  const trendingGroup = useMemo(() => ranked.filter((r) => r.group === 'trending'), [ranked]);
+
+  /**
+   * One community card, used by both groups.
+   *
+   * Extracted so the two headings render identical cards — the previous single
+   * list and a copy-paste of it would have drifted the moment either changed.
+   * Same `CommunityCard`, same live member count, same join control as before.
+   */
+  function renderCommunity({ community, reason }: RankedCommunity) {
+    const isMember = joined.has(community.id);
+    return (
+      <View key={community.id} style={styles.communityCell}>
+        <CommunityCard
+          community={community}
+          /* Live count — a session join has to move the number beside it. */
+          memberCount={socialService.memberCountFor(community)}
+          reason={FEATURES.communityPosting ? reason : `${reason} · view only`}
+          width="100%"
+          onPress={() =>
+            router.push({ pathname: '/community/[id]', params: { id: community.id } })
+          }
+          action={
+            <Pressable
+              onPress={() => void toggleJoin(community.id)}
+              accessibilityRole="button"
+              accessibilityLabel={isMember ? `Leave ${community.name}` : `Join ${community.name}`}
+              style={[styles.join, isMember && styles.joinActive]}
+            >
+              <Text style={[styles.joinText, isMember && styles.joinTextActive]}>
+                {isMember ? 'Joined' : 'Join'}
+              </Text>
+            </Pressable>
+          }
+        />
+      </View>
+    );
+  }
 
   const load = useCallback(async () => {
-    const [people, groups, all, state] = await Promise.all([
+    const [people, all, state] = await Promise.all([
       matchService.getRecommendedCollectors(viewerId, 12),
-      matchService.getRecommendedCommunities(viewerId),
       matchService.getCommunities(),
       matchService.getViewerMatchState(viewerId),
     ]);
     setCollectors(people);
     setMatchState(state);
-    setCommunities(groups);
+    /* The browse-all grouping. `rankCommunities` is the same pure function
+       Home's rail uses, over the same inputs, so the two surfaces cannot
+       disagree about what is "for you" or what order things come in. */
+    setRanked(
+      rankCommunities(all, {
+        followedGames: newsService.followedGamesFor(viewerId),
+        isMember: (id) => socialService.isMember(viewerId, id),
+      }),
+    );
     // Recommendations exclude communities the viewer is already in, so without
     // this list a community would vanish the moment it was joined and its
     // detail page would be unreachable from Discover.
     setMine(all.filter((community) => socialService.isMember(viewerId, community.id)));
+    /* Over ALL communities, not just the recommender's output. The join
+       control sits on browse-all cards and `rankCommunities` drops joined ones,
+       so a set built from the recommender would go stale the moment someone
+       joined from this screen. */
     setJoined(
-      new Set(
-        groups
-          .filter((g) => socialService.isMember(viewerId, g.community.id))
-          .map((g) => g.community.id),
-      ),
+      new Set(all.filter((c) => socialService.isMember(viewerId, c.id)).map((c) => c.id)),
     );
     setBusy(false);
   }, [viewerId]);
@@ -353,54 +401,43 @@ export default function ExploreScreen() {
         </View>
       ) : null}
 
-      {!busy && tab === 'Communities' ? (
+      {/*
+        Browse-all, in two headed groups.
+
+        This replaced a single "Communities for You" list. The cards, the join
+        control and the grid are unchanged — only the grouping and the order are
+        new, and both come from `rankCommunities`, the same pure function Home's
+        rail calls with the same inputs. Two surfaces, one ordering.
+
+        "For you" is a followed-game match on the community's tags; "Trending" is
+        everything else, by member count. A group with no members renders no
+        heading, so a viewer who follows every game gets no empty "Trending"
+        label and one who follows none gets no empty "For you".
+
+        Joined communities are absent by construction — `rankCommunities` filters
+        them out and they are already listed above under "Your Communities", so
+        nothing appears twice on this screen.
+      */}
+      {!busy && tab === 'Communities' && forYou.length > 0 ? (
         <View style={styles.list}>
-          <SectionHeader title="Communities for You" />
-          <View style={styles.communityGrid} onLayout={forYouGrid.onLayout}>
-          {communities.map(({ community, reason }) => {
-            const isMember = joined.has(community.id);
-            return (
-              <View key={community.id} style={styles.communityCell}>
-                <CommunityCard
-                  community={community}
-                  /* Live count — a session join has to move the number it sits
-                     next to. */
-                  memberCount={socialService.memberCountFor(community)}
-                  reason={
-                    FEATURES.communityPosting ? reason : `${reason} · view only`
-                  }
-                  width="100%"
-                  onPress={() =>
-                    router.push({ pathname: '/community/[id]', params: { id: community.id } })
-                  }
-                  action={
-                    <Pressable
-                      onPress={() => void toggleJoin(community.id)}
-                      accessibilityRole="button"
-                      accessibilityLabel={
-                        isMember ? `Leave ${community.name}` : `Join ${community.name}`
-                      }
-                      style={[styles.join, isMember && styles.joinActive]}
-                    >
-                      <Text style={[styles.joinText, isMember && styles.joinTextActive]}>
-                        {isMember ? 'Joined' : 'Join'}
-                      </Text>
-                    </Pressable>
-                  }
-                />
-              </View>
-            );
-          })}
-          {forYouGrid.fillers.map((key) => (
-            <View key={key} style={styles.communityCell} pointerEvents="none" />
-          ))}
-          </View>
-          {communities.length === 0 ? (
-            <Text style={styles.muted}>
-              You&apos;re in every community we&apos;d suggest. Import more items and new ones
-              surface here.
-            </Text>
-          ) : null}
+          <SectionHeader title="For you" />
+          <View style={styles.communityGrid}>{forYou.map(renderCommunity)}</View>
+        </View>
+      ) : null}
+
+      {!busy && tab === 'Communities' && trendingGroup.length > 0 ? (
+        <View style={styles.list}>
+          <SectionHeader title="Trending" />
+          <View style={styles.communityGrid}>{trendingGroup.map(renderCommunity)}</View>
+        </View>
+      ) : null}
+
+      {!busy && tab === 'Communities' && ranked.length === 0 ? (
+        <View style={styles.list}>
+          <Text style={styles.muted}>
+            You&apos;re in every community we&apos;d suggest. Import more items and new ones
+            surface here.
+          </Text>
         </View>
       ) : null}
 
