@@ -39,3 +39,7 @@ scratchpad/
 # PDF; nothing in src/ requires any of it, so uploading it to every deploy
 # would undo the saving this file exists for.
 animation/
+
+# The heavy half of the motion handoff — 3D models and the assistant character.
+# Same reasoning as animation/ above: nothing in src/ requires it.
+extra_animation/

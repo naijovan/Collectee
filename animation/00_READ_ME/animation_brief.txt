@@ -49,21 +49,23 @@ WHAT EACH FOLDER IS FOR
 03_ANIMATION_ASSETS/ transparent PNGs and SVGs to move independently
 04_REFERENCES/       EMPTY — see the note inside
 05_TRANSITION_FRAMES/ the frames the animation must match at each end
-06_3D_MODELS/        19 .glb models — READ_ME_FIRST.txt in there, first
 
-
-ABOUT THE 3D
+SHIPPED SEPARATELY — extra_animation/
 ---------------------------------------------------------------------------
-Six characters are FULL 3D meshes and will hold up to anything you do to them.
+Two things are too heavy for this pack and live in `extra_animation/` (135 MB):
 
-The thirteen weapons are RELIEF — displaced planes about a tenth as deep as
-they are wide. They read as solid up to roughly 25-30 degrees off axis, which
-is all the app ever shows, and flatten out past that. They are named
-"-relief" so it cannot be forgotten mid-shot. 06_3D_MODELS/READ_ME_FIRST.txt
-has the measured numbers and what each kind is good for.
+    colly/       the assistant character — the launcher mascot and three
+                 full-figure tour poses, plus a mirrored point and trimmed
+                 versions. 01_BRAND/ has copies of the four shipped images;
+                 extra_animation has the derivatives and the rules.
 
-This is worth planning around early: a weapon can hover, drift and dolly, but
-it cannot spin.
+    3d_models/   19 .glb models. Six characters are FULL 3D and hold up to
+                 anything. Thirteen weapons are RELIEF — displaced planes
+                 about a tenth as deep as they are wide, which read as solid
+                 up to ~25-30 degrees and flatten past that.
+
+Worth planning around early: a weapon can hover, drift and dolly. It cannot
+spin. Measured numbers are in extra_animation/3d_models/READ_ME_FIRST.txt.
 
 
 THE LOGO IS BUILT TO BE ANIMATED
