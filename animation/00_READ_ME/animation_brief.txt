@@ -49,6 +49,21 @@ WHAT EACH FOLDER IS FOR
 03_ANIMATION_ASSETS/ transparent PNGs and SVGs to move independently
 04_REFERENCES/       EMPTY — see the note inside
 05_TRANSITION_FRAMES/ the frames the animation must match at each end
+06_3D_MODELS/        19 .glb models — READ_ME_FIRST.txt in there, first
+
+
+ABOUT THE 3D
+---------------------------------------------------------------------------
+Six characters are FULL 3D meshes and will hold up to anything you do to them.
+
+The thirteen weapons are RELIEF — displaced planes about a tenth as deep as
+they are wide. They read as solid up to roughly 25-30 degrees off axis, which
+is all the app ever shows, and flatten out past that. They are named
+"-relief" so it cannot be forgotten mid-shot. 06_3D_MODELS/READ_ME_FIRST.txt
+has the measured numbers and what each kind is good for.
+
+This is worth planning around early: a weapon can hover, drift and dolly, but
+it cannot spin.
 
 
 THE LOGO IS BUILT TO BE ANIMATED
