@@ -40,7 +40,6 @@ For a phone or simulator you additionally need the **Expo Go** app (iOS/Android)
 git clone https://github.com/naijovan/Collectee.git
 cd Collectee
 npm ci
-cp .env.example .env      # optional — see below
 npm run web               # → http://localhost:8081
 ```
 
@@ -55,24 +54,32 @@ npm run ios        # expo start --ios    — iOS simulator
 npm run android    # expo start --android
 ```
 
-### Running without credentials — what a judge sees
+### Running without an API key
 
-**You do not need any API key to run, browse or evaluate this app.** A fresh clone with an empty `.env` is a complete, working build. This is deliberate, not a fallback bolted on afterwards.
+**You need no credentials to run, browse or evaluate this app.** A fresh clone with no `.env` at all is a complete, working build — verified from a clean clone. This is deliberate, not a fallback bolted on afterwards.
 
-Set `ANTHROPIC_API_KEY` (server-side, in your Vercel project) and point `EXPO_PUBLIC_AI_PROXY_URL` at your deployment to enable live model calls. With neither:
+The AI surfaces fall back to prepared content and **say so on screen**, so nothing looks broken and nothing pretends a model ran:
 
-| surface | with a key | without |
+| surface | with live AI | as you'll see it |
 |---|---|---|
-| Colly assistant | answers free-form questions via Claude | answers from on-device logic over your own data; labels itself **"Answers computed on-device"** |
+| Colly assistant | answers free-form questions via Claude | answers from on-device logic over your own data, labelled **"Answers computed on-device"** |
 | News digest cards | a generated "What's happening in \<game\>" | seeded bullets, labelled **"Prepared digest — no model call ran"** |
 | Article summaries | generated bullets | prepared bullets, labelled **"Prepared summary"** |
 | Screenshot import | Claude reads the uploaded screenshot | a prepared scan result for the demo images |
 
-Every AI surface **states which path produced the answer**. Nothing silently pretends a model ran.
+To switch the live path on, see [`.env.example`](.env.example) — it documents the two variables and what each one changes.
 
-`EXPO_PUBLIC_SKIP_FIRST_RUN=1` skips the first-run flow (sign-in → 4-step quiz → guided tour) and drops you on Home. Useful when reloading repeatedly — but **leave it unset the first time**: the first-run flow is a real part of the product, the quiz answers feed the news and community ranking, and the guided tour walks the five main surfaces.
+### Where to look first
 
-⚠️ `ANTHROPIC_API_KEY` must **never** be given an `EXPO_PUBLIC_` prefix. Anything so prefixed is inlined into the shipped JavaScript and readable by anyone with the app.
+Roughly five minutes, in this order:
+
+1. **Let the first-run flow play** — sign-in, a 4-step quiz, then a guided tour of the five main surfaces. The quiz answers really do feed the news and community ranking afterwards.
+2. **Import** → upload one of the sample inventory screenshots committed at `assets/collectee/sample input.png` (or `sample input 1.png`) → watch the review step route each detection by confidence.
+3. **Gaming Updates** → pick a game tab → read the digest card, then open an article and hit **Read full article**.
+4. **Any collection with 3+ verified items** → build a **Showroom** and enter immersive mode.
+5. **Colly**, the floating button → ask *"Can I build a Showroom?"*
+
+Set `EXPO_PUBLIC_SKIP_FIRST_RUN=1` to skip straight to Home on later reloads — but leave it unset the first time, as step 1 is part of the product.
 
 ---
 
@@ -96,16 +103,16 @@ src/theme/      design tokens; all colour lives here
 src/types/      the entity schema
 ```
 
-`services/` wraps fixtures in Promise-returning methods so that swapping a fixture for a `fetch` is a change inside one file. `domain/` is pure and therefore directly testable — the ranking, the §9.4 trust rules and the tour's placement solver are all exercised by scripts without a running app.
+`services/` wraps fixtures in Promise-returning methods so that swapping a fixture for a `fetch` is a change inside one file. `domain/` is pure and therefore directly testable — the ranking, the trust rules and the tour's placement solver are all exercised by scripts without a running app.
 
 ### Surfaces
 
 | area | route(s) | what it does |
 |---|---|---|
 | **Home** | `/` | greeting, filter chips (All / Collections / Collectors / Rooms / Communities), hero, Gaming Updates rail, collections, collectors, showrooms, communities |
-| **Explore** | `/explore` | Collectors tab (match % with a stated reason) and Communities tab (joined, plus a grouped browse-all). `?tab=Communities` opens it directly |
+| **Explore** | `/explore` | Collectors tab (match % with a stated reason) and Communities tab (joined, plus a grouped browse-all) |
 | **Gaming Updates** | `/news`, `/article/[id]` | per-game tabs, an AI digest card, image-led article cards, and a full in-app article reader |
-| **Collections** | `/collections`, `/collection/[id]`, `/collection/new` | your collections; `?browse=all` is a trending-first browse of every public one |
+| **Collections** | `/collections`, `/collection/[id]`, `/collection/new` | your own collections, plus a trending-first browse of every public one |
 | **Showroom** | `/room/[id]`, `/room/immersive/[id]`, `/room/new` | 3D room built from verified items, real meshes, immersive mode |
 | **Communities** | `/community/[id]`, `/thread/[id]` | threads with Reddit-style reply voting; `/moderation` is the report queue |
 | **Profile** | `/profile`, `/inventory`, `/connections`, `/following` | identity, items, followers, followed topics |
@@ -253,7 +260,7 @@ Stated plainly — this is a hackathon build and production readiness is not cla
 
 - **Sign-in is mocked.** There is no auth backend; the flow captures a display name and avatar and moves on. There are no passwords anywhere.
 - **Data is fixtures, not a backend.** Everything is seeded and every mutation is an in-memory session overlay. Reloading resets joins, votes, follows and imports. `services/` exists precisely so this swaps for real endpoints in one layer.
-- **Verification is simulated.** "Linking a game account" does not contact a publisher — no such partner API is available. The trust model built on it (§9.4: only verified items enter a Showroom) is fully implemented; only the account link is mocked.
+- **Verification is simulated.** "Linking a game account" does not contact a publisher — no such partner API is available. The rule built on it — only verified items may enter a Showroom — is fully implemented; only the account link is mocked.
 - **The 3D Showroom** renders real baked meshes for a subset of items; the rest use a depth-mapped relief of the 2D art. Backs are inferred from a single view, and the app says so rather than implying a scanned model.
 - **The AI proxy is rate-limited** and falls back to prepared content on timeout or error, always labelled.
 - **Native builds are less exercised than web.** The deployed target is the web export; iOS/Android run from the same codebase via Expo Go but have had less time on device.
@@ -274,10 +281,10 @@ npx tsx scripts/check-news-tabs.ts     # per-tab thumbnail dedupe + one game chi
 
 `validate:fixtures` is the substantial one: it catches what TypeScript cannot — dangling item ids, room placements in slots that do not exist, scan fixtures whose confidences disagree with the routing thresholds, rarity labels that drift from the spec table, articles missing a body, inline figures pointing at items that do not exist, and reply vote tallies that are seeded incorrectly.
 
-`npm run lint` also exists (`expo lint`) but is not currently wired up in this checkout.
+A `lint` script exists but `expo lint` is not configured in this checkout — it will error rather than lint.
 
 ---
 
 ## Team notes
 
-The previous internal README — merge rules, ownership map, honest-pitch notes — is preserved at **[`docs/TEAM-NOTES.md`](docs/TEAM-NOTES.md)**. The product spec it refers to is **[`docs/PRD.md`](docs/PRD.md)**; section references in code comments (§9.2, §11 F4, §12.3) point there.
+Code comments cite section numbers like §9.2 or §11 F4 — those point at the product spec, **[`docs/PRD.md`](docs/PRD.md)**. The team's internal README (merge rules, ownership map) is preserved at **[`docs/TEAM-NOTES.md`](docs/TEAM-NOTES.md)**.
