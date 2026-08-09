@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { artFor } from '@/config/artRegistry';
 import { communityArtFor } from '@/config/communityArt';
 import { FEATURES } from '@/config/features';
+import { newsArticleImageFor } from '@/config/newsArticleImages';
 import { newsThumbFor } from '@/config/newsThumbs';
 import { VISIBILITY_LABELS } from '@/domain/collections';
 import { rarityLabelFor } from '@/domain/rarity';
@@ -685,6 +686,7 @@ function ArticleThumb({
   itemId?: string | null;
   variant: ThumbVariant;
 }) {
+  const articleImage = newsArticleImageFor(article.imageUrl);
   const art = articleItemArt(article, itemId);
   const title = article.relatedGames[0];
   const accent = title ? gameAccents[title] : null;
@@ -696,6 +698,21 @@ function ArticleThumb({
         : variant === 'micro'
           ? styles.articleThumbMicro
           : styles.articleThumb;
+
+  if (articleImage) {
+    return (
+      <View style={box}>
+        <Image
+          source={articleImage}
+          style={styles.articleThumbFill}
+          resizeMode="cover"
+          accessible
+          accessibilityLabel={`${article.title} artwork`}
+          accessibilityIgnoresInvertColors
+        />
+      </View>
+    );
+  }
 
   if (art) {
     /* `feature` takes the WIDE rendition like `hero` does. The compact square is
@@ -863,9 +880,11 @@ export function ArticleCard({
   const hover = useHoverLift();
 
   /* Resolved before the layout is chosen, because for `micro` it DECIDES the
-     layout: no item render means no thumbnail and no row, just the text card.
+     layout: no bundled art means no thumbnail and no row, just the text card.
      `media` always shows a thumbnail, so for it this only picks the picture. */
+  const hasArticleImage = newsArticleImageFor(article.imageUrl) !== null;
   const hasItemArt = articleItemArt(article, thumbItemId) !== null;
+  const hasThumbArt = hasArticleImage || hasItemArt;
   /* `hero` and `feature` always show their image: both layouts are built around
      it. Falling back to a text card mid-rail would break the row's shared
      height, and in the News list it would put a bare paragraph between two
@@ -876,7 +895,7 @@ export function ArticleCard({
     thumb === 'media' ||
     thumb === 'hero' ||
     thumb === 'feature' ||
-    (thumb === 'micro' && hasItemArt);
+    (thumb === 'micro' && hasThumbArt);
 
   const edgeGame = accentEdge ? article.relatedGames[0] : undefined;
   const edge = edgeGame ? gameAccents[edgeGame] : null;
