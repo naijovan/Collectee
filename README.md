@@ -1,251 +1,283 @@
 # Collectee
 
-Garena AI Build Challenge (Singapore) — *Reimagine Digital Entertainment Experiences with AI*
+**Live: [collectee.vercel.app](https://collectee.vercel.app)** — open in a private/incognito window; normal tabs often serve a cached build.
 
-Mobile social platform where gamers turn in-game skins and cosmetics into a public, cross-game
-collection identity. Built with Expo + React Native + TypeScript.
+Collectee is a mobile-first app for people who collect in-game cosmetics across **Call of Duty: Mobile**, **VALORANT** and **Mobile Legends: Bang Bang**. You import what you own by uploading a screenshot of your in-game inventory, the app reads it and matches it against a catalogue, and from there you can group items into collections, place the verified ones in a 3D Showroom, find collectors with overlapping taste, and follow per-game news that ranks around what you actually own.
 
-**Team:** Bernard · Marcus · Jovan · Ray
-**Spec:** [docs/PRD.md](docs/PRD.md) — v0.5, the build brief. Read §11–§13 before writing code.
-**Deadline:** proposal submission 9 August 2026.
+The through-line is **provenance**: two identical skins are identical in game, so the interesting facts — when you got it, whether it is verified against a linked account, what it sits beside — only exist outside the client. That is what this app is for.
 
 ---
 
-## Status
+## Contents
 
-The **foundational base** is merged: schema, domain logic, fixtures, service layer and app state.
-UI is deliberately deferred — the team agreed to settle the data and feature layer first, so flows
-can be built against a stable contract rather than against each other.
-
-What exists:
-
-| Layer | Location | Notes |
-|---|---|---|
-| Entity schema (§12.3) | `src/types/` | The merge contract. Change via PR announced in chat. |
-| Domain logic | `src/domain/` | Pure functions, no I/O. Rarity, scan routing, matching, trust, rooms, news. |
-| Fixtures | `src/fixtures/` | Three catalogues, users, inventories, collections, rooms, articles, social, scans. |
-| Service layer (§12.1) | `src/services/` | All async. **Screens import from here, never from fixtures.** |
-| App state | `src/state/AppContext.tsx` | Viewer, inventory, onboarding gate, notifications. |
-| Feature flags (§14) | `src/config/features.ts` | The descope ladder, as booleans. |
-| Art, depth and mesh bakes | `scripts/bake-*.ts` | Offline build steps. `@huggingface/transformers` is a **devDependency** — no app code imports it and nothing ships in the bundle. |
-| Design tokens (§13.2) | `src/theme/theme.ts` | No raw hex anywhere else. |
-| Shared components (§13.3) | `src/components/` | All 14, plus `RoomScene`. **Jovan owns these — change via PR announced in chat.** |
-| Navigation + screens | `src/app/` | Tab group, Home in full (§13.4), and a walkable screen for every journey. |
-
-### Routes
-
-`src/app/(tabs)/` is the app; everything else is a stack screen pushed over it, one route group per
-journey in §10. Each flow screen is **working, on-spec and deliberately thin** — enough to walk the
-whole product end to end. The flow owner expands theirs; the shell underneath does not move.
-
-| Route | Flow | Owner |
-|---|---|---|
-| `(tabs)/index` | Home — all eight sections of §13.4 | Jovan |
-| `(tabs)/explore` · `collector/[id]` | J4 Discover collectors & communities | Marcus |
-| `(tabs)/collections` · `(tabs)/profile` | Behind the §13.4 onboarding gate | — |
-| `create` | The `+` action sheet (§13.5) | — |
-| `import` | J1 Upload → Scan → Review → Needs Review → Done | Bernard |
-| `collection/new` · `collection/[id]` | J2 Create & publish | Bernard |
-| `room/new` · `room/[id]` | J3 Showroom — 2.5D parallax, look-at focus | Jovan |
-| `news` · `article/[id]` | J5 News & updates (behind `FEATURES.news`) | Marcus |
-| `diagnostics` | Every service called the way a screen calls it | Jovan |
-
-Three things in here are the PRD's explicit fixes to Figma bugs — do not undo them by hand:
-
-- **Import counts are derived**, never written. `24 detected = 18 matched + 4 needs review + 2
-  duplicates`, the CTA count rises live as Needs Review items are resolved, and the completion
-  screen reconciles against the same numbers (§11 F1).
-- **Steppers read `COLLECTION_STEPS` / `ROOM_STEPS`** from `domain/collections.ts`, so the count on
-  screen cannot drift from the count in code (§11 F3). Preview stays outside the numbered bar.
-- **The onboarding gate lives only in `TabBar`**, from `hasImported` (§13.4). Do not re-derive it.
-
-The §9.3 trust UI ships behind `FEATURES.trustUi`: an item-trust badge on `ItemCard` and a Flag
-entry in the item `⋮` menu with a confirmation state, on the collection page. That was the open
-4 Aug decision — the logic and the UI both exist now, so the call is a flag flip either way.
+1. [Setup](#1-setup)
+2. [Architecture](#2-architecture)
+3. [How AI contributes](#3-how-ai-contributes)
+4. [Prompts and agent configuration](#4-prompts-and-agent-configuration)
+5. [Third-party disclosure](#5-third-party-disclosure)
+6. [Scope and known limitations](#6-scope-and-known-limitations)
+7. [Validation gates](#7-validation-gates)
 
 ---
 
-## Setup
+## 1. Setup
+
+Assumes a clean machine with nothing installed.
+
+### Prerequisites
+
+| | version | why |
+|---|---|---|
+| **Node.js** | 20 LTS or newer (developed on 24.18) | Expo SDK 57 tooling |
+| **npm** | ships with Node (developed on 11.16) | no other package manager is required |
+| **Expo CLI** | none to install | invoked via `npx expo`, already a dependency |
+
+For a phone or simulator you additionally need the **Expo Go** app (iOS/Android), or Xcode / Android Studio for a simulator. **The web build needs none of that** and is the fastest way to review.
+
+### Clone, install, run
 
 ```bash
-npm ci          # use ci, not install — the lockfile is the contract
-npm start       # then scan the QR with Expo Go
-npm run web     # or http://localhost:8081 in a browser
-```
-
-### ⚠️ After you pull — read this first
-
-Two things will look like broken code and are not. Both are one command.
-
-**1. Install. Dependencies changed.** Four runtime packages landed with the
-J1/J2 merge (`expo-haptics`, `expo-linear-gradient`, and two `@expo-google-fonts`
-packages), plus one devDependency for the art pipeline
-(`@huggingface/transformers`). Without this the app will not compile:
-
-```bash
+git clone https://github.com/naijovan/Collectee.git
+cd Collectee
 npm ci
+cp .env.example .env      # optional — see below
+npm run web               # → http://localhost:8081
 ```
 
-**2. `npm run typecheck` may fail with route errors until you start the app once.**
+`npm ci` rather than `npm install`: it installs exactly the lockfile.
 
-```
-Type '"/thread/[id]"' is not assignable to type '"/" | "/explore" | …'
-```
-
-That is Expo Router's `typedRoutes` codegen, not your code. The route union is
-regenerated when the bundler runs, and your local copy predates whatever routes
-came in with the pull. Run `npm run web` once, then re-run typecheck. Nobody
-should lose an hour to this.
-
-**3. The room gate is partial, not all-or-nothing.** `roomEligibility` in
-`domain/trust.ts` is the one implementation — it was built twice independently
-and reconciled on 5 Aug. A collection with 3 verified and 3 unverified items
-*does* build a room, from the 3. §9.4 is a rule about items, not collections.
-Do not add a second copy of this function; three surfaces already call it.
-
-Built and verified on **Node 26.4.0**. The PRD says Node 20 LTS; nobody on this machine has a
-version manager installed, so the committed `package-lock.json` is what keeps everyone identical.
-Run `npm ci`, not `npm install`, and a lockfile conflict on the 6th costs nobody an evening.
+Other run targets, all real scripts from `package.json`:
 
 ```bash
-npm run typecheck          # tsc --noEmit, strict
-npm run validate:fixtures  # referential integrity across every fixture
-npm run audit:art          # art, depth and backdrop coverage vs the catalogue
+npm run web        # expo start --web    — browser
+npm start          # expo start          — QR code for Expo Go
+npm run ios        # expo start --ios    — iOS simulator
+npm run android    # expo start --android
 ```
 
-Regenerating art is a separate, slower path and only needed when renders change:
+### Running without credentials — what a judge sees
 
-```bash
-npm run bake:depth    # depth maps  (first run downloads ~50MB of model)
-npm run bake:mesh     # .glb meshes from depth + silhouette
-npm run bake:palette  # dominant colour per item, feeds room suggestions
-```
+**You do not need any API key to run, browse or evaluate this app.** A fresh clone with an empty `.env` is a complete, working build. This is deliberate, not a fallback bolted on afterwards.
 
-Run both before you open a PR.
+Set `ANTHROPIC_API_KEY` (server-side, in your Vercel project) and point `EXPO_PUBLIC_AI_PROXY_URL` at your deployment to enable live model calls. With neither:
 
----
-
-## AI assistant — where the API key goes
-
-The assistant answers questions about your own account (items, verification,
-collections, showrooms, followers) and about how the app works. Reachable from
-the ✦ in the Home header, or `/assistant`.
-
-**It works with no key at all.** Every question about your own state is
-arithmetic over data already in memory, so `domain/assistant.ts` answers those
-locally and instantly — which is what makes it safe to demo on conference wifi
-(§12.1). A key only adds free-form questions the local answerer cannot phrase.
-
-### Adding your key
-
-1. **Get one** — [aistudio.google.com/apikey](https://aistudio.google.com/apikey),
-   "Create API key". The free tier covers the demo.
-2. **Create `.env`** in the repo root:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Paste it in** — this line, in `.env`, nothing else:
-
-   ```
-   EXPO_PUBLIC_GEMINI_API_KEY=AIza...your-key...
-   ```
-
-4. **Restart the dev server.** Expo reads env at bundle time, so a running
-   server will not pick up the change.
-
-`.env` is gitignored (`.env`, `.env.*`, with `.env.example` excepted), so the
-key cannot be committed by accident. Verify with `git check-ignore -v .env`.
-
-The assistant screen shows which mode it is in — `⚙ Offline` or
-`⚡ Gemini connected` — so you always know whether a model is actually running.
-
-### ⚠️ What a client-side key does and does not protect
-
-`EXPO_PUBLIC_*` values are **bundled into the shipped JavaScript** and readable
-by anyone with the app. No obfuscation changes this; it is how client apps work.
-For a free-tier hackathon key the exposure is quota, which is an acceptable
-trade. **Do not put a billed key here.**
-
-If this ever leaves a demo, set `EXPO_PUBLIC_ASSISTANT_PROXY_URL` instead: the
-app calls your endpoint, the endpoint holds the key, and it takes precedence
-over the direct key. That is the only configuration that actually protects one.
-
-### Limits and guardrails
-
-| | |
-|---|---|
-| Rate limit | 8 model calls/minute, 1.5s minimum between calls |
-| Applies to | model calls only — local answers are never limited |
-| Question cap | 400 characters |
-| Timeout | 12s, then it falls back to a local answer |
-| Scope | prompt-injection and credential-fishing patterns are rejected before a request is spent |
-| Context sent | counts, collection names, theme names. **No ids, emails, or tokens** — see `buildContext` in `domain/assistant.ts` |
-
-The context object is the privacy boundary: whatever is in it is what leaves the
-device. It is deliberately narrow, and adding a field is a decision to send it.
-
-## The rules that stop merge day becoming a rewrite
-
-1. **Screens never import from `@/fixtures`.** Go through `@/services`. Every service method returns
-   a Promise even though the data is local, so phase 2 replaces a fixture with a `fetch` inside one
-   file and nothing else moves.
-2. **No raw hex outside `src/theme/theme.ts`.**
-3. **No rarity strings outside `src/domain/rarity.ts`.** Sort and filter on `rarityTier`, print
-   `rarityLabel`.
-4. **Types live in `src/types/`.** If you need a new shape, add it there via a PR — do not define a
-   local interface inside your flow.
-5. **Never commit to `main`.** Branch per flow; PR at the end of each session.
-
-## Ownership
-
-| Person | Flow | Files |
+| surface | with a key | without |
 |---|---|---|
-| Bernard | J1 Import, J2 Create & Publish | `services/scanService.ts`, `services/collectionService.ts` |
-| Jovan | J3 Showroom + foundation | `services/roomService.ts`, `domain/room.ts`, `theme/`, `types/` |
-| Marcus | J4 Discover, J5 News | `services/matchService.ts`, `services/newsService.ts` |
-| Ray | Slides, demo video | — |
+| Colly assistant | answers free-form questions via Claude | answers from on-device logic over your own data; labels itself **"Answers computed on-device"** |
+| News digest cards | a generated "What's happening in \<game\>" | seeded bullets, labelled **"Prepared digest — no model call ran"** |
+| Article summaries | generated bullets | prepared bullets, labelled **"Prepared summary"** |
+| Screenshot import | Claude reads the uploaded screenshot | a prepared scan result for the demo images |
 
-Shared (`catalogueService`, `inventoryService`, `socialService`, `types/`, `theme/`) changes via PR
-announced in chat.
+Every AI surface **states which path produced the answer**. Nothing silently pretends a model ran.
+
+`EXPO_PUBLIC_SKIP_FIRST_RUN=1` skips the first-run flow (sign-in → 4-step quiz → guided tour) and drops you on Home. Useful when reloading repeatedly — but **leave it unset the first time**: the first-run flow is a real part of the product, the quiz answers feed the news and community ranking, and the guided tour walks the five main surfaces.
+
+⚠️ `ANTHROPIC_API_KEY` must **never** be given an `EXPO_PUBLIC_` prefix. Anything so prefixed is inlined into the shipped JavaScript and readable by anyone with the app.
 
 ---
 
-## Honest-pitch notes
+## 2. Architecture
 
-These are in the PRD but easy to lose. Do not contradict them on stage.
+An **Expo (SDK 57) / React Native app using Expo Router**, running on iOS, Android and web from one codebase. The deployed build is the web export, hosted on Vercel alongside one serverless function.
 
-- **All AI is mocked** (§12.1). There is no backend, no API key, no network call during the demo.
-  The vision pipeline in §11 F1 is specified in full and is the phase-2 build. Say so plainly if
-  asked — do not imply a model is running when it is not.
-- **Verified ownership is partnership-gated, not engineering-gated** (§9.3). None of the three
-  launch titles exposes a public cosmetic-inventory API. It needs a publisher conversation, not a
-  sprint.
-- **SHA-256 screenshot hashing was considered and dropped** (§9.1). A hash proves a file is
-  unaltered; it says nothing about who owns the item depicted. Leading with why it was rejected is
-  a strength.
-- **Interactive Showrooms are verified-only** (§9.4). An unverified item can live in a
-  normal 2D collection; it cannot go in a room. That is deliberate — it gives the trust model
-  teeth and makes account linking the second activation event. Say the dependency out loud
-  before a judge finds it: rooms are what connecting an inventory buys, which is the reason a
-  publisher would integrate, not a hole in the product.
-- **Rooms render real geometry now, and it is ours** (§11 F4, §15). Collectibles are meshes
-  baked from our own concept art by a local pass — `bake:depth` then `bake:mesh`. They are not
-  publisher assets, we do not have those, and the backs are inferred from a single view. A
-  turntable of the actual in-game model remains impossible; do not promise it.
-- **No trading, pricing or valuation** (§7). Deliberate — it invites skin-gambling-adjacent
-  regulatory exposure.
+### Layering
 
-## Open items that block work
+The rule the codebase is organised around: **screens never read fixtures directly.**
 
-Tracked in PRD §16. The ones that touch this codebase:
+```
+src/app/        Expo Router screens — file-based routing
+src/components/ shared UI (cards, primitives, tour overlay, 3D room)
+src/services/   async API surface; every method returns a Promise
+src/domain/     pure logic, no I/O — ranking, trust, scan reconciliation, placement
+src/fixtures/   seeded data, `as const satisfies readonly T[]`
+src/config/     feature flags, art registries
+src/state/      React context (app state, assistant dock, tour anchors)
+src/theme/      design tokens; all colour lives here
+src/types/      the entity schema
+```
 
-- **Item names and rarity tiers need a player of each title to verify.** The catalogues in
-  `src/fixtures/items-*.ts` follow real naming patterns but are unverified. §15 lists "seeded data
-  looks fake" as a risk and a Garena panel will spot a wrong blueprint name instantly.
-- **Item art, room backdrops and avatars are not in the repo.** Fixtures reference
-  `item-art/<title>/<id>.png`, `room-backdrops/<theme>.png` and `avatars/<user>.png`. Add the files
-  under `assets/` and switch the fields to `require()` when UI work starts.
-- **Trust UI decision, due 4 Aug** (§9.3) — the logic is built and flagged behind `FEATURES.trustUi`.
-- **Real F6 summarisation call, due 5 Aug** (§12.1) — flagged behind `FEATURES.liveSummarisation`.
+`services/` wraps fixtures in Promise-returning methods so that swapping a fixture for a `fetch` is a change inside one file. `domain/` is pure and therefore directly testable — the ranking, the §9.4 trust rules and the tour's placement solver are all exercised by scripts without a running app.
+
+### Surfaces
+
+| area | route(s) | what it does |
+|---|---|---|
+| **Home** | `/` | greeting, filter chips (All / Collections / Collectors / Rooms / Communities), hero, Gaming Updates rail, collections, collectors, showrooms, communities |
+| **Explore** | `/explore` | Collectors tab (match % with a stated reason) and Communities tab (joined, plus a grouped browse-all). `?tab=Communities` opens it directly |
+| **Gaming Updates** | `/news`, `/article/[id]` | per-game tabs, an AI digest card, image-led article cards, and a full in-app article reader |
+| **Collections** | `/collections`, `/collection/[id]`, `/collection/new` | your collections; `?browse=all` is a trending-first browse of every public one |
+| **Showroom** | `/room/[id]`, `/room/immersive/[id]`, `/room/new` | 3D room built from verified items, real meshes, immersive mode |
+| **Communities** | `/community/[id]`, `/thread/[id]` | threads with Reddit-style reply voting; `/moderation` is the report queue |
+| **Profile** | `/profile`, `/inventory`, `/connections`, `/following` | identity, items, followers, followed topics |
+| **Import** | `/import`, `/link-account` | screenshot → scan → review → collection |
+| **First run** | `/sign-in`, `/onboarding/quiz` | mocked sign-in, 4-step quiz, then a guided 5-stop tour |
+
+### Data
+
+All application data is **seeded fixtures** in `src/fixtures/` — 94 catalogue items, 33 collections, 7 rooms, 18 articles, 18 threads, 14 users. Mutations (joining a community, voting, following, importing) are **in-memory session overlays** layered over the seed; nothing is written back to a fixture and there is no database.
+
+### Art pipeline
+
+Item art is produced as build steps and committed, never generated at runtime:
+
+```
+assets/collectee/subjects/<id>.png            660×440   source
+  └─ npm run bake:display-art
+       display/<id>.jpg                      1200×800   wide
+       display/compact/<id>.jpg               600×400   wide compact
+       display/square/<id>.jpg                800×800   square
+       display/square/compact/<id>.jpg        400×400   square compact
+  └─ npm run bake:depth
+       depth/<id>.png                         512×512   depth map for the 3D relief
+```
+
+`@huggingface/transformers` is a **devDependency** used only by these bakes. No app code imports it and no model runs at runtime on the client.
+
+### The AI proxy
+
+`api/assistant.ts` is a single Vercel serverless function and the only place a model is called. It takes a `mode` — `summary`, `digest`, `chat` or `scan` — and holds the Anthropic key server-side, so the key is never in the client bundle.
+
+### Directory tree (top two levels)
+
+```
+Collectee/
+├── api/            assistant.ts — the serverless AI proxy
+├── src/            app, components, services, domain, fixtures, config, state, theme, types
+├── scripts/        bakes, validators, probes
+├── assets/         collectee/ (art), images/, expo.icon/
+├── docs/           PRD.md, demo-script.html, TEAM-NOTES.md
+├── animation/      handoff pack for the motion designer
+├── extra_animation/ 3D models and Colly assets for handoff
+└── exports/        raw bake inputs (excluded from deploys)
+```
+
+---
+
+## 3. How AI contributes
+
+Two AI surfaces are visible to a user, plus one in the import flow. Each states whether a model actually ran.
+
+### Colly — the in-app assistant
+
+- **What the user does:** taps the floating Colly button (or the ✦ in Home's header) and asks a question in their own words — *"Can I build a Showroom?"*, *"Who is my top match, and why?"*
+- **What the model is asked for:** a snapshot of the user's own state (counts, per-game verification, collections with their per-collection verified counts and Showroom eligibility, matches with their reasons, communities, headlines) is sent with the question under a system prompt that forbids inventing anything absent from the snapshot.
+- **What the user gets:** three sentences of plain language grounded in their actual data — *"You can build a Showroom from your Crown Jewels collection, which has 5 verified items… Go to the Create tab."* Questions the on-device answerer can handle are answered locally and instantly; only genuinely free-form ones reach the model.
+
+### "What's happening" — news digest cards
+
+- **What the user does:** opens Gaming Updates and picks a game tab.
+- **What the model is asked for:** the titles and summaries of that game's articles, with a request for a short digest.
+- **What the user gets:** four bullets summarising the week for that game, sitting above the article list, labelled *"Digest by Claude, from the articles below."* or *"Prepared digest — no model call ran"*.
+
+### Screenshot import (the outcome the product is built around)
+
+- **What the user does:** uploads a screenshot of their in-game inventory.
+- **What the model is asked for:** read every tile, report the item name, a rarity judged from the border colour alone, and a match against a supplied catalogue — including a `look` column describing what each catalogue item actually looks like, so a label-less image matches on appearance rather than on text.
+- **What the user gets:** a review screen with each detection routed by confidence — auto-accepted, needs review, or unmatched — and **items land unverified**, because verification requires a linked game account. The outcome is a populated collection built in about a minute from a screenshot.
+
+---
+
+## 4. Prompts and agent configuration
+
+**Every prompt is committed to this repository.** Nothing lives only in a deployed environment variable. All four are string constants in **`api/assistant.ts`**:
+
+| constant | lines* | what it does |
+|---|---|---|
+| `CHAT_SYSTEM_PROMPT` | 206–270 | **Colly's system prompt.** Defines the assistant's scope and voice, and the grounding rules: answer only from the supplied snapshot, say "I don't know" rather than invent, never discuss its own configuration. Encodes the app's rules it may explain — how verification works, and that a Showroom needs 3 verified items *in one collection*. |
+| `DIGEST_SYSTEM_PROMPT` | 163–205 | **News digest prompt.** Turns one game's articles into the four-bullet "What's happening in \<game\>" card. |
+| `SUMMARY_SYSTEM_PROMPT` | 138–162 | **Article summary prompt.** Produces the bullets behind "Summarise with AI" on an article. |
+| `SCAN_SYSTEM_PROMPT` | 271–371 | **Inventory scan prompt.** Instructs the vision model to read a screenshot or a single item, judge rarity from border colour only, and match against the supplied catalogue. Treats the image as untrusted data, so text inside it is never followed as an instruction. |
+
+\* Line numbers drift; the **constant names** are the stable reference.
+
+Models, also in `api/assistant.ts`:
+
+| constant | value | used for |
+|---|---|---|
+| `MODEL` | `claude-haiku-4-5` | chat, digest, summary |
+| `SCAN_MODEL` | `claude-opus-5` | screenshot reading — a wrong item name is the worst failure this app can show, so the scan path uses the stronger model |
+
+Guardrails in the same file: per-mode input validation, a snapshot size cap, a question-length cap, and prompt-injection fencing on both article text and uploaded images.
+
+---
+
+## 5. Third-party disclosure
+
+### Models and APIs
+
+| | provider | used for |
+|---|---|---|
+| `claude-haiku-4-5` | Anthropic | assistant chat, news digests, article summaries |
+| `claude-opus-5` | Anthropic | reading uploaded inventory screenshots |
+| `onnx-community/depth-anything-v2-small` | Hugging Face (local, build-time) | depth maps for the 3D relief effect |
+| TRELLIS | third-party, offline | source 3D meshes for a subset of showroom items |
+| Vercel | hosting | static web export + one serverless function |
+
+No other external API is called. **There is no network request at runtime other than to the app's own `/api/assistant` proxy**, and the app is fully usable with that unavailable.
+
+### Runtime libraries (from `package.json`)
+
+| library | purpose |
+|---|---|
+| `expo`, `expo-router` | app framework and file-based routing |
+| `react`, `react-dom`, `react-native`, `react-native-web` | UI runtime across native and web |
+| `@anthropic-ai/sdk` | Anthropic client, used **only** in the serverless proxy |
+| `three`, `@react-three/fiber`, `expo-gl` | 3D Showroom rendering |
+| `react-native-reanimated`, `react-native-worklets`, `react-native-gesture-handler` | animation and gestures |
+| `react-native-safe-area-context`, `react-native-screens` | navigation primitives |
+| `expo-image`, `expo-linear-gradient`, `expo-glass-effect`, `expo-symbols`, `@expo/ui` | imagery, gradients, glass surfaces, system icons |
+| `expo-font`, `@expo-google-fonts/inter`, `@expo-google-fonts/space-grotesk` | typography (Inter, Space Grotesk — OFL) |
+| `expo-haptics`, `expo-status-bar`, `expo-system-ui`, `expo-splash-screen` | platform polish |
+| `expo-constants`, `expo-device`, `expo-linking`, `expo-web-browser` | device and linking utilities |
+
+### Build-time only (devDependencies)
+
+| library | purpose |
+|---|---|
+| `@huggingface/transformers` | runs the depth model during `bake:depth`. **No app code imports it** |
+| `typescript`, `tsx`, `@types/*` | typechecking and running the TS scripts |
+
+### Datasets and artwork
+
+**No third-party dataset is used.** All catalogue, user, collection, article and thread data is original fixture content written for this project.
+
+**All item, avatar, banner and mascot artwork is AI-generated original work produced in-house from reference-guided prompts.** Reference imagery used during generation is **not distributed with this repository** — it is gitignored and enforced by a pre-commit hook. Game names, hero names and weapon names appearing in fixture content are referenced descriptively as real-world subjects of the news and catalogue; no publisher artwork or copy is reproduced.
+
+News fixtures link out to official publisher channels and carry original prose only; the app never reproduces a publisher's article body.
+
+---
+
+## 6. Scope and known limitations
+
+Stated plainly — this is a hackathon build and production readiness is not claimed.
+
+- **Sign-in is mocked.** There is no auth backend; the flow captures a display name and avatar and moves on. There are no passwords anywhere.
+- **Data is fixtures, not a backend.** Everything is seeded and every mutation is an in-memory session overlay. Reloading resets joins, votes, follows and imports. `services/` exists precisely so this swaps for real endpoints in one layer.
+- **Verification is simulated.** "Linking a game account" does not contact a publisher — no such partner API is available. The trust model built on it (§9.4: only verified items enter a Showroom) is fully implemented; only the account link is mocked.
+- **The 3D Showroom** renders real baked meshes for a subset of items; the rest use a depth-mapped relief of the 2D art. Backs are inferred from a single view, and the app says so rather than implying a scanned model.
+- **The AI proxy is rate-limited** and falls back to prepared content on timeout or error, always labelled.
+- **Native builds are less exercised than web.** The deployed target is the web export; iOS/Android run from the same codebase via Expo Go but have had less time on device.
+- Notifications, saved articles and moderation are functional but shallow — enough to demonstrate the flow.
+
+---
+
+## 7. Validation gates
+
+The repo carries its own checks. All four should pass on a clean clone:
+
+```bash
+npm run typecheck                      # tsc --noEmit
+npm run validate:fixtures              # referential integrity across all fixtures
+npm run validate:weapons               # 3D weapon model manifest vs files on disk
+npx tsx scripts/check-news-tabs.ts     # per-tab thumbnail dedupe + one game chip per card
+```
+
+`validate:fixtures` is the substantial one: it catches what TypeScript cannot — dangling item ids, room placements in slots that do not exist, scan fixtures whose confidences disagree with the routing thresholds, rarity labels that drift from the spec table, articles missing a body, inline figures pointing at items that do not exist, and reply vote tallies that are seeded incorrectly.
+
+`npm run lint` also exists (`expo lint`) but is not currently wired up in this checkout.
+
+---
+
+## Team notes
+
+The previous internal README — merge rules, ownership map, honest-pitch notes — is preserved at **[`docs/TEAM-NOTES.md`](docs/TEAM-NOTES.md)**. The product spec it refers to is **[`docs/PRD.md`](docs/PRD.md)**; section references in code comments (§9.2, §11 F4, §12.3) point there.
