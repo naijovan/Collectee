@@ -1,0 +1,116 @@
+COLLECTEE — ANIMATION BRIEF
+===========================================================================
+Garena AI Build Challenge · Singapore · every asset here exported from the
+real build, not mocked up.
+
+
+WHAT COLLECTEE IS, IN ONE PARAGRAPH
+---------------------------------------------------------------------------
+Every gamer owns hundreds of skins, and every one of them is locked inside
+the game that sold it. Collectee turns them into one collection you own the
+identity of, across Call of Duty: Mobile, Valorant and Mobile Legends. You
+photograph your inventory, a vision model reads the screenshots and matches
+each skin to a catalogue, and what comes out the other side is yours to group,
+rank and show off. Verified items — ones backed by a linked game account —
+earn a place in a 3D showroom other collectors can walk through.
+
+
+THE ONE IDEA THE ANIMATION SHOULD CARRY
+---------------------------------------------------------------------------
+Scattered -> gathered -> displayed.
+
+    scattered   skins trapped in separate games, unreachable
+    gathered    a scan pulls them into one place and names them
+    displayed   the ones you can prove become a room worth visiting
+
+If a single motion has to say what this product is, it is loose cards from
+three different worlds converging into one stack, then that stack opening
+into a lit room. The logo is literally that shape already: three cards, fanned.
+
+
+TONE
+---------------------------------------------------------------------------
+Dark, neon, confident. Not playful, not corporate.
+
+    - Near-black backgrounds (#0B0D10). The art is the only bright thing.
+    - Light comes from the objects themselves — rim glow, not key light.
+    - Motion is springy and settles. Overshoot slightly, never bounce twice.
+    - Nothing spins. Nothing flies in from off-screen for the sake of it.
+
+The app's own spring is friction 9 / tension 90. Matching it will make the
+animation feel like the same product rather than a trailer bolted on.
+
+
+WHAT EACH FOLDER IS FOR
+---------------------------------------------------------------------------
+00_READ_ME/          this file
+01_BRAND/            logo, Colly the assistant, and the brand guide PDF
+02_APP_SCREENS/      full screens from the running app
+03_ANIMATION_ASSETS/ transparent PNGs and SVGs to move independently
+04_REFERENCES/       EMPTY — see the note inside
+05_TRANSITION_FRAMES/ the frames the animation must match at each end
+
+
+THE LOGO IS BUILT TO BE ANIMATED
+---------------------------------------------------------------------------
+01_BRAND/collectee-logo.svg has four named groups:
+
+    #card-back   #card-mid   #card-front   #sparkle
+
+Each card is split into a -fill (dark face) and a -rim (neon edge), so the
+edges can charge up independently of the faces.
+
+The cards are drawn ALREADY FANNED. To build the fan on screen, start all
+three at #card-front's transform and stagger them out to their own — that
+reads as a stack being dealt. Pop the sparkle after the cards settle, not
+during.
+
+It is a REDRAW, not a trace. The shipped mark is a raster render with a
+volumetric glow that has no faithful vector equivalent. Use the SVG for
+motion; use collectee-logo.png when the exact look matters.
+
+
+THE MOMENT THAT MATTERS MOST
+---------------------------------------------------------------------------
+Unverified -> verified.
+
+03_ANIMATION_ASSETS/verified-badge.svg holds both states with the tick as its
+own group. Scale the tick from zero with a slight overshoot while the pill's
+border sweeps grey (#6B7484) to green (#31C48D).
+
+That transition is the product's whole payoff: it is the instant an item
+stops being a claim and earns a pedestal. If one beat gets extra attention,
+this is it.
+
+
+HARD CONSTRAINTS
+---------------------------------------------------------------------------
+1. NO PUBLISHER ASSETS. Every image here is original prototype art. There are
+   no game logos, no real character likenesses, no publisher marks anywhere in
+   this pack, and none may be added. If the animation needs a game's mark it
+   has to be cleared first — do not source one.
+
+2. DO NOT RECOLOUR THE LOGO. The blue-to-violet is the brand gradient. A
+   version tinted to a game's colours would imply a partnership that does not
+   exist.
+
+3. ONE GRADIENT ONLY. #3B82F6 -> #9333EA at 135 degrees. It is on every
+   primary button, the active chip and the import progress rail. Do not
+   introduce a second gradient; if something needs emphasis it takes this one
+   or it takes a flat accent.
+
+4. GAME COLOURS ARE NOT INTERCHANGEABLE. CODM is ember/amber, Valorant is
+   red with a teal label, Mobile Legends is violet. Swapping them is a factual
+   error about which game a skin belongs to. Full pairs in the brand guide.
+
+
+EVERYTHING ELSE
+---------------------------------------------------------------------------
+01_BRAND/brand-guide.pdf — one page: colours with hex codes, the gradient,
+per-game accents, the rarity scale, type, radius and spacing, shadows, the two
+different hover treatments and when each applies, the scrim rule for text over
+artwork, icon treatment and logo rules.
+
+Every value in it is read from the app's source (src/theme/theme.ts), not
+sampled from a screenshot. If the guide and the app ever disagree, the app is
+right.

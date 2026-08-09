@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Trust badges — the pair that carries Collectee's whole trust model.
+
+  Drawn to the app's real spec (see 01_BRAND/brand-guide.pdf): a pill with a
+  1px border and NO fill, so the colour lives on the border and the label and
+  never becomes a solid block sitting on artwork.
+
+  Two states, two ids, so they can cross-fade:
+    #verified    #31C48D  — the item is backed by a linked game account
+    #unverified  #6B7484  — scanned only; cannot enter a showroom
+
+  Suggested motion: scale the tick from 0 with a slight overshoot while the
+  border sweeps from grey to green. That transition IS the product's payoff —
+  it is the moment an item earns a pedestal.
+
+  Text is drawn as paths so no font is needed. Original label face is Inter 500
+  at 12px; if you retype it, match that.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 96" width="240" height="96">
+  <title>Collectee trust badges</title>
+
+  <g id="verified" transform="translate(4 4)">
+    <rect x="0" y="0" width="112" height="32" rx="16"
+          fill="none" stroke="#31C48D" stroke-width="1.5"/>
+    <!-- Tick, its own group so it can pop independently of the pill. -->
+    <g id="verified-tick" transform="translate(20 16)">
+      <path d="M-5 0 L-1.5 3.5 L5 -4"
+            fill="none" stroke="#31C48D" stroke-width="2.4"
+            stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="36" y="21" font-family="Inter, Helvetica, Arial, sans-serif"
+          font-size="12" font-weight="500" fill="#31C48D">Verified</text>
+  </g>
+
+  <g id="unverified" transform="translate(4 52)">
+    <rect x="0" y="0" width="112" height="32" rx="16"
+          fill="none" stroke="#6B7484" stroke-width="1.5"/>
+    <text x="16" y="21" font-family="Inter, Helvetica, Arial, sans-serif"
+          font-size="12" font-weight="500" fill="#6B7484">Unverified</text>
+  </g>
+</svg>

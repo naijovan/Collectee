@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Showroom pedestal — DRAWN FOR ANIMATION, not extracted from the app.
+
+  ⚠️ Read this before using it as reference.
+  The app has no pedestal asset. A showroom is a backdrop image plus a
+  fractional SLOT MAP — `{ x, y, w, h, depth }` in 0–1 coordinates — and the
+  item is composited into a slot at runtime. What reads as a pedestal is part
+  of the painted backdrop (see 03_ANIMATION_ASSETS/backgrounds/), and the
+  "pedestal" is really a rectangle in that image where an item is placed.
+
+  So this is an interpretation drawn to the brand tokens, useful for a motion
+  piece where an item needs to land on something. It is NOT what a user sees.
+  For that, composite an item from skin-card-*.png onto a backdrop.
+
+  Layers, back to front:
+    #glow-pool   the light bloom the item casts on the surface
+    #plinth      the body
+    #top-face    the surface the item stands on
+    #rim-light   the neon edge
+
+  Slot geometry the app actually uses, if you want to match a real room:
+    hero pedestal   x .38  y .44  w .24  h .34   depth 2 (front)
+    flanking case   x .08  y .50  w .18  h .26   depth 1 (mid)
+    wall panel      x .12  y .14  w .16  h .22   depth 0 (back)
+  Depth drives parallax amplitude and paint order.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 320" width="400" height="320">
+  <title>Showroom pedestal (interpretation)</title>
+
+  <defs>
+    <linearGradient id="plinth-face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1B2233"/>
+      <stop offset="1" stop-color="#0B0D10"/>
+    </linearGradient>
+    <linearGradient id="top-sheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3B82F6" stop-opacity="0.35"/>
+      <stop offset="0.5" stop-color="#9333EA" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#3B82F6" stop-opacity="0.35"/>
+    </linearGradient>
+    <radialGradient id="pool" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3B82F6" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#3B82F6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- The bloom the item casts. Animate its opacity to "power up" the plinth. -->
+  <ellipse id="glow-pool" cx="200" cy="150" rx="150" ry="42" fill="url(#pool)"/>
+
+  <g id="plinth">
+    <!-- Slight taper: wider at the base reads as weight. -->
+    <path d="M112 150 L288 150 L306 286 L94 286 Z" fill="url(#plinth-face)"/>
+    <path d="M112 150 L288 150 L306 286 L94 286 Z"
+          fill="none" stroke="#252B38" stroke-width="1.5"/>
+  </g>
+
+  <g id="top-face">
+    <ellipse cx="200" cy="150" rx="88" ry="24" fill="#141821"/>
+    <ellipse cx="200" cy="150" rx="88" ry="24" fill="url(#top-sheen)"/>
+  </g>
+
+  <g id="rim-light">
+    <ellipse cx="200" cy="150" rx="88" ry="24"
+             fill="none" stroke="#67E8F9" stroke-width="2.5" opacity="0.9"/>
+    <!-- Base glow line, dimmer — the light falls off down the body. -->
+    <path d="M94 286 L306 286" stroke="#3B82F6" stroke-width="2"
+          opacity="0.35" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -34,3 +34,8 @@ assets/collectee/character-references/
 # Local working files. Already gitignored, listed so a CLI deploy from a dirty
 # tree cannot sweep them up.
 scratchpad/
+
+# Motion handoff pack for the animator. 64 MB of screenshots, brand art and a
+# PDF; nothing in src/ requires any of it, so uploading it to every deploy
+# would undo the saving this file exists for.
+animation/

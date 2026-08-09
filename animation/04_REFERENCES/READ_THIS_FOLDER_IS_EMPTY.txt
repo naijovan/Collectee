@@ -1,0 +1,29 @@
+04_REFERENCES — EMPTY, AND DELIBERATELY SO
+===========================================================================
+
+This folder is in the structure because the template asked for it. Nothing
+has been put in it, because nothing belongs to Collectee that could go here.
+
+WHAT WAS ASKED FOR
+    animation-reference-01.mp4    a motion reference
+    inspiration-images/           look-and-feel references
+
+WHY IT IS EMPTY
+    The repository contains no video and no mood-board imagery. Filling this
+    with material scraped from elsewhere would be worse than leaving it bare:
+    reference clips and inspiration images are almost always someone else's
+    copyrighted work, and this project's hard rule is that no third-party
+    asset reaches a deliverable (§15). A folder of borrowed frames is exactly
+    the thing a publisher would ask about.
+
+WHAT TO PUT HERE, IF YOU WANT TO
+    Anything YOU choose as a reference — a clip you have rights to, or one
+    you are only using privately to brief a style. Drop it in and it travels
+    with the rest of the pack.
+
+WHAT TO USE INSTEAD, RIGHT NOW
+    05_TRANSITION_FRAMES/ has the two frames the animation must match.
+    00_READ_ME/animation_brief.txt describes the intended motion in words —
+    "scattered, gathered, displayed", springy and settling, nothing spins.
+    02_APP_SCREENS/ is the real product, which is the most accurate reference
+    for its own animation that exists.
