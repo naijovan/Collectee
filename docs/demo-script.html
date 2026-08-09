@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Collectee — 4-minute demo script</title>
+<style>
+  @page { size: A4; margin: 14mm 13mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 9.4pt; line-height: 1.42; color: #14171c; margin: 0;
+  }
+  h1 { font-size: 19pt; margin: 0 0 2mm; letter-spacing: -0.3px; }
+  .sub { color: #5b6472; font-size: 9pt; margin: 0 0 4mm; }
+  .rule { height: 2px; background: linear-gradient(90deg,#3B82F6,#9333EA); margin: 0 0 4mm; }
+
+  .banner {
+    border: 1px solid #f0c36d; background: #fdf6e3; border-radius: 4px;
+    padding: 2.4mm 3mm; margin: 0 0 4mm; font-size: 8.6pt;
+  }
+  .banner b { color: #8a6100; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 7.6pt; text-transform: uppercase; letter-spacing: .6px;
+       color: #6b7484; border-bottom: 1.5px solid #d6dbe2; padding: 0 0 1.2mm; }
+  td { vertical-align: top; padding: 2.1mm 2mm 2.1mm 0; border-bottom: 1px solid #edf0f3; }
+  tr { page-break-inside: avoid; }
+  .t  { width: 15mm; font-variant-numeric: tabular-nums; font-weight: 700; color: #9333EA; white-space: nowrap; }
+  .sec{ width: 30mm; font-weight: 700; }
+  .do { width: 62mm; color: #33404f; }
+  .do i { color: #6b7484; font-style: normal; display: block; margin-top: 0.8mm; font-size: 8.4pt; }
+  .say { }
+  .say q { quotes: none; }
+  .say q:before, .say q:after { content: ""; }
+
+  h2 { font-size: 11pt; margin: 5mm 0 2mm; padding-top: 2mm; border-top: 1px solid #d6dbe2; }
+  ul { margin: 1.5mm 0 0 4mm; padding: 0; }
+  li { margin-bottom: 1.1mm; }
+  .two { display: flex; gap: 6mm; }
+  .two > div { flex: 1; }
+  .k { font-weight: 700; }
+  .warn { color: #b4453a; font-weight: 700; }
+  .ok { color: #1f7a44; font-weight: 700; }
+  code { background: #f2f4f7; padding: 0 1mm; border-radius: 2px; font-size: 8.4pt; }
+  .foot { margin-top: 5mm; font-size: 8pt; color: #6b7484; }
+</style>
+</head>
+<body>
+
+<h1>Collectee — 4-minute demo script</h1>
+<p class="sub">Garena AI Build Challenge · shot-by-shot, with voiceover · target 3:55, hard ceiling 5:00</p>
+<div class="rule"></div>
+
+<div class="banner">
+  <b>Before you record — three checks.</b>
+  <b>1.</b> The AI proxy must be redeployed from <code>main</code>, or single-item imports match badly (9 of 54 instead of 36 of 41).
+  <b>2.</b> Anthropic credit must be topped up, or the scan errors mid-demo.
+  <b>3.</b> Sign out via Settings → reset first run. A page refresh will <i>not</i> take you back to the sign-in screen.
+</div>
+
+<table>
+  <thead>
+    <tr><th class="t">Time</th><th class="sec">Section</th><th class="do">On screen</th><th class="say">Say this</th></tr>
+  </thead>
+  <tbody>
+
+  <tr>
+    <td class="t">0:00–0:15</td>
+    <td class="sec">Sign-in</td>
+    <td class="do">Open on the sign-in screen. Hover both buttons so they spring. Tap <b>Sign in</b>.
+      <i>Don't tap guest — that's the last shot.</i></td>
+    <td class="say">Every gamer owns hundreds of skins, and every one of them is locked inside the game that sold it. Collectee turns them into one collection you actually own the identity of — across Call of Duty Mobile, Valorant and Mobile Legends.</td>
+  </tr>
+
+  <tr>
+    <td class="t">0:15–0:40</td>
+    <td class="sec">Onboarding</td>
+    <td class="do">Type a name and handle. Try a taken handle first — <b>zennx</b> — show it refuse, then type your own. Pick an age, pick a face. Continue.
+      <i>Then games, interests, collector type — move fast, one tap each.</i></td>
+    <td class="say">Sign-up asks who you are, and it checks — handles are unique, and the app is eighteen plus. Then three questions that shape the feed: which games you play, what you collect, and how seriously. Two of those are optional and say so.</td>
+  </tr>
+
+  <tr>
+    <td class="t">0:40–0:55</td>
+    <td class="sec">Home</td>
+    <td class="do">Land on Home. Let the hero sit for a beat. Scroll slowly past Collectors You May Like, Explore Collectibles, Trending Showrooms.</td>
+    <td class="say">You land on a feed built from what you own — collectors matched to your inventory, collections made for your games, and showrooms other people have published.</td>
+  </tr>
+
+  <tr>
+    <td class="t">0:55–2:05</td>
+    <td class="sec"><b>Import</b><br><span style="font-weight:400;color:#6b7484">the hero flow</span></td>
+    <td class="do"><b>Tap the plus.</b> Upload <b>two</b> files from <code>demo/</code> — <b>Charm — Dog Tag</b> and <b>Sovereign Ghost</b>. Start Scan.
+      <i>Watch the step rail fill. On Review: one item is added for you, the other needs a Confirm — tap it. Then Verify → Complete.</i></td>
+    <td class="say">This is the part that matters. I upload screenshots — no account linking, no API. A vision model reads them and matches each skin against our catalogue, not by name but by what it looks like. High confidence gets added for me. Anything it isn't sure about waits for me to confirm — it never guesses on my behalf. Then I verify, and the items land in my inventory.</td>
+  </tr>
+
+  <tr>
+    <td class="t">2:05–2:25</td>
+    <td class="sec">Inventory &amp; trust</td>
+    <td class="do">From Complete, go to <b>Your Inventory</b>. Point at a <b>Verified</b> badge, then an <b>Unverified</b> one. Scroll one screen.</td>
+    <td class="say">Everything scanned lands unverified, and stays that way until a game account backs it. That distinction is the whole trust model — and it's what decides where an item is allowed to go.</td>
+  </tr>
+
+  <tr>
+    <td class="t">2:25–2:45</td>
+    <td class="sec">Collections</td>
+    <td class="do">Collections tab. Open <b>Crown Jewels</b>. Back out, show the <b>Suggestions</b> row — Ready for a Showroom / Ready for a Collection.
+      <i>Do not create one.</i></td>
+    <td class="say">A collection is where an inventory dump becomes an identity — Crown Jewels is one from each game. The app also reads your inventory and proposes the groupings you haven't made yet.</td>
+  </tr>
+
+  <tr>
+    <td class="t">2:45–3:20</td>
+    <td class="sec"><b>Showroom</b></td>
+    <td class="do">Open <b>Shrine of the Sovereign</b>. Tap <b>Enter the room</b>. Drag to shift the parallax. Tap an item, then <b>View in 3D</b> — let the mesh rotate.</td>
+    <td class="say">And this is where a verified collection becomes a room you can walk into. These are real 3D meshes, baked from our own concept art — no publisher assets anywhere. Only verified items get a pedestal. That's the reward for proving what you own.</td>
+  </tr>
+
+  <tr>
+    <td class="t">3:20–3:40</td>
+    <td class="sec">Explore</td>
+    <td class="do">Explore tab. Collectors — point at a match percentage <b>and its reason</b>. Switch to Communities.</td>
+    <td class="say">Because your inventory is now data, we can match you to collectors who own what you own — and always tell you why. Communities group people by what they collect rather than what they play.</td>
+  </tr>
+
+  <tr>
+    <td class="t">3:40–3:52</td>
+    <td class="sec">News &amp; assistant</td>
+    <td class="do">Home → a news card → open the reader. Then tap the assistant and ask one short question.
+      <i>Have the question typed and ready.</i></td>
+    <td class="say">Skin news, summarised and ranked for the games you follow. And an assistant that answers from your own collection — how many verified items you have, which sets you could finish.</td>
+  </tr>
+
+  <tr>
+    <td class="t">3:52–4:00</td>
+    <td class="sec">Guest &amp; close</td>
+    <td class="do">Cut to the guest session already open on <b>Collections</b>, showing the sign-up pitch.
+      <i>Pre-record this — don't sign out live.</i></td>
+    <td class="say">You can browse all of it as a guest and own none of it — which is the pitch. Collectee: every skin you own, in one place, finally worth showing.</td>
+  </tr>
+
+  </tbody>
+</table>
+
+<h2>Recording notes</h2>
+<div class="two">
+  <div>
+    <ul>
+      <li><span class="k">Rehearse the import twice.</span> It's 70 of your 240 seconds and the only segment with a live model call. Everything else is instant.</li>
+      <li><span class="k">Use these two files</span> — measured, not guessed. <code>4 Rare · Charm — Dog Tag</code> (CODM, 0.92) and <code>2 Legendary · Sovereign Ghost</code> (Valorant, 0.90) are the <i>only</i> two that clear the auto-accept threshold and add themselves.</li>
+      <li><span class="k">Two files, not one.</span> Multi-upload is a feature, and it gives you one auto-add plus one Confirm — which shows both halves of the trust model in a single pass.</li>
+      <li><span class="warn">Never demo these:</span> AK117 — Cordite Storm, Mace — Blackout, Camo — Desert Strata, Glitchpop Vandal, Lancelot — Royal Matador. They import the <i>wrong</i> item.</li>
+    </ul>
+  </div>
+  <div>
+    <ul>
+      <li><span class="k">Word budget.</span> The voiceover is ~530 words ≈ 3:35 at a natural pace. That leaves ~25 seconds of slack for the scan to run — don't fill it with more script.</li>
+      <li><span class="k">If the scan is slow,</span> keep talking over it. The line about "never guesses on my behalf" is written to be said <i>while</i> the spinner runs.</li>
+      <li><span class="k">Trim here first</span> if you're over: cut News &amp; assistant (12s), then Explore's Communities half (8s). Never cut Import or the Showroom.</li>
+      <li><span class="k">Say "our own concept art"</span> out loud during the room. It pre-empts the first question a publisher asks.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>What each beat is proving</h2>
+<ul>
+  <li><span class="k">Import</span> — the app does something real and hard, live, on stage. This is the differentiator.</li>
+  <li><span class="k">Verified vs unverified</span> — you thought about trust before anyone asked.</li>
+  <li><span class="k">Showroom</span> — the emotional payoff, and the reason verification is worth doing.</li>
+  <li><span class="k">Match reasons</span> — the social layer is explainable, not a black box.</li>
+  <li><span class="k">Guest</span> — you understand the funnel, not just the feature list.</li>
+</ul>
+
+<p class="foot">Timings assume ~150 words per minute. Total voiceover ≈ 530 words. Generated for the Collectee demo · not for distribution.</p>
+
+</body>
+</html>

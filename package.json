@@ -61,6 +61,7 @@
     "bake:palette": "tsx scripts/bake-palette.ts",
     "bake:display-art": "tsx scripts/bake-display-art.ts",
     "bake:app-icon": "tsx scripts/bake-app-icon.ts",
+    "demo:script": "\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=\"$HOME/Desktop/Collectee-demo-script.pdf\" \"file://$PWD/docs/demo-script.html\"",
     "bake:item-looks": "tsx scripts/bake-item-looks.ts",
     "build:demo": "tsx scripts/build-demo-uploads.ts"
   },
