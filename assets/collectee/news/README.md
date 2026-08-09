@@ -1,8 +1,9 @@
 # News art — brief
 
-Two sets live in this directory: the **hero banners** (3:1, top of each game tab) and the
-**generic article thumbnails** (1:1, used only when an article has no related item). The
-`news-thumb-` prefix keeps them apart in a listing.
+Three sets live in this directory: the **hero banners** (3:1, top of each game tab), the
+**generic article thumbnails** (1:1, used only when an article has no related item), and
+**article-specific thumbnails** (3:2, used when a fixture's `imageUrl` is registered).
+The `news-thumb-` prefix keeps generic thumbnails apart in a listing.
 
 ---
 
@@ -128,3 +129,20 @@ graphic shapes, readable at small size, no text, no logos, 1:1
 **`news-thumb-mlbb.png`** — Original concept art, square emblem tile, single stylised faceted
 gemstone-and-crown motif, centred, violet and gold on deep indigo, soft magical glow, readable
 at small size, no text, no logos, 1:1
+
+---
+
+## Article-specific thumbnails
+
+These are story-led card images registered in `src/config/newsArticleImages.ts` and keyed by the
+fixture's `imageUrl`. They render above the card text on Home and News before the older related-item
+fallback runs.
+
+| Article imageUrl | File (exact) | Dimensions | Aspect | Fit |
+| --- | --- | --- | --- | --- |
+| `news/val-champions-shanghai.png` | `val-champions-shanghai.png` | 1200×800 | 3:2 | `cover` |
+| `news/val-outlaw-pass.png` | `val-outlaw-pass.png` | 1200×800 | 3:2 | `cover` |
+
+Keep the main subject centred and fill the whole frame. News uses the native 3:2 card; Home crops
+the same image to 16:9, so anything important must survive a centre crop. No text, logos, publisher
+marks, recognisable characters, or blank/letterboxed edges.
