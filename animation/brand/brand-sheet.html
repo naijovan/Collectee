@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Collectee — brand sheet</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 9pt;
+         line-height: 1.4; color: #14171c; margin: 0; }
+  h1 { font-size: 19pt; margin: 0 0 1mm; letter-spacing: -0.3px; }
+  .sub { color: #5b6472; font-size: 8.6pt; margin: 0 0 3mm; }
+  .rule { height: 2px; background: linear-gradient(90deg,#3B82F6,#9333EA); margin: 0 0 4mm; }
+  h2 { font-size: 10.5pt; margin: 5mm 0 2mm; padding-top: 1.5mm; border-top: 1px solid #d6dbe2; }
+  h2:first-of-type { border-top: none; padding-top: 0; margin-top: 3mm; }
+  .note { color: #5b6472; font-size: 8.2pt; margin: 0 0 2mm; }
+
+  .swatches { display: flex; flex-wrap: wrap; gap: 2.5mm; }
+  .sw { width: 30mm; border: 1px solid #e3e7ec; border-radius: 3px; overflow: hidden; }
+  .chip { height: 13mm; }
+  .sw .meta { padding: 1.2mm 1.6mm; }
+  .sw .name { font-weight: 700; font-size: 8pt; }
+  .sw .hex { font-family: "SF Mono", Menlo, monospace; font-size: 7.6pt; color: #5b6472; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 1mm; }
+  th { text-align: left; font-size: 7.4pt; text-transform: uppercase; letter-spacing: .5px;
+       color: #6b7484; border-bottom: 1.5px solid #d6dbe2; padding-bottom: 1mm; }
+  td { padding: 1.5mm 2mm 1.5mm 0; border-bottom: 1px solid #edf0f3; vertical-align: top; }
+  code { font-family: "SF Mono", Menlo, monospace; font-size: 8pt;
+         background: #f2f4f7; padding: 0 1mm; border-radius: 2px; }
+  ul { margin: 1mm 0 0 4mm; padding: 0; }
+  li { margin-bottom: 1mm; }
+  .two { display: flex; gap: 5mm; }
+  .two > div { flex: 1; }
+  .demo { background: #0B0D10; border-radius: 4px; padding: 3mm; margin-top: 2mm; }
+  .demo-row { display: flex; gap: 3mm; align-items: center; flex-wrap: wrap; }
+  .pill { border-radius: 999px; padding: 1.6mm 4mm; color: #fff; font-size: 8.4pt; font-weight: 600;
+          background: linear-gradient(135deg,#3B82F6,#9333EA); }
+  .card-demo { width: 34mm; height: 20mm; border-radius: 14px; background: #141821;
+               border: 1px solid #252B38; }
+  .badge { border-radius: 999px; padding: 0.8mm 2.4mm; font-size: 7.4pt; font-weight: 600;
+           border: 1px solid; }
+  .foot { margin-top: 4mm; font-size: 7.6pt; color: #6b7484; }
+</style>
+</head>
+<body>
+
+<h1>Collectee — brand sheet</h1>
+<p class="sub">Every value below is read from <code>src/theme/theme.ts</code>, not sampled from a screenshot. If the app and this page disagree, the app is right and this page is stale.</p>
+<div class="rule"></div>
+
+<h2>Core palette — dark (the app ships dark)</h2>
+<div class="swatches">
+  <div class="sw"><div class="chip" style="background:#0B0D10"></div><div class="meta"><div class="name">background</div><div class="hex">#0B0D10</div></div></div>
+  <div class="sw"><div class="chip" style="background:#141821"></div><div class="meta"><div class="name">surface</div><div class="hex">#141821</div></div></div>
+  <div class="sw"><div class="chip" style="background:#252B38"></div><div class="meta"><div class="name">border</div><div class="hex">#252B38</div></div></div>
+  <div class="sw"><div class="chip" style="background:#2F6BFF"></div><div class="meta"><div class="name">accent</div><div class="hex">#2F6BFF</div></div></div>
+  <div class="sw"><div class="chip" style="background:#1B2E5C"></div><div class="meta"><div class="name">accentMuted</div><div class="hex">#1B2E5C</div></div></div>
+  <div class="sw"><div class="chip" style="background:#FFFFFF"></div><div class="meta"><div class="name">textPrimary</div><div class="hex">#FFFFFF</div></div></div>
+  <div class="sw"><div class="chip" style="background:#9AA4B5"></div><div class="meta"><div class="name">textSecondary</div><div class="hex">#9AA4B5</div></div></div>
+  <div class="sw"><div class="chip" style="background:#6B7484"></div><div class="meta"><div class="name">textTertiary</div><div class="hex">#6B7484</div></div></div>
+  <div class="sw"><div class="chip" style="background:#31C48D"></div><div class="meta"><div class="name">success</div><div class="hex">#31C48D</div></div></div>
+  <div class="sw"><div class="chip" style="background:#F5A524"></div><div class="meta"><div class="name">warning</div><div class="hex">#F5A524</div></div></div>
+  <div class="sw"><div class="chip" style="background:#F04438"></div><div class="meta"><div class="name">danger</div><div class="hex">#F04438</div></div></div>
+  <div class="sw"><div class="chip" style="background:#93C5FD"></div><div class="meta"><div class="name">accentSoft</div><div class="hex">#93C5FD</div></div></div>
+</div>
+
+<h2>Gradient — the one brand gradient</h2>
+<p class="note">Used on every primary CTA, the active filter chip, the import step rail and the logo. Always <b>135°</b> (top-left → bottom-right). Do not invent a second gradient; if something needs emphasis it takes this one or it takes a flat accent.</p>
+<div class="demo">
+  <div class="demo-row">
+    <span class="pill">Primary button</span>
+    <span style="color:#9AA4B5;font-size:8.4pt">
+      <code style="background:#1B2E5C;color:#fff">#3B82F6</code> → <code style="background:#1B2E5C;color:#fff">#9333EA</code>
+    </span>
+  </div>
+  <div style="height:6px;border-radius:999px;margin-top:3mm;background:linear-gradient(90deg,#3B82F6,#9333EA)"></div>
+  <p style="color:#6B7484;font-size:7.8pt;margin:2mm 0 0">The step rail samples this ramp per segment so a run of separate views reads as one continuous sweep — see <code style="background:#1B2E5C;color:#93C5FD">accentRampAt()</code>.</p>
+</div>
+
+<h2>Game accents — never interchangeable</h2>
+<p class="note">Each title owns a pair. <b>base</b> is the border or rule; <b>secondary</b> is the label colour, because <b>base</b> fails contrast on 10–12px type over a dark scrim.</p>
+<table>
+  <thead><tr><th style="width:34mm">Game</th><th style="width:30mm">base</th><th style="width:30mm">secondary</th><th>Where it appears</th></tr></thead>
+  <tbody>
+    <tr><td><b>Call of Duty: Mobile</b></td><td><code>#FF7A29</code> ember</td><td><code>#FFB347</code> amber</td><td>Game badge, news tag, hero title row</td></tr>
+    <tr><td><b>Valorant</b></td><td><code>#FF4655</code> red</td><td><code>#22D3C5</code> teal</td><td>Same. Label is teal — red fails on small type.</td></tr>
+    <tr><td><b>Mobile Legends</b></td><td><code>#8B5CF6</code> violet</td><td><code>#C4B5FD</code> light violet</td><td>Same. Was gold; collided with CODM amber.</td></tr>
+    <tr><td><b>Cross-game</b></td><td><code>#EC4899</code> magenta</td><td><code>#F9A8D4</code> pink</td><td>Communities with no single title</td></tr>
+  </tbody>
+</table>
+
+<h2>Rarity — sort on tier, print the game's own word</h2>
+<p class="note">Colour is the fast read; the label is the game's native term and differs per title (a CODM "Mythic" is not an MLBB "Collector"). Never invent a rarity word.</p>
+<div class="swatches">
+  <div class="sw"><div class="chip" style="background:#8B94A6"></div><div class="meta"><div class="name">common</div><div class="hex">#8B94A6</div></div></div>
+  <div class="sw"><div class="chip" style="background:#3B82F6"></div><div class="meta"><div class="name">rare</div><div class="hex">#3B82F6</div></div></div>
+  <div class="sw"><div class="chip" style="background:#A855F7"></div><div class="meta"><div class="name">epic</div><div class="hex">#A855F7</div></div></div>
+  <div class="sw"><div class="chip" style="background:#F5A524"></div><div class="meta"><div class="name">legendary</div><div class="hex">#F5A524</div></div></div>
+  <div class="sw"><div class="chip" style="background:#F04438"></div><div class="meta"><div class="name">mythic</div><div class="hex">#F04438</div></div></div>
+</div>
+
+<div class="two">
+  <div>
+    <h2>Type</h2>
+    <table>
+      <thead><tr><th>Role</th><th>Face</th><th>Size / line</th></tr></thead>
+      <tbody>
+        <tr><td>screenTitle</td><td>Space Grotesk 700</td><td>34 / 41, −0.4</td></tr>
+        <tr><td>overlayTitle</td><td>Space Grotesk 700</td><td>23 / 28, −0.4 + shadow</td></tr>
+        <tr><td>overlayTitleSmall</td><td>Space Grotesk 700</td><td>20 / 25, −0.3 + shadow</td></tr>
+        <tr><td>sectionHeader</td><td>Space Grotesk 700</td><td>18 / 24, −0.2</td></tr>
+        <tr><td>cardTitle</td><td>Inter 600</td><td>15 / 20</td></tr>
+        <tr><td>body</td><td>Inter 400</td><td>14 / 20</td></tr>
+        <tr><td>meta</td><td>Inter 500</td><td>12 / 16</td></tr>
+      </tbody>
+    </table>
+    <p class="note" style="margin-top:2mm"><b>Weight comes from the family, never <code>fontWeight</code>.</b> Android synthesises a fake bold over an already-bold cut and it smears. Numbers that change live use <code>fontVariant: tabular-nums</code>.</p>
+  </div>
+  <div>
+    <h2>Radius &amp; spacing</h2>
+    <table>
+      <thead><tr><th>Token</th><th>Value</th><th>Use</th></tr></thead>
+      <tbody>
+        <tr><td>radius.sm</td><td>8</td><td>Inner chips, small tiles</td></tr>
+        <tr><td>radius.card</td><td>14</td><td><b>Every card.</b> The house radius.</td></tr>
+        <tr><td>radius.lg</td><td>20</td><td>Sheets, large panels</td></tr>
+        <tr><td>radius.pill</td><td>999</td><td>Buttons, chips, badges, avatars</td></tr>
+        <tr><td colspan="3" style="padding-top:2mm"><b>spacing</b> — 4 / 8 / 12 / 16 / 24 / 32 (xs → xxl)</td></tr>
+      </tbody>
+    </table>
+    <div class="demo">
+      <div class="demo-row">
+        <div class="card-demo"></div>
+        <div style="color:#6B7484;font-size:7.8pt">card: 14px radius,<br>#141821 on #0B0D10,<br>1px #252B38 border</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Shadows &amp; glow</h2>
+<table>
+  <thead><tr><th style="width:32mm">Name</th><th>Spec</th><th>Use</th></tr></thead>
+  <tbody>
+    <tr><td><b>accentGlow</b></td><td>colour <code>#9333EA</code>, opacity .55, radius 16, offset 0/4</td><td>Gradient CTAs, the active step circle</td></tr>
+    <tr><td><b>rarity lift</b></td><td>shadow tinted to the rarity colour, opacity .45, radius scales with tier</td><td>Epic and above only — a wall of commons stays calm</td></tr>
+    <tr><td><b>hover lift</b></td><td>translateY −3px, 140ms</td><td>Cards in a grid. Translate only, never scale.</td></tr>
+    <tr><td><b>hover pop</b></td><td>spring to scale 1.06 + translateY −2 (friction 9, tension 90)</td><td>Chips and pill CTAs — things with room around them</td></tr>
+  </tbody>
+</table>
+<p class="note">The two hovers are not interchangeable. A card in a wrapped grid that scales overlaps its neighbours and pushes its border outside the container; a chip in a spaced row has room, and a 3px lift on it is invisible.</p>
+
+<h2>Overlay treatment — how text sits on artwork</h2>
+<p class="note">Cards do not put labels in a panel below the art. The art fills the tile and the text is laid over a bottom-weighted scrim, so the card spends its height once instead of twice.</p>
+<ul>
+  <li><b>Scrim:</b> a real linear gradient, <code>clear → medium → heavy</code> at stops 0 / 0.45 / 1, covering the bottom 52–62%.</li>
+  <li><b>Corner marks:</b> game badge top-left, owner or attribution top-right — the two frame the art between them.</li>
+  <li><b>Bottom band:</b> title left, counts right. Likes are <code>#F04438</code>; item counts are white at 75%.</li>
+  <li><b>Never</b> place white text on raw artwork. The scrim is what makes it legible on a bright crop.</li>
+</ul>
+
+<h2>Icon treatment</h2>
+<ul>
+  <li>Tab icons are <b>drawn line icons</b>, 23–24px, not an icon font. Active takes the accent; inactive takes <code>#6B7484</code>.</li>
+  <li>The <b>Import</b> action is the exception: a filled gradient disc, raised, with a spring hover. It is the app's one primary action and looks like it.</li>
+  <li>Badges (rarity, trust, game) are <b>pill-shaped, 1px border, transparent fill</b> — the colour lives on the border and the label, never as a solid block over artwork.</li>
+</ul>
+<div class="demo">
+  <div class="demo-row">
+    <span class="badge" style="border-color:#FF7A29;color:#FFB347">CODM</span>
+    <span class="badge" style="border-color:#22D3C5;color:#22D3C5">VALORANT</span>
+    <span class="badge" style="border-color:#8B5CF6;color:#C4B5FD">MLBB</span>
+    <span class="badge" style="border-color:#EC4899;color:#F9A8D4">Cross-Game</span>
+    <span class="badge" style="border-color:#31C48D;color:#31C48D">✓ Verified</span>
+    <span class="badge" style="border-color:#6B7484;color:#6B7484">Unverified</span>
+  </div>
+</div>
+
+<h2>Logo rules</h2>
+<div class="two">
+  <div>
+    <ul>
+      <li><b>Clear space</b> — at least 20% of the mark's width on every side. It is drawn with its own margin; the files in <code>animation/logo/</code> are trimmed, so add it back.</li>
+      <li><b>Minimum size</b> — 24px. Below that the three cards merge and it reads as a blob; use a single card if you need smaller.</li>
+      <li><b>Backgrounds</b> — near-black <code>#0B0D10</code> is the intended home. On light backgrounds use <code>collectee-mark-on-light.png</code>; the glow disappears on white if you use the transparent version.</li>
+      <li><b>The glow is part of the mark.</b> Do not flatten it away or add a second one.</li>
+    </ul>
+  </div>
+  <div>
+    <ul>
+      <li><b>Do not</b> recolour it. The blue→violet is the brand gradient; a game-accent version would claim a partnership we do not have.</li>
+      <li><b>Do not</b> rotate, skew or outline it.</li>
+      <li><b>Do not</b> place it on artwork without a scrim behind it.</li>
+      <li><b>In the app</b> it is a home button, 40px, sitting on the screen title's line — it is a lockup with the words, not a badge in the corner.</li>
+    </ul>
+  </div>
+</div>
+
+<p class="foot">Generated for the Collectee motion handoff. Source of truth: <code>src/theme/theme.ts</code>, <code>src/config/artRegistry.ts</code>. Art is original prototype work — no publisher assets (§15).</p>
+
+</body>
+</html>

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Collectee mark — layered vector redraw.
+
+  ⚠️ THIS IS A REDRAW, NOT A TRACE OF THE MASTER.
+  The shipped mark (collectee-mark.png, 1254px) is a raster render with a soft
+  volumetric glow that has no faithful vector equivalent. This file reproduces
+  its GEOMETRY — three stacked cards and a four-point sparkle — so the shapes can
+  be animated independently. Use it for motion; use the PNG when you need the
+  exact look of the app icon.
+
+  ── Layer order, back to front ──────────────────────────────────────────────
+    #card-back    the furthest card, most violet
+    #card-mid     the middle card
+    #card-front   the nearest card, most cyan — carries the sparkle
+    #sparkle      the four-point star
+
+  Each card is a group of two paths: `-fill` (the dark face) and `-rim` (the
+  neon edge). Animate the rim's stroke for a "charging" effect and leave the
+  fill alone, or scale/rotate whole groups for a fan-out.
+
+  ── Suggested motion ────────────────────────────────────────────────────────
+  The cards are drawn already fanned. To build the fan on screen, start all
+  three at #card-front's transform and stagger them out to their own — that
+  reads as a stack being dealt. The sparkle is a separate group so it can pop
+  after the cards settle.
+
+  Colours are the app's own tokens; see animation/brand/brand-sheet.pdf.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
+     role="img" aria-label="Collectee">
+  <title>Collectee</title>
+
+  <defs>
+    <!-- Back-to-front the rim shifts blue → violet, matching the raster master. -->
+    <linearGradient id="rim-back" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="rim-mid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="rim-front" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#67E8F9"/>
+      <stop offset="1" stop-color="#3B82F6"/>
+    </linearGradient>
+    <linearGradient id="sparkle-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#A5F3FC"/>
+      <stop offset="1" stop-color="#38BDF8"/>
+    </linearGradient>
+
+    <!-- The neon bloom. Drop this filter for a flat mark. -->
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g id="mark" filter="url(#glow)">
+
+    <g id="card-back" transform="translate(96 -14) rotate(6 128 160)">
+      <rect id="card-back-fill" x="128" y="96" width="176" height="232" rx="34"
+            fill="#0A1230"/>
+      <rect id="card-back-rim" x="128" y="96" width="176" height="232" rx="34"
+            fill="none" stroke="url(#rim-back)" stroke-width="11"/>
+    </g>
+
+    <g id="card-mid" transform="translate(48 -7) rotate(6 128 160)">
+      <rect id="card-mid-fill" x="128" y="96" width="176" height="232" rx="34"
+            fill="#080E26"/>
+      <rect id="card-mid-rim" x="128" y="96" width="176" height="232" rx="34"
+            fill="none" stroke="url(#rim-mid)" stroke-width="11"/>
+    </g>
+
+    <g id="card-front" transform="rotate(6 128 160)">
+      <rect id="card-front-fill" x="128" y="96" width="176" height="232" rx="34"
+            fill="#060A1C"/>
+      <rect id="card-front-rim" x="128" y="96" width="176" height="232" rx="34"
+            fill="none" stroke="url(#rim-front)" stroke-width="11"/>
+
+      <!-- Four-point star: straight tips, concave sides. Its own group so it can
+           be scaled from the card's centre without moving the card. -->
+      <g id="sparkle" transform="translate(216 212)">
+        <path id="sparkle-shape"
+              d="M0 -72 C 8 -26 26 -8 72 0 C 26 8 8 26 0 72 C -8 26 -26 8 -72 0 C -26 -8 -8 -26 0 -72 Z"
+              fill="url(#sparkle-fill)"/>
+      </g>
+    </g>
+
+  </g>
+</svg>
