@@ -33,6 +33,7 @@ import {
 } from '@/components';
 import { socialService, threadService } from '@/services';
 import type { ThreadSummary } from '@/services';
+import { ROLE_LABELS, roleFor, topTableFor } from '@/config/communityRoles';
 import { useApp } from '@/state/AppContext';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import type { Community, CommunityNotificationPref, User } from '@/types';
@@ -75,7 +76,22 @@ export default function CommunityScreen() {
     ]);
 
     setCommunity(found);
-    setMembers(roster);
+    /*
+     * The leader and four co-leaders, in that order — not the raw roster.
+     *
+     * These communities have thousands of members, so a list is impossible and
+     * an arbitrary slice of five says nothing about the place. Who runs it does,
+     * and it is stable, so the section does not reshuffle between visits.
+     *
+     * Ordered by `topTableFor` rather than by roster position: the roster is
+     * authored for other reasons and its order carries no meaning.
+     */
+    const byId = new Map(roster.map((member) => [member.id, member]));
+    setMembers(
+      topTableFor(found.id)
+        .map((userId) => byId.get(userId))
+        .filter((member): member is User => member !== undefined),
+    );
     setThreads(discussions);
     setMemberCount(socialService.memberCountFor(found));
     setIsMember(socialService.isMember(viewerId, found.id));
@@ -282,6 +298,11 @@ export default function CommunityScreen() {
       )}
 
       <SectionHeader title="Collectors Here" />
+      {/* Says what the five are, so the section does not read as "only five
+          people are in this four-thousand-member community". */}
+      <Text style={styles.muted}>
+        The collectors running this community.
+      </Text>
       {members.length === 0 ? (
         <Text style={styles.muted}>No members yet.</Text>
       ) : (
@@ -307,6 +328,27 @@ export default function CommunityScreen() {
                 </Text>
                 <Text style={styles.muted}>@{member.handle}</Text>
               </View>
+              {/* The role, not a decoration — it is the reason this person is
+                  one of the five shown. Leader is tinted; co-leader is not, so
+                  the one person in charge is findable at a glance rather than
+                  being one of five identical pills. */}
+              {roleFor(community.id, member.id) ? (
+                <View
+                  style={[
+                    styles.role,
+                    roleFor(community.id, member.id) === 'leader' && styles.roleLeader,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.roleText,
+                      roleFor(community.id, member.id) === 'leader' && styles.roleTextLeader,
+                    ]}
+                  >
+                    {ROLE_LABELS[roleFor(community.id, member.id)!]}
+                  </Text>
+                </View>
+              ) : null}
               <Text style={styles.chevron}>›</Text>
             </Pressable>
           ))}
@@ -369,6 +411,16 @@ const styles = StyleSheet.create({
   },
   rowBody: { flex: 1, gap: 2 },
   rowTitle: { ...typography.cardTitle, color: colors.textPrimary },
+  role: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  roleLeader: { borderColor: colors.accent, backgroundColor: colors.accentMuted },
+  roleText: { ...typography.meta, color: colors.textTertiary },
+  roleTextLeader: { color: colors.accent },
   chevron: { fontSize: 22, color: colors.textTertiary },
   rowPinned: { borderColor: colors.accent },
   pinned: { ...typography.meta, fontSize: 10, color: colors.accent, letterSpacing: 0.5 },

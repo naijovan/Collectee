@@ -34,6 +34,7 @@ import { SCAN_RESULTS, SCAN_RESULTS_BY_TITLE } from '../src/fixtures/scan-result
 import { ARTICLES } from '../src/fixtures/articles';
 import { COMMENTS, COMMUNITIES, FLAGS, FOLLOWS, NOTIFICATIONS, SAVED_ARTICLES } from '../src/fixtures/social';
 import { USERS, USERS_BY_ID, GAME_ACCOUNTS } from '../src/fixtures/users';
+import { COMMUNITY_ROLES } from '../src/config/communityRoles';
 /* avatarRoster, NOT avatarRegistry. The registry require()s PNGs and only
    Metro resolves those — importing it here crashes on the first image. */
 import { AVATARS } from '../src/config/avatarRoster';
@@ -479,6 +480,60 @@ for (const user of USERS) {
   warn(count < 1000, `§15: ${user.displayName} owns ${count} items — keep counts plausible`);
 }
 check(USERS_BY_ID.size === USERS.length, 'Duplicate user id');
+
+// ── Community roles ────────────────────────────────────────────────────
+/**
+ * Every community names a leader and four co-leaders, and all five are members.
+ *
+ * The screen renders exactly these five under "Collectors Here", so a missing
+ * row is an empty section and a role held by a non-member is a face in a
+ * community they never joined — neither of which is visible until someone
+ * opens that specific community.
+ */
+for (const community of COMMUNITIES) {
+  const roles = COMMUNITY_ROLES[community.id];
+  check(roles !== undefined, `Community ${community.name}: no entry in config/communityRoles`);
+  if (!roles) continue;
+
+  const members = new Set<string>(community.memberIds);
+  check(
+    members.has(roles.leaderId),
+    `Community ${community.name}: leader ${roles.leaderId} is not a member`,
+  );
+  check(
+    roles.coLeaderIds.length === 4,
+    `Community ${community.name}: ${roles.coLeaderIds.length} co-leaders, expected 4`,
+  );
+  for (const coLeader of roles.coLeaderIds) {
+    check(
+      members.has(coLeader),
+      `Community ${community.name}: co-leader ${coLeader} is not a member`,
+    );
+    check(
+      coLeader !== roles.leaderId,
+      `Community ${community.name}: ${coLeader} is both leader and co-leader`,
+    );
+    check(userIds.has(coLeader), `Community ${community.name}: unknown co-leader ${coLeader}`);
+  }
+  check(userIds.has(roles.leaderId), `Community ${community.name}: unknown leader`);
+  check(
+    new Set(roles.coLeaderIds).size === roles.coLeaderIds.length,
+    `Community ${community.name}: a co-leader is listed twice`,
+  );
+}
+
+/**
+ * Every community has at least one discussion.
+ *
+ * An empty Discussions section reads as a dead community, and the seeded set is
+ * meant to look inhabited.
+ */
+for (const community of COMMUNITIES) {
+  check(
+    THREADS.some((thread) => thread.communityId === community.id),
+    `Community ${community.name}: no threads — Discussions would render empty`,
+  );
+}
 
 // ── Avatars ────────────────────────────────────────────────────────────
 /**

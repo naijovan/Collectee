@@ -76,7 +76,7 @@ export const COMMUNITIES = [
     description: 'CODM weapon blueprints. Post your pulls, not your K/D.',
     avatarUrl: 'communities/blueprint-vault.png',
     tags: ['CODM', 'blueprints'],
-    memberIds: ['user-jovan', 'user-rei', 'user-syafiq', 'user-kai'],
+    memberIds: ['user-syafiq', 'user-rei', 'user-tarek', 'user-iman', 'user-kai', 'user-jovan'],
     memberCount: 4218,
   },
   {
@@ -85,7 +85,7 @@ export const COMMUNITIES = [
     description: 'Valorant melee only. Ultra tier welcome, Select tier respected.',
     avatarUrl: 'communities/knife-collectors.png',
     tags: ['Valorant', 'melee'],
-    memberIds: ['user-mei', 'user-jovan', 'user-kai'],
+    memberIds: ['user-mei', 'user-kai', 'user-bo', 'user-nova', 'user-zennx', 'user-jovan'],
     memberCount: 2967,
   },
   {
@@ -94,7 +94,7 @@ export const COMMUNITIES = [
     description: 'MLBB Collector and Legend skins. SEA-first.',
     avatarUrl: 'communities/land-of-dawn.png',
     tags: ['MLBB', 'Collector'],
-    memberIds: ['user-danish', 'user-rei', 'user-nadia'],
+    memberIds: ['user-danish', 'user-nadia', 'user-priya', 'user-arya', 'user-rei'],
     memberCount: 6104,
   },
   {
@@ -103,7 +103,7 @@ export const COMMUNITIES = [
     description: 'Cross-game collectors. Rooms, not grids.',
     avatarUrl: 'communities/one-shelf.png',
     tags: ['cross-game', 'rooms'],
-    memberIds: ['user-arya', 'user-jovan'],
+    memberIds: ['user-arya', 'user-zennx', 'user-nova', 'user-iman', 'user-kai', 'user-jovan'],
     memberCount: 1487,
   },
 
@@ -128,7 +128,7 @@ export const COMMUNITIES = [
     description: 'CODM Mythic and Legendary pulls. Screenshots or it did not happen.',
     avatarUrl: 'communities/mythic-drop.png',
     tags: ['CODM', 'Mythic'],
-    memberIds: ['user-jovan', 'user-zennx', 'user-syafiq', 'user-bo'],
+    memberIds: ['user-zennx', 'user-syafiq', 'user-tarek', 'user-bo', 'user-rei', 'user-jovan'],
     memberCount: 3345,
   },
   {
@@ -137,7 +137,7 @@ export const COMMUNITIES = [
     description: 'MLBB Collector, Legend and Epic skins, from the SEA servers out.',
     avatarUrl: 'communities/hero-skins.png',
     tags: ['MLBB', 'Epic'],
-    memberIds: ['user-jovan', 'user-danish', 'user-nadia', 'user-priya'],
+    memberIds: ['user-priya', 'user-danish', 'user-nadia', 'user-arya', 'user-iman', 'user-jovan'],
     memberCount: 5290,
   },
   {
@@ -146,7 +146,7 @@ export const COMMUNITIES = [
     description: 'Every Valorant Vandal line, ranked and argued about.',
     avatarUrl: 'communities/vandal-club.png',
     tags: ['Valorant', 'rifles'],
-    memberIds: ['user-mei', 'user-tarek', 'user-arya'],
+    memberIds: ['user-bo', 'user-mei', 'user-kai', 'user-nova', 'user-zennx', 'user-tarek'],
     memberCount: 2154,
   },
   {
@@ -155,7 +155,7 @@ export const COMMUNITIES = [
     description: 'MLBB Epic and Special skins. Squad-ups optional, screenshots not.',
     avatarUrl: 'communities/epic-nights.png',
     tags: ['MLBB', 'Special'],
-    memberIds: ['user-nadia', 'user-iman', 'user-rei'],
+    memberIds: ['user-nadia', 'user-iman', 'user-danish', 'user-priya', 'user-rei'],
     memberCount: 1876,
   },
   {
@@ -164,7 +164,7 @@ export const COMMUNITIES = [
     description: 'Showroom walkthroughs from every game. Post yours, tour theirs.',
     avatarUrl: 'communities/shelf-tours.png',
     tags: ['cross-game', 'showrooms'],
-    memberIds: ['user-nova', 'user-kai', 'user-arya', 'user-iman'],
+    memberIds: ['user-nova', 'user-kai', 'user-arya', 'user-iman', 'user-zennx'],
     memberCount: 998,
   },
 ] as const satisfies readonly Community[];
