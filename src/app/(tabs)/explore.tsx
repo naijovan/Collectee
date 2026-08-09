@@ -11,7 +11,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import {
   ASSISTANT_CLEARANCE,
@@ -154,7 +154,25 @@ export default function ExploreScreen() {
      of the page and fades in once it starts doing a job. */
   const { scrolled, scrollProps } = useScrolledPast();
 
-  const [tab, setTab] = useState<Tab>('Collectors');
+  /**
+   * Which tab to open on, addressable by route param — `/explore?tab=Communities`.
+   *
+   * Mirrors `/connections?tab=following`, the pattern already in the app. It
+   * exists because Home needs to send someone straight to Communities, and
+   * without it every caller lands on Collectors no matter what it meant.
+   *
+   * VALIDATED against `TABS` rather than cast. An unrecognised value falls back
+   * to 'Collectors' — a typo'd or stale link must not render a tab that matches
+   * nothing and shows an empty screen. Absent behaves exactly as before.
+   *
+   * Initial state only, deliberately: once the screen is open the chips own the
+   * selection, so arriving by link and then tapping a chip behaves like any
+   * other visit rather than snapping back to the param.
+   */
+  const { tab: requestedTab } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<Tab>(() =>
+    TABS.includes(requestedTab as Tab) ? (requestedTab as Tab) : 'Collectors',
+  );
   const [collectors, setCollectors] = useState<CollectorRecommendation[]>([]);
   const [communities, setCommunities] = useState<CommunityRecommendation[]>([]);
   const [mine, setMine] = useState<Community[]>([]);

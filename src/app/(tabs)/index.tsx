@@ -78,6 +78,9 @@ import { GAME_LABELS, GAME_TITLES } from '@/types';
 import type { Article, Collection, Item, Room, User } from '@/types';
 
 const FILTERS = ['All', 'Collections', 'Collectors', 'Rooms'] as const;
+/* The Communities entry's own one-item option list. Hoisted so it is not a new
+   array identity on every render. */
+const COMMUNITIES_ENTRY: readonly string[] = ['Communities'];
 type Filter = (typeof FILTERS)[number];
 
 interface ExploreEntry {
@@ -473,8 +476,58 @@ export default function HomeScreen() {
       }
     >
 
-      {/* 2 — Filter chips */}
-      <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
+      {/*
+        2 — Filter chips, plus the Communities entry.
+
+        ── Why a scroller, and why only here ──────────────────────────────────
+        `FilterChips` renders a `flexWrap: 'wrap'` row. Four chips measure
+        336.6pt (measured from the real Inter Medium advances at the chip's
+        12pt), which fits a 375pt screen's 343pt of content width — but a fifth
+        pushes the row to 454pt and wraps on EVERY phone width, adding a second
+        line and moving everything below it down by 42pt.
+
+        A horizontal scroller fixes that without touching `FilterChips`, which
+        has four callers (News, Collections, Import, Explore) that must not
+        change. Inside a horizontal ScrollView the content is width-unbounded,
+        so `flexWrap` has nothing to wrap against and the row lays out on one
+        line — the wrap is neutralised by the container, not by editing the
+        component.
+
+        `nestedScrollEnabled` for the same reason `AvatarPicker` carries it:
+        this sits inside a vertical ScrollView and Android otherwise swallows
+        the horizontal drag.
+      */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled
+        contentContainerStyle={styles.chipScroller}
+      >
+        <FilterChips options={FILTERS} value={filter} onChange={setFilter} />
+        {/*
+          Communities — a destination, not a filter.
+
+          Deliberately NOT a member of `FILTERS`. Adding it there would put it
+          in Home's filter state: it would render active when tapped and would
+          clear whichever real filter was selected. It is a sibling row instead.
+
+          `FilterChips<string>` rather than a bare chip, because `Chip` is
+          module-private in `primitives` and exporting it would mean editing a
+          shared component for cosmetics. The explicit `string` type argument is
+          what keeps this inert — it widens the value type so `value=""` can
+          never equal 'Communities', and the chip therefore renders inactive
+          always. Same component, so height, padding, typography and the
+          inactive colour are identical by construction rather than by copying
+          values.
+        */}
+        <FilterChips<string>
+          options={COMMUNITIES_ENTRY}
+          value=""
+          onChange={() =>
+            router.navigate({ pathname: '/explore', params: { tab: 'Communities' } })
+          }
+        />
+      </ScrollView>
 
       {/*
         3 — Hero banner
@@ -898,6 +951,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: spacing.lg, gap: spacing.xl },
 
+  /* The chip row's scroller. `gap` matches `FilterChips`' own `chipRow` gap so
+     the Communities entry sits the same distance from 'Rooms' as the real
+     chips sit from each other — the two rows read as one row. No padding and
+     no height: the scroller must contribute nothing of its own, or the content
+     below Home's chips would move. */
+  chipScroller: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerText: { gap: 2 },
   /**
