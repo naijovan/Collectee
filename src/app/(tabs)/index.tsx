@@ -226,7 +226,7 @@ function rankTrendingRooms(entries: readonly RoomEntry[]): RoomEntry[] {
 }
 
 /**
- * Explore Collectibles: keep the service's verification-share ranking, then
+ * Explore Collections: keep the service's verification-share ranking, then
  * spread owner, game and cover art.
  *
  * The game key is the headline item's title because that is precisely what the
@@ -650,7 +650,7 @@ export default function HomeScreen() {
       {show('Collections') ? (
         <View>
           <SectionHeader
-            title="Explore Collectibles"
+            title="Explore Collections"
             prominent
             onSeeAll={() => router.navigate('/explore')}
           />
@@ -1040,7 +1040,7 @@ const styles = StyleSheet.create({
    * `justifyContent: 'space-between'` were all pushing the two columns apart at
    * once, which is what made the channel down the middle so wide.
    *
-   * Used by BOTH "Explore Collectibles" and "Trending Showrooms", so this
+   * Used by BOTH "Explore Collections" and "Trending Showrooms", so this
    * closes both.
    */
   grid: {
